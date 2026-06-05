@@ -47,6 +47,9 @@ Realtime Database -> Regole -> incolla il contenuto di **`firebase-rules.json`**
 ### 3) Carica i 13 modelli 3D
 Metti `step-01.glb` ... `step-13.glb` in **`public/model/`**.
 
+> Il generatore di modulistica (`public/generatore-modulistica.html`) e gia
+> incluso e viene pubblicato in automatico: lo apri dalla sezione Documenti.
+
 ---
 
 ## Avvio in locale

@@ -73,6 +73,7 @@ import { AppleSwitch } from './components/AppleSwitch';
 import { injectSmartTextStyles } from './components/SmartText';
 import { GoogleLogin } from './components/GoogleLogin';
 import { AccessRequests } from './components/AccessRequests';
+import { DocumentsView } from './components/DocumentsView';
 import {
   watchAuth,
   logoutGoogle,
@@ -1456,6 +1457,18 @@ export default function App() {
 
       case 'interactive':
         return <InteractiveView />;
+
+      case 'documenti':
+        return (
+          <DocumentsView
+            documents={documents}
+            projects={Object.values(projects)}
+            users={users}
+            canEdit={currentUser.role !== 'cliente' && currentUser.role !== 'partner'}
+            onUploadDocument={handleUploadDocument}
+            onDeleteDocument={handleDeleteDocument}
+          />
+        );
 
       case 'team':
         return (

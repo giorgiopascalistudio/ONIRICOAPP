@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { FinanceMovement, Project } from '../types';
 import { eur, fmtDay, numIt, todayISO } from '../utils';
+import { watchNode, writeNode } from '../firebase';
 
 interface FinanzeViewProps {
   finance: FinanceMovement[];
@@ -145,270 +146,47 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     }, 3500);
   };
 
-  // --- INITIALIZE SEED DATA IN LOCAL STORAGE IF ABSENT ---
+  // --- DATI FINANZIARI CONDIVISI SUL DATABASE (niente più dati fissi) ---
   useEffect(() => {
-    // 1. Computi Metrici & Preventivi
-    const cachedComputi = localStorage.getItem('onirico_computi');
-    if (cachedComputi) {
-      setComputi(JSON.parse(cachedComputi));
-    } else {
-      const seedComputi: Computo[] = [
-        {
-          id: 'cp-1',
-          projectId: 'p-villa-ostuni',
-          title: 'Computo Opere Murarie e Finiture di Pregio',
-          items: [
-            { id: 'ci-1', desc: 'Demolizione pavimentazioni e massetti interni deteriorati', category: 'Demolizioni', quantity: 140, unitPrice: 18 },
-            { id: 'ci-2', desc: 'Rifacimento tramezzature interne in tufo locale rustico', category: 'Murature', quantity: 85, unitPrice: 38 },
-            { id: 'ci-3', desc: 'Posa massetto alleggerito per riscaldamento radiante d’élite', category: 'Murature', quantity: 140, unitPrice: 22 },
-            { id: 'ci-4', desc: 'Impianto radiante pavimento a serpentina isolata spessore 5cm', category: 'Impianti', quantity: 1, unitPrice: 11800 },
-            { id: 'ci-5', desc: 'Pavimento in microcemento continuo grigio pietra di Trani', category: 'Finiture', quantity: 125, unitPrice: 95 },
-            { id: 'ci-6', desc: 'Posa serramenti scorrevoli minimalistici ad alta efficienza termica', category: 'Infissi', quantity: 6, unitPrice: 2100 }
-          ]
-        },
-        {
-          id: 'cp-2',
-          projectId: 'p-strategico-pastificio',
-          title: 'Preventivo Campagna Rilancio Packaging ed Export',
-          items: [
-            { id: 'ci-2-1', desc: 'Design e layout fustelle ed ecopackaging in cartoncino riciclato', category: 'Strategia', quantity: 4, unitPrice: 1500 },
-            { id: 'ci-2-2', desc: 'Sviluppo piattaforma e-commerce Shopify multiserver multilingua', category: 'Development', quantity: 1, unitPrice: 8500 },
-            { id: 'ci-2-3', desc: 'Consulenza per internazionalizzazione export doganale Germania', category: 'Strategia', quantity: 1, unitPrice: 4000 },
-            { id: 'ci-2-4', desc: 'Configurazione e setup campagne pubblicitarie Meta ed Instagram', category: 'Marketing', quantity: 3, unitPrice: 1200 }
-          ]
-        }
-      ];
-      localStorage.setItem('onirico_computi', JSON.stringify(seedComputi));
-      setComputi(seedComputi);
-    }
-
-    // 2. Active Invoices
-    const cachedActive = localStorage.getItem('onirico_invoices_active');
-    if (cachedActive) {
-      setActiveInvoices(JSON.parse(cachedActive));
-    } else {
-      const seedActive: InvoiceActive[] = [
-        {
-          id: 'FE-2026-001',
-          clientName: 'Cliente Bianchi',
-          projectId: 'p-villa-ostuni',
-          projectName: 'Villa Bianchi — Ostuni',
-          amount: 3500,
-          taxRate: 22,
-          status: 'pagata',
-          sdiCode: 'M5UXCR1',
-          date: '2026-05-12',
-          dueDate: '2026-06-12',
-          sector: 'studio',
-          isSal: true,
-          salNumber: 1
-        },
-        {
-          id: 'FE-2026-002',
-          clientName: 'Cliente Bianchi',
-          projectId: 'p-villa-ostuni',
-          projectName: 'Villa Bianchi — Ostuni',
-          amount: 8200,
-          taxRate: 22,
-          status: 'inviata_sdi',
-          sdiCode: 'M5UXCR1',
-          date: '2026-06-01',
-          dueDate: '2026-06-30',
-          sector: 'studio',
-          isSal: true,
-          salNumber: 2
-        },
-        {
-          id: 'FE-2026-003',
-          clientName: 'Antico Pastificio Foggia',
-          projectId: 'p-strategico-pastificio',
-          projectName: 'Rebranding & Export — Pastificio Foggia',
-          amount: 12000,
-          taxRate: 22,
-          status: 'bozza',
-          sdiCode: '—',
-          date: '2026-06-05',
-          dueDate: '2026-07-05',
-          sector: 'strategico'
-        },
-        {
-          id: 'FE-2026-004',
-          clientName: 'Studio Gallone',
-          projectId: 'p-materico-pavimenti',
-          projectName: 'Pavimenti Resinati — Loft Lecce Center',
-          amount: 6000,
-          taxRate: 22,
-          status: 'consegnata_sdi',
-          sdiCode: 'X99M2Y1',
-          date: '2026-06-03',
-          dueDate: '2026-06-28',
-          sector: 'materico'
-        }
-      ];
-      localStorage.setItem('onirico_invoices_active', JSON.stringify(seedActive));
-      setActiveInvoices(seedActive);
-    }
-
-    // 3. Passive Invoices
-    const cachedPassive = localStorage.getItem('onirico_invoices_passive');
-    if (cachedPassive) {
-      setPassiveInvoices(JSON.parse(cachedPassive));
-    } else {
-      const seedPassive: InvoicePassive[] = [
-        {
-          id: 'FP-2026-01',
-          supplierName: 'Geotools S.r.l.',
-          projectId: 'p-villa-ostuni',
-          projectName: 'Villa Bianchi — Ostuni',
-          amount: 450,
-          category: 'Noleggi',
-          status: 'pagata',
-          date: '2026-05-10',
-          dueDate: '2026-05-25',
-          sector: 'studio',
-          description: 'Noleggio e calibrazione Laser Leica 3D Scanner ad alta definizione'
-        },
-        {
-          id: 'FP-2026-02',
-          supplierName: 'Resine d’Arte Apulia',
-          projectId: 'p-materico-pavimenti',
-          projectName: 'Pavimenti Resinati — Loft Lecce Center',
-          amount: 14000,
-          category: 'Fornitori Partner',
-          status: 'ricevuta',
-          date: '2026-05-24',
-          dueDate: '2026-06-15',
-          sector: 'materico',
-          description: 'Fornitura resina cementizia HD e manodopera posa posatori specializzati'
-        },
-        {
-          id: 'FP-2026-03',
-          supplierName: 'Studio Legale & Associati',
-          projectId: '',
-          projectName: '— Spese Generali Studio —',
-          amount: 1200,
-          category: 'Consulenze',
-          status: 'ricevuta',
-          date: '2026-06-02',
-          dueDate: '2026-07-02',
-          sector: 'studio',
-          description: 'Consulenza contrattualistica B2B e clausole conformità di brand'
-        }
-      ];
-      localStorage.setItem('onirico_invoices_passive', JSON.stringify(seedPassive));
-      setPassiveInvoices(seedPassive);
-    }
-
-    // 4. Scadenziario Pagamenti (Incassi e Uscite)
-    const cachedScadenze = localStorage.getItem('onirico_scadenze');
-    if (cachedScadenze) {
-      setScadenze(JSON.parse(cachedScadenze));
-    } else {
-      const seedScadenze: ScadenzaItem[] = [
-        {
-          id: 'sc-1',
-          kind: 'entrata',
-          desc: 'Rilievo e Disegno - 1° SAL',
-          clientOrSupplier: 'Cliente Bianchi',
-          amount: 3500,
-          dueDate: '2026-05-12',
-          status: 'pagato',
-          projectId: 'p-villa-ostuni',
-          sector: 'studio'
-        },
-        {
-          id: 'sc-2',
-          kind: 'entrata',
-          desc: 'Presentazione CILA - 2° SAL',
-          clientOrSupplier: 'Cliente Bianchi',
-          amount: 8200,
-          dueDate: '2026-06-30',
-          status: 'pago_attesa',
-          projectId: 'p-villa-ostuni',
-          sector: 'studio'
-        },
-        {
-          id: 'sc-3',
-          kind: 'uscita',
-          desc: 'Fatto saldare per Posa Microcemento Loft',
-          clientOrSupplier: 'Resine d’Arte Apulia',
-          amount: 14000,
-          dueDate: '2026-06-15',
-          status: 'pago_attesa',
-          projectId: 'p-materico-pavimenti',
-          sector: 'materico'
-        },
-        {
-          id: 'sc-4',
-          kind: 'entrata',
-          desc: 'Kickoff e Concept Progetto Strategico',
-          clientOrSupplier: 'Antico Pastificio Foggia',
-          amount: 12000,
-          dueDate: '2026-07-05',
-          status: 'pago_attesa',
-          projectId: 'p-strategico-pastificio',
-          sector: 'strategico'
-        },
-        {
-          id: 'sc-5',
-          kind: 'entrata',
-          desc: 'Fornitura Pavimenti resinati - Acconto',
-          clientOrSupplier: 'Studio Gallone',
-          amount: 6000,
-          dueDate: '2026-06-28',
-          status: 'pago_attesa',
-          projectId: 'p-materico-pavimenti',
-          sector: 'materico'
-        }
-      ];
-      localStorage.setItem('onirico_scadenze', JSON.stringify(seedScadenze));
-      setScadenze(seedScadenze);
-    }
-
-    // 5. Automated Bank movements
-    const cachedBank = localStorage.getItem('onirico_banca_movimenti');
-    if (cachedBank) {
-      setBankMovements(JSON.parse(cachedBank));
-    } else {
-      const seedBank: BankMovementSim[] = [
-        { id: 'bm-1', date: '2026-05-12', desc: 'BONIFICO DA: CLIENTE BIANCHI RIF. FE-001 VILLA OSTUNI', amount: 3500, reconciled: true, linkedInvoiceId: 'FE-2026-001' },
-         { id: 'bm-2', date: '2026-05-10', desc: 'ADDEBITO CORRENTE DI: GEOTOOLS SRL laser scanner rental', amount: -450, reconciled: true, linkedInvoiceId: 'FP-2026-01' },
-        { id: 'bm-3', date: '2026-06-03', desc: 'BONIFICO SEPA EFFETTUATO DA: STUDIO GALLONE SRL - INTR-04', amount: 6000, reconciled: false },
-        { id: 'bm-4', date: '2026-06-04', desc: 'SPESA OPERATIVA ADDEBITO UNICREDIT MULTICASH', amount: -35, reconciled: false }
-      ];
-      localStorage.setItem('onirico_banca_movimenti', JSON.stringify(seedBank));
-      setBankMovements(seedBank);
-    }
+    const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
+    const subs = [
+      watchNode('finComputi', (v) => setComputi(toArr(v)), () => {}),
+      watchNode('finInvoicesActive', (v) => setActiveInvoices(toArr(v)), () => {}),
+      watchNode('finInvoicesPassive', (v) => setPassiveInvoices(toArr(v)), () => {}),
+      watchNode('finScadenze', (v) => setScadenze(toArr(v)), () => {}),
+      watchNode('finBank', (v) => setBankMovements(toArr(v)), () => {})
+    ];
+    return () => subs.forEach((u) => u());
   }, []);
 
-  // --- PERSISTENCE WRITERS ---
+  // --- PERSISTENCE WRITERS (scrivono sul Database condiviso) ---
   const saveComputi = (data: Computo[]) => {
-    localStorage.setItem('onirico_computi', JSON.stringify(data));
     setComputi(data);
+    writeNode('finComputi', data).catch(() => {});
   };
 
   const saveActiveInvoices = (data: InvoiceActive[]) => {
-    localStorage.setItem('onirico_invoices_active', JSON.stringify(data));
     setActiveInvoices(data);
+    writeNode('finInvoicesActive', data).catch(() => {});
   };
 
   const savePassiveInvoices = (data: InvoicePassive[]) => {
-    localStorage.setItem('onirico_invoices_passive', JSON.stringify(data));
     setPassiveInvoices(data);
+    writeNode('finInvoicesPassive', data).catch(() => {});
   };
 
   const saveScadenze = (data: ScadenzaItem[]) => {
-    localStorage.setItem('onirico_scadenze', JSON.stringify(data));
     setScadenze(data);
+    writeNode('finScadenze', data).catch(() => {});
   };
 
   const saveBankMovements = (data: BankMovementSim[]) => {
-    localStorage.setItem('onirico_banca_movimenti', JSON.stringify(data));
     setBankMovements(data);
+    writeNode('finBank', data).catch(() => {});
   };
 
   // --- STATE FOR NEW ENTRY CREATION BOARDS ---
-  const [activeProjectForComputo, setActiveProjectForComputo] = useState<string>('p-villa-ostuni');
+  const [activeProjectForComputo, setActiveProjectForComputo] = useState<string>('');
   const [newCompDesc, setNewCompDesc] = useState('');
   const [newCompCat, setNewCompCat] = useState('Edile');
   const [newCompQty, setNewCompQty] = useState('');
