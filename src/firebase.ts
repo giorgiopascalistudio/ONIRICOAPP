@@ -2,17 +2,10 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * Firebase – Onirico Studio OS
- * --------------------------------------------------------------
- * Incolla qui SOLO i 3 valori mancanti del tuo progetto Firebase
- * (apiKey, messagingSenderId, appId). Li trovi identici nel tuo
- * vecchio file HTML "onirico-studio-os.html" dentro l'oggetto
- * `firebaseConfig`, oppure su:
- *   Firebase Console → Impostazioni progetto → Le tue app (Web).
- *
- * I campi authDomain / projectId / storageBucket sono già
- * compilati con il progetto che usi (oniricoapp-48953).
- * --------------------------------------------------------------
+ * Firebase – Onirico Studio OS (progetto oniricoapp-48953)
+ * Config reale già inserita. L'apiKey web NON è un segreto: è
+ * visibile nel sorgente di ogni sito Firebase; la sicurezza vera
+ * viene dalle regole di Auth/Database.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -26,12 +19,13 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'INCOLLA_QUI_LA_TUA_API_KEY',
+  apiKey: 'AIzaSyDzhJBHWFTWnU86Mx9i-Z-uJmYUJTXrF3k',
   authDomain: 'oniricoapp-48953.firebaseapp.com',
+  databaseURL: 'https://oniricoapp-48953-default-rtdb.europe-west1.firebasedatabase.app',
   projectId: 'oniricoapp-48953',
-  storageBucket: 'oniricoapp-48953.appspot.com',
-  messagingSenderId: 'INCOLLA_QUI_IL_SENDER_ID',
-  appId: 'INCOLLA_QUI_L_APP_ID'
+  storageBucket: 'oniricoapp-48953.firebasestorage.app',
+  messagingSenderId: '471588067505',
+  appId: '1:471588067505:web:52f03aeed3da5b6ac3aa90'
 };
 
 const app = initializeApp(firebaseConfig);
