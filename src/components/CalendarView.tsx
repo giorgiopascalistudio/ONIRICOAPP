@@ -1,0 +1,601 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Sparkles, Edit2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Project, Task } from '../types';
+import { fmtMonthYear, fmtDayLong, DOW, addDays, startOfMonth, startOfWeek, isoDate, relDay, sameDay, parseISO } from '../utils';
+
+interface CalendarViewProps {
+  tasks: Task[];
+  projects: Project[];
+  calView: 'month' | 'week' | 'day';
+  calDate: Date;
+  onSetCalView: (view: 'month' | 'week' | 'day') => void;
+  onSetCalDate: (date: Date) => void;
+  onToggleTask: (taskId: string, date: string) => void;
+  onEditTask: (taskId: string) => void;
+  onNewTask: (presetDate?: string) => void;
+  myUid: string;
+}
+
+export const CalendarView: React.FC<CalendarViewProps> = ({
+  tasks,
+  projects,
+  calView,
+  calDate,
+  onSetCalView,
+  onSetCalDate,
+  onToggleTask,
+  onEditTask,
+  onNewTask,
+  myUid
+}) => {
+  const todayISO = isoDate(new Date());
+
+  const occursOn = (t: Task, iso: string): boolean => {
+    if (!t.date || iso < t.date) return false;
+    const f = t.frequency || 'once';
+    if (f === 'once') return iso === t.date;
+    if (f === 'daily') return true;
+    const a = parseISO(t.date);
+    const d = parseISO(iso);
+    if (isNaN(a.getTime()) || isNaN(d.getTime())) return false;
+    const diff = Math.round((d.getTime() - a.getTime()) / 86400000);
+    if (f === 'weekly') return diff % 7 === 0;
+    if (f === 'monthly') {
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      return d.getDate() === Math.min(a.getDate(), lastDay);
+    }
+    return false;
+  };
+
+  const taskDoneOn = (t: Task, iso: string): boolean => {
+    const f = t.frequency || 'once';
+    if (f === 'once') return !!t.done;
+    return !!(t.completions && t.completions[iso]);
+  };
+
+  const projTasksOn = (iso: string): Task[] => {
+    const out: Task[] = [];
+    projects.forEach(p => {
+      Object.keys(p.phases || {}).forEach(phId => {
+        const ph = p.phases[phId];
+        Object.keys(ph.tasks || {}).forEach(tId => {
+          const t = ph.tasks[tId];
+          if (t.assignee === myUid && t.due === iso) {
+            out.push({
+              id: `p::${p.id}::${phId}::${tId}`,
+              title: t.title,
+              date: t.due,
+              frequency: 'once',
+              priority: 'media',
+              assignee: t.assignee,
+              projectId: p.id,
+              done: !!t.done,
+              createdAt: p.createdAt,
+              updatedAt: p.updatedAt,
+              createdBy: p.manager || '',
+              _proj: true
+            });
+          }
+        });
+      });
+    });
+    return out;
+  };
+
+  const tasksOnDate = (iso: string): Task[] => {
+    const std = tasks.filter(t => occursOn(t, iso) && (t.assignee === myUid || t.owner === myUid || (!t.assignee && t.createdBy === myUid)));
+    const prj = projTasksOn(iso);
+    return [...std, ...prj].sort((a, b) => {
+      const timeCompare = (a.time || '99:99').localeCompare(b.time || '99:99');
+      if (timeCompare !== 0) return timeCompare;
+      const prioVal = (p: string) => (p === 'alta' ? 0 : p === 'media' ? 1 : 2);
+      return prioVal(a.priority) - prioVal(b.priority);
+    });
+  };
+
+  const handlePrev = () => {
+    const d = new Date(calDate);
+    if (calView === 'month') {
+      d.setMonth(d.getMonth() - 1);
+    } else if (calView === 'week') {
+      d.setDate(d.getDate() - 7);
+    } else {
+      d.setDate(d.getDate() - 1);
+    }
+    onSetCalDate(d);
+  };
+
+  const handleNext = () => {
+    const d = new Date(calDate);
+    if (calView === 'month') {
+      d.setMonth(d.getMonth() + 1);
+    } else if (calView === 'week') {
+      d.setDate(d.getDate() + 7);
+    } else {
+      d.setDate(d.getDate() + 1);
+    }
+    onSetCalDate(d);
+  };
+
+  const handleToday = () => {
+    onSetCalDate(new Date());
+  };
+
+  const calHeadLabel = () => {
+    if (calView === 'month') return fmtMonthYear(calDate);
+    if (calView === 'week') {
+      const s = startOfWeek(calDate);
+      const e = addDays(s, 6);
+      const df = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' });
+      const dfYear = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${df.format(s)} – ${dfYear.format(e)}`;
+    }
+    return fmtDayLong(calDate);
+  };
+
+  // RENDER MONTH VIEW
+  const renderMonth = () => {
+    const first = startOfMonth(calDate);
+    const gridStart = startOfWeek(first);
+    const cells = Array.from({ length: 42 }).map((_, i) => addDays(gridStart, i));
+
+    return (
+      <div className="bg-white border border-[#e2e2e2] rounded-[26px] overflow-hidden shadow-xs text-left">
+        {/* Days of week header */}
+        <div className="grid grid-cols-7 border-b border-[#ececec] bg-[#fbfbfb]">
+          {DOW.map(day => (
+            <div key={day} className="p-3.5 text-[11px] font-bold text-[#8a8a8a] tracking-widest uppercase text-center border-r border-[#f5f5f5] last:border-r-0">
+              {day}
+            </div>
+          ))}
+        </div>        {/* Days grid */}
+        <div className="grid grid-cols-7 grid-rows-6 auto-rows-[minmax(52px,1fr)] md:auto-rows-[minmax(82px,1fr)] bg-gray-200 gap-[1px]">
+          {cells.map((c, i) => {
+            const iso = isoDate(c);
+            const inMonth = c.getMonth() === calDate.getMonth();
+            const list = tasksOnDate(iso);
+            const isToday = iso === todayISO;
+
+            return (
+              <div
+                key={i}
+                onClick={() => {
+                  onSetCalDate(c);
+                  onSetCalView('day');
+                }}
+                className={`bg-white p-1 min-h-[52px] md:min-h-[82px] transition-all duration-200 cursor-pointer flex flex-col justify-start hover:bg-slate-50/50 relative group ${
+                  !inMonth ? 'bg-gray-50/30 text-gray-400 opacity-60' : ''
+                } ${isToday ? 'bg-orange-50/15' : ''}`}
+              >
+                {/* Day Header Row */}
+                <div className="flex justify-between items-center w-full mb-0.5 p-0.5">
+                  <span
+                    className={`inline-flex items-center justify-center font-bold text-[10px] md:text-[11px] min-w-[18px] h-[18px] md:min-w-[20px] md:h-[20px] rounded-full transition-all ${
+                      isToday 
+                        ? 'bg-orange-650 text-white shadow-xs' 
+                        : !inMonth 
+                        ? 'text-gray-400/70 hover:bg-gray-100' 
+                        : 'text-gray-700 group-hover:bg-gray-100'
+                    }`}
+                  >
+                    {c.getDate()}
+                  </span>
+
+                  {isToday && (
+                    <span className="relative flex h-1.5 w-1.5 mr-0.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-450 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500"></span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Desktop: Event lists rendered as horizontal Google Calendar-style strips */}
+                <div className="hidden md:flex flex-col gap-0.5 w-full overflow-hidden mt-0.5">
+                  {list.slice(0, 2).map(t => {
+                    const done = taskDoneOn(t, iso);
+                    const isProj = !!t._proj;
+
+                    const bgStyle = done
+                      ? 'bg-gray-100/70 border-gray-300 text-gray-400 line-through/50 opacity-60'
+                      : isProj
+                      ? 'bg-indigo-50 border-indigo-500 text-indigo-950 hover:bg-indigo-100/90'
+                      : t.priority === 'alta'
+                      ? 'bg-rose-50 border-rose-500 text-rose-950 hover:bg-rose-100/90'
+                      : t.priority === 'media'
+                      ? 'bg-amber-50 border-amber-550 text-amber-950 hover:bg-amber-100/90'
+                      : 'bg-emerald-50 border-emerald-500 text-emerald-950 hover:bg-emerald-100/90';
+
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditTask(t.id);
+                        }}
+                        className={`text-[9.5px] font-bold py-0.5 px-1 rounded truncate text-left border-l-2 select-none transition-all duration-150 hover:translate-x-0.5 shadow-3xs leading-none ${bgStyle}`}
+                        title={t.title}
+                      >
+                        <span className="truncate flex-1">
+                          {t.time && <span className="font-extrabold mr-0.5 text-[8.5px] opacity-75">{t.time}</span>}
+                          {t.title}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {list.length > 2 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSetCalDate(c);
+                        onSetCalView('day');
+                      }}
+                      className="text-[9px] font-bold text-gray-500 pl-1 mt-0.2 text-left bg-transparent border-none cursor-pointer hover:text-black transition-colors"
+                    >
+                      +{list.length - 2} altri...
+                    </button>
+                  )}
+                </div>
+
+                {/* Mobile: Clean visual circular indicator dots to keep month view completely scroll-free and beautiful */}
+                <div className="flex md:hidden items-center justify-center gap-1 mt-1.5 flex-wrap w-full px-0.5 overflow-hidden">
+                  {list.slice(0, 3).map(t => {
+                    const done = taskDoneOn(t, iso);
+                    const isProj = !!t._proj;
+
+                    let dotColor = 'bg-emerald-500';
+                    if (done) dotColor = 'bg-gray-300';
+                    else if (isProj) dotColor = 'bg-indigo-500';
+                    else if (t.priority === 'alta') dotColor = 'bg-rose-500';
+                    else if (t.priority === 'media') dotColor = 'bg-amber-400';
+
+                    return (
+                      <span
+                        key={t.id}
+                        className={`w-1.5 h-1.5 rounded-full ${dotColor}`}
+                      />
+                    );
+                  })}
+                  {list.length > 3 && (
+                    <span className="text-[8px] font-bold text-gray-400 leading-none">
+                      •
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // RENDER WEEK VIEW
+  const renderWeek = () => {
+    const s = startOfWeek(calDate);
+
+    return (
+      <div className="flex flex-col gap-4 text-left">
+        {Array.from({ length: 7 }).map((_, i) => {
+          const c = addDays(s, i);
+          const iso = isoDate(c);
+          const list = tasksOnDate(iso);
+          const isToday = iso === todayISO;
+
+          return (
+            <div
+              key={i}
+              className={`grid grid-cols-1 md:grid-cols-[116px_1fr] bg-white border border-[#e2e2e2] rounded-[22px] overflow-hidden shadow-2xs transition-all duration-250 hover:shadow-xs ${
+                isToday ? 'ring-1 ring-orange-500/30' : ''
+              }`}
+            >
+              {/* Date Column */}
+              <div 
+                onClick={() => onNewTask(iso)} 
+                className={`p-4 border-r border-[#f5f5f5] flex md:flex-col items-center justify-between md:justify-center cursor-pointer min-h-[76px] transition-colors ${
+                  isToday ? 'bg-orange-50/10' : 'bg-gray-50/30 hover:bg-gray-50/80'
+                }`}
+              >
+                <div className="flex items-center gap-2 md:flex-col md:gap-1">
+                  <span className={`inline-flex items-center justify-center font-extrabold text-[24px] leading-none w-10 h-10 rounded-full ${
+                    isToday ? 'bg-[#161616] text-white shadow-xs' : 'text-[#2b2b2b]'
+                  }`}>
+                    {c.getDate()}
+                  </span>
+                  <span className={`text-[11px] uppercase tracking-widest font-bold ${isToday ? 'text-orange-650' : 'text-[#8a8a8a]'}`}>
+                    {DOW[i]}
+                  </span>
+                </div>
+
+                {isToday && (
+                  <span className="flex items-center gap-1.5 md:mt-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                    <span className="text-[9.5px] uppercase font-extrabold tracking-wider text-orange-600">Oggi</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Events Column */}
+              <div
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('.chk-btn, .edit-btn, .seg-link')) return;
+                  onNewTask(iso);
+                }}
+                className="p-4 flex flex-col gap-2.5 justify-center cursor-pointer min-h-[76px]"
+              >
+                {list.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2">
+                    {list.map(t => {
+                      const done = taskDoneOn(t, iso);
+                      const projModel = t.projectId ? projects.find(pr => pr.id === t.projectId) : null;
+                      const isProj = !!t._proj;
+
+                      return (
+                        <div
+                          key={t.id}
+                          className={`flex items-center gap-3.5 py-2 px-3.5 bg-white border border-[#ececec] rounded-xl transition-all duration-200 hover:border-gray-300 hover:shadow-2xs ${
+                            done ? 'opacity-55' : ''
+                          }`}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleTask(t.id, iso);
+                            }}
+                            className="chk-btn w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-150 cursor-pointer flex-shrink-0"
+                            style={{
+                              borderColor: done ? '#15803d' : '#8a8a8a',
+                              backgroundColor: done ? '#15803d' : 'white'
+                            }}
+                          >
+                            {done && (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" className="w-[11px] h-[11px] text-white">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+
+                          <div className="flex-1 min-w-0 text-left">
+                            <b className={`block text-[13.5px] font-bold text-[#161616] leading-tight ${done ? 'line-through text-gray-500' : ''}`}>
+                              {t.title}
+                            </b>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap text-gray-400 text-[11px] font-semibold">
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] uppercase tracking-wider font-bold ${
+                                done ? 'bg-gray-100 text-gray-400' :
+                                isProj ? 'bg-indigo-50 text-indigo-700' :
+                                t.priority === 'alta' ? 'bg-rose-50 text-rose-700' :
+                                t.priority === 'media' ? 'bg-amber-50 text-amber-700' :
+                                'bg-emerald-50 text-emerald-700'
+                              }`}>
+                                <span className={`w-1 h-1 rounded-full ${
+                                  done ? 'bg-gray-400' :
+                                  isProj ? 'bg-indigo-600' :
+                                  t.priority === 'alta' ? 'bg-rose-600' :
+                                  t.priority === 'media' ? 'bg-amber-500' :
+                                  'bg-emerald-500'
+                                }`} />
+                                {isProj ? 'Cantiere' : t.priority === 'alta' ? 'Alta' : t.priority === 'media' ? 'Media' : 'Bassa'}
+                              </span>
+
+                              {projModel && (
+                                <span className="text-[#161616]/75 bg-slate-50 hover:bg-slate-100 hover:text-[#161616] transition-colors py-0.5 px-1.5 rounded-md seg-link font-medium border border-slate-100 flex items-center gap-1 capitalize">
+                                  <Sparkles className="w-2.5 h-2.5 text-orange-600" /> {projModel.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {t.time && (
+                            <span className="bg-[#f0f0f0] text-[#161616] font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg flex-shrink-0 flex items-center gap-1 select-none border border-gray-200">
+                              <Clock className="w-2.5 h-2.5 opacity-60" /> {t.time}
+                            </span>
+                          )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditTask(t.id);
+                            }}
+                            className="edit-btn w-[32px] h-[32px] rounded-lg flex items-center justify-center text-[#8a8a8a] hover:bg-[#ececec] hover:text-[#161616] transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-gray-400 text-[13px] italic font-medium pl-1 select-none">Nessun task per questa giornata</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // RENDER DAY VIEW
+  const renderDay = () => {
+    const iso = isoDate(calDate);
+    const list = tasksOnDate(iso);
+
+    return (
+      <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-6 shadow-xs text-left">
+        <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+          <div>
+            <h2 className="text-[20px] font-extrabold tracking-tight text-[#161616] capitalize">{relDay(iso)}</h2>
+            <span className="text-[12.5px] text-[#8a8a8a] font-medium">{list.length} impegni in agenda</span>
+          </div>
+          <button
+            onClick={() => onNewTask(iso)}
+            className="btn btn-sm bg-[#161616] hover:bg-black border-none text-white font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all hover:scale-[1.01]"
+          >
+            <Plus className="w-4 h-4" /> Nuovo impegno
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2.5">
+          {list.length > 0 ? (
+            list.map(t => {
+              const done = taskDoneOn(t, iso);
+              const projModel = t.projectId ? projects.find(pr => pr.id === t.projectId) : null;
+              const isProj = !!t._proj;
+
+              return (
+                <div
+                  key={t.id}
+                  className={`flex items-center justify-between gap-3.5 py-4 px-4 bg-gray-50/40 border border-[#f0f0f0] rounded-2xl transition-all duration-200 hover:border-gray-300 hover:bg-white ${
+                    done ? 'opacity-65' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                    <button
+                      onClick={() => onToggleTask(t.id, iso)}
+                      className="w-5.5 h-5.5 rounded-lg border-2 flex items-center justify-center transition-all duration-150 cursor-pointer flex-shrink-0"
+                      style={{
+                        borderColor: done ? '#15803d' : '#8a8a8a',
+                        backgroundColor: done ? '#15803d' : 'white'
+                      }}
+                    >
+                      {done && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-[12px] h-[12px] text-white">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+
+                    <div className="flex-1 min-w-0 text-left">
+                      <b className={`block text-[15px] font-bold text-[#161616] leading-snug ${done ? 'line-through text-gray-500 font-medium' : ''}`}>
+                        {t.title}
+                      </b>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap text-gray-400 text-[11.5px] font-semibold">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9.5px] uppercase tracking-wider font-extrabold ${
+                          done ? 'bg-gray-100 text-gray-400' :
+                          isProj ? 'bg-indigo-50 text-indigo-700' :
+                          t.priority === 'alta' ? 'bg-rose-50 text-rose-700' :
+                          t.priority === 'media' ? 'bg-amber-50 text-amber-500' :
+                          'bg-emerald-50 text-emerald-700'
+                        }`}>
+                          <span className={`w-1 h-1 rounded-full ${
+                            done ? 'bg-gray-400' :
+                            isProj ? 'bg-indigo-600' :
+                            t.priority === 'alta' ? 'bg-rose-600' :
+                            t.priority === 'media' ? 'bg-amber-500' :
+                            'bg-emerald-500'
+                          }`} />
+                          {isProj ? 'Cantiere' : t.priority === 'alta' ? 'Alta' : t.priority === 'media' ? 'Media' : 'Bassa'}
+                        </span>
+                        
+                        {projModel && (
+                          <span className="text-[#161616] hover:underline cursor-pointer bg-white px-2 py-0.5 rounded border border-gray-100 flex items-center gap-0.5">
+                            · {projModel.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {t.time && (
+                      <span className="bg-[#f0f0f0] text-[#161616] font-mono text-[11.5px] font-bold px-3 py-1.5 rounded-xl border border-gray-200 select-none flex items-center gap-1">
+                        <Clock className="w-3 h-3 opacity-60" /> {t.time}
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => onEditTask(t.id)}
+                      className="w-[34px] h-[34px] rounded-xl flex items-center justify-center text-[#8a8a8a] hover:bg-[#ececec] hover:text-[#161616] transition-colors cursor-pointer flex-shrink-0"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-[72px] px-5 text-[#8a8a8a] bg-gray-50/20 border border-dashed border-gray-200 rounded-3xl">
+              <CalendarIcon className="w-12 h-12 opacity-30 mx-auto mb-3 text-gray-400" />
+              <b className="block text-[#161616] text-[15.5px] font-bold mb-1">Crea un nuovo impegno</b>
+              <p className="text-[13px] text-gray-400 max-w-[340px] mx-auto leading-relaxed">Nessun evento in agenda registrato per questo giorno.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Navigation & Controls panel */}
+      <div className="flex items-center justify-between gap-4 flex-wrap text-left bg-transparent p-1">
+        <div className="flex items-center gap-1 bg-white border border-[#e2e2e2] p-1 rounded-[18px] shadow-sm">
+          <button
+            onClick={handlePrev}
+            className="w-8.5 h-8.5 rounded-xl hover:bg-[#f5f5f5] flex items-center justify-center transition-colors cursor-pointer border-none bg-transparent"
+          >
+            <ChevronLeft className="w-4.5 h-4.5 text-[#333]" />
+          </button>
+          <button
+            onClick={handleToday}
+            className="text-[12.5px] font-bold text-[#161616] px-3.5 py-1.5 hover:bg-[#f5f5f5] rounded-xl transition-colors cursor-pointer border-none bg-transparent"
+          >
+            Oggi
+          </button>
+          <button
+            onClick={handleNext}
+            className="w-8.5 h-8.5 rounded-xl hover:bg-[#f5f5f5] flex items-center justify-center transition-colors cursor-pointer border-none bg-transparent"
+          >
+            <ChevronRight className="w-4.5 h-4.5 text-[#333]" />
+          </button>
+        </div>
+
+        <div className="font-extrabold text-[22px] tracking-tight text-[#161616] leading-none capitalize font-sans">
+          {calHeadLabel()}
+        </div>
+
+        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px] relative overflow-hidden">
+          {(['month', 'week', 'day'] as const).map(view => (
+            <button
+              key={view}
+              onClick={() => onSetCalView(view)}
+              className="relative text-[12.5px] font-bold px-[15px] py-1.5 rounded-xl capitalize transition-all cursor-pointer border-none bg-transparent outline-none flex items-center justify-center min-w-[76px]"
+            >
+              <span className={`relative z-10 transition-colors duration-200 ${
+                calView === view ? 'text-[#161616] font-extrabold' : 'text-[#8a8a8a]'
+              }`}>
+                {view === 'month' ? 'Mese' : view === 'week' ? 'Settimana' : 'Giorno'}
+              </span>
+              {calView === view && (
+                <motion.div
+                  layoutId="activeCalViewIndicator"
+                  className="absolute inset-0 bg-white rounded-xl shadow-2xs z-0"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main calendar grid render with high fidelity wait transition */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={calView + '-' + calDate.toISOString()}
+          initial={{ opacity: 0, y: 12, filter: 'blur(3px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, y: -12, filter: 'blur(3px)' }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+        >
+          {calView === 'month' ? renderMonth() : calView === 'week' ? renderWeek() : renderDay()}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+};

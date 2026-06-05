@@ -1,0 +1,316 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,300;0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Playfair Display", "Georgia", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --animate-smartIn: smartIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: #161616;
+  background-color: #F5F5F3;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Clear, elegant webkit scrollbars for light theme */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3) !important;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Custom transitions */
+.chevron-rotate {
+  transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.phase-item-open .chevron-rotate {
+  transform: rotate(180deg);
+}
+
+@keyframes smartIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.95);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhance existing structural fonts using Playfair display for serif aesthetic */
+h1, .m-logo-text {
+  font-family: var(--font-serif) !important;
+  font-weight: 400 !important;
+}
+
+/* Reset form element properties for beautiful native focus and border structure */
+select,
+input,
+textarea,
+.select,
+.input {
+  border: 1px solid #e2e2e2 !important;
+  background-color: #ffffff !important;
+  color: #161616 !important;
+  border-radius: 8px !important;
+  outline: none !important;
+}
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: #161616 !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Custom Download button with elegant black styling (from Uiverse.io) */
+.dw-container {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.dw-label {
+  background-color: transparent;
+  border: 2px solid #161616;
+  display: flex;
+  align-items: center;
+  border-radius: 50px;
+  width: 130px;
+  height: 40px;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  padding: 3px;
+  position: relative;
+  user-select: none;
+}
+
+.dw-label::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #fff;
+  width: 8px;
+  height: 8px;
+  transition: all 0.4s ease;
+  border-radius: 100%;
+  margin: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dw-label .dw-input {
+  display: none;
+}
+
+.dw-label .dw-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #161616;
+  transition: all 0.4s ease;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+}
+
+.dw-label .dw-title:last-child {
+  opacity: 0;
+  visibility: hidden;
+  color: rgb(35, 174, 35);
+}
+
+.dw-label .dw-circle {
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+  background-color: #161616;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.4s ease;
+  position: relative;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  overflow: hidden;
+}
+
+.dw-label .dw-circle .dw-icon {
+  color: #fff;
+  width: 14px;
+  height: 14px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+
+.dw-label .dw-circle .dw-square {
+  aspect-ratio: 1;
+  width: 8px;
+  border-radius: 1.5px;
+  background-color: #fff;
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.4s ease;
+}
+
+.dw-label .dw-circle::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: #2b2b2b;
+  width: 100%;
+  height: 0;
+  transition: all 0.4s ease;
+}
+
+.dw-label:has(.dw-input:checked) {
+  width: 40px;
+  animation: dw-installed 0.4s ease 3s forwards;
+}
+
+.dw-label:has(.dw-input:checked)::before {
+  animation: dw-rotate 2.5s ease-in-out 0.4s forwards;
+}
+
+.dw-label .dw-input:checked + .dw-circle {
+  animation:
+    dw-pulse 1s forwards,
+    dw-circleDelete 0.2s ease 3s forwards;
+  rotate: 180deg;
+}
+
+.dw-label .dw-input:checked + .dw-circle::before {
+  animation: dw-installing 2.5s ease-in-out forwards;
+}
+
+.dw-label .dw-input:checked + .dw-circle .dw-icon {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dw-label .dw-input:checked ~ .dw-circle .dw-square {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dw-label .dw-input:checked ~ .dw-title {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.dw-label .dw-input:checked ~ .dw-title:last-child {
+  animation: dw-showInstalledMessage 0.4s ease 3s forwards;
+}
+
+@keyframes dw-pulse {
+  0% {
+    scale: 0.95;
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.15);
+  }
+  70% {
+    scale: 1;
+    box-shadow: 0 0 0 12px rgba(0, 0, 0, 0);
+  }
+  100% {
+    scale: 0.95;
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
+
+@keyframes dw-installing {
+  from {
+    height: 0;
+  }
+  to {
+    height: 100%;
+  }
+}
+
+@keyframes dw-rotate {
+  0% {
+    transform: rotate(-90deg) translate(22px) rotate(0);
+    opacity: 1;
+    visibility: visible;
+  }
+  99% {
+    transform: rotate(270deg) translate(22px) rotate(270deg);
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes dw-installed {
+  100% {
+    width: 130px;
+    border-color: rgb(35, 174, 35);
+  }
+}
+
+@keyframes dw-circleDelete {
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes dw-showInstalledMessage {
+  100% {
+    opacity: 1;
+    visibility: visible;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
