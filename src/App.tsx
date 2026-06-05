@@ -77,9 +77,15 @@ import {
   watchAuth,
   logoutGoogle,
   watchAccounts,
+  watchOwnAccount,
+  getAccounts,
   setAccount,
   updateAccount,
   removeAccount,
+  watchNode,
+  getNode,
+  writeNode,
+  removeNode,
   type User as GUser
 } from './firebase';
 
@@ -170,80 +176,9 @@ export default function App() {
     // Inject custom animation styles for smart letters
     injectSmartTextStyles();
 
-    // Check if states exist in localStorage, if not seed them
-    const getOrSeed = <T,>(key: string, seed: T): T => {
-      const stored = localStorage.getItem(`onirico_${key}`);
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch (_) {}
-      }
-      localStorage.setItem(`onirico_${key}`, JSON.stringify(seed));
-      return seed;
-    };
-
-    // NB: gli account NON vengono più seminati in locale.
-    // Gli utenti reali vivono sul Realtime Database (nodo "accounts")
-    // e vengono caricati/gestiti tramite il controllo accessi Google.
-
-    const rawLoadedProjects = getOrSeed<Record<string, Project>>('projects', SEED_PROJECTS);
-    
-    // Dynamically merge new seed projects (strategico and materico) to ensure they are visible
-    const loadedProjects = { ...rawLoadedProjects };
-    let projsChanged = false;
-    Object.entries(SEED_PROJECTS).forEach(([pk, pv]) => {
-      if (!loadedProjects[pk]) {
-        loadedProjects[pk] = pv;
-        projsChanged = true;
-      }
-    });
-    if (projsChanged) {
-      localStorage.setItem('onirico_projects', JSON.stringify(loadedProjects));
-    }
-
-    const loadedTasks = getOrSeed<Record<string, Task>>('tasks', SEED_TASKS);
-    const loadedTemplates = getOrSeed<Record<string, Template>>('templates', SEED_TEMPLATES);
-    const loadedFinance = getOrSeed<Record<string, FinanceMovement>>('finance', SEED_FINANCE);
-    const loadedInternal = getOrSeed<Record<string, ProjectInternal>>('projectsInternal', SEED_INTERNAL);
-    const loadedEstimates = getOrSeed<Record<string, MatericoEstimate>>('estimates', SEED_ESTIMATES);
-    const loadedMessages = getOrSeed<Record<string, Record<string, ProjectMessage>>>('projectMessages', {
-      'p-villa-ostuni': {
-        'msg-1': {
-          id: 'msg-1',
-          from: 'mario',
-          role: 'manager',
-          name: 'Mario Rossi',
-          text: 'Benvenuto nel portale dello studio Onirico! Trovi qui l’avanzamento della pratica catastale, l’APE e il disegno 3D complessivo della villa.',
-          at: 1780324800000
-        }
-      }
-    });
-    const loadedDocs = getOrSeed<Record<string, Record<string, any>>>('documents', {
-      'p-villa-ostuni': {
-        'doc-1': {
-          id: 'doc-1',
-          name: 'CILA_Presentata_Protocollo_Ostuni.pdf',
-          kind: 'modulo',
-          type: 'application/pdf',
-          size: 780000,
-          url: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&q=80&w=1200',
-          byName: 'Mario Rossi',
-          by: 'mario',
-          at: 1780324800000
-        }
-      }
-    });
-
-    setProjects(autoUpdateProjectsCompletion(loadedProjects));
-    setTasks(loadedTasks);
-    setTemplates(loadedTemplates);
-    setFinances(loadedFinance);
-    setProjectsInternal(loadedInternal);
-    setProjectMessages(loadedMessages);
-    setDocuments(loadedDocs);
-    setEstimates(loadedEstimates);
-
-    // L'accesso ora è gestito da Google + approvazione admin (vedi effetto auth).
+    // NB: tutti i dati dell'app ora vivono sul Realtime Database condiviso.
+    // Il caricamento avviene nell'effetto di sincronizzazione (vedi sotto),
+    // in base al ruolo dell'utente approvato. Niente più seed in localStorage.
 
     // Handle hash router on load
     const handleHash = () => {
@@ -267,45 +202,47 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Controllo accessi: sincronizza il nodo "accounts" e ricava l'utente corrente
+  // Controllo accessi sul nodo "users". Sottoscrive il PROPRIO record (sempre
+  // leggibile dalle regole) e, se sei team attivo, l'intera lista utenti.
   useEffect(() => {
     if (!gUser) {
       setAccounts({});
       setAccountsReady(false);
       setCurrentUser(null);
+      setUsers({});
       creatingRef.current = false;
       return;
     }
-    const unsub = watchAccounts((all: Record<string, UserProfile>) => {
-      setAccounts(all);
+
+    let unsubAll: (() => void) | null = null;
+
+    const unsubOwn = watchOwnAccount(gUser.uid, async (mine: any) => {
       setAccountsReady(true);
 
-      // Utenti reali approvati -> usati ovunque nell'app (team, assegnazioni...)
-      const approved: Record<string, UserProfile> = {};
-      Object.entries(all).forEach(([uid, u]) => {
-        if ((u as any)?.status === 'approved') approved[uid] = u;
-      });
-      setUsers(approved);
-
-      const mine = all[gUser.uid];
-
       if (!mine) {
-        // Crea il record. Primo utente in assoluto => admin approvato; gli altri => in attesa.
+        // Crea il record al primo accesso.
         if (!creatingRef.current) {
           creatingRef.current = true;
-          const isFirst = Object.keys(all).length === 0;
-          // Email sempre-admin (facoltativo). Lascia [] per usare solo "primo = admin".
-          const ADMIN_EMAILS: string[] = [];
-          const isAdminEmail = !!gUser.email && ADMIN_EMAILS.includes(gUser.email.toLowerCase());
+          const OWNER_EMAIL = 'giorgio.pascali990@gmail.com';
+          const ADMIN_EMAILS = [OWNER_EMAIL];
+          const email = (gUser.email || '').toLowerCase();
+          const isAdminEmail = ADMIN_EMAILS.includes(email);
+          let isFirst = false;
+          try {
+            const all = await getAccounts(); // leggibile solo se il nodo è vuoto (bootstrap)
+            isFirst = !all || Object.keys(all).length === 0;
+          } catch (_) {
+            isFirst = false;
+          }
           const makeAdmin = isFirst || isAdminEmail;
           const rec: any = {
             uid: gUser.uid,
             name: gUser.displayName || gUser.email || 'Utente',
             email: gUser.email || '',
             photoURL: gUser.photoURL || '',
-            active: true,
             createdAt: Date.now(),
-            status: makeAdmin ? 'approved' : 'pending'
+            status: makeAdmin ? 'approved' : 'pending',
+            active: makeAdmin // studio = active; in attesa = non active
           };
           if (makeAdmin) rec.role = 'admin';
           setAccount(gUser.uid, rec).catch(() => {});
@@ -316,37 +253,63 @@ export default function App() {
 
       creatingRef.current = false;
 
-      if (mine.status === 'approved' && mine.role) {
+      const approvedOk = mine.status === 'approved' && !!mine.role;
+      if (approvedOk) {
         setCurrentUser(mine);
+        // Solo il team "active" può leggere l'intera lista utenti.
+        if (mine.active === true && !unsubAll) {
+          unsubAll = watchAccounts(
+            (all) => {
+              setAccounts(all);
+              const approved: Record<string, UserProfile> = {};
+              Object.entries(all).forEach(([uid, u]: any) => {
+                if (u?.status === 'approved') approved[uid] = u;
+              });
+              setUsers(approved);
+            },
+            () => {}
+          );
+        }
       } else {
         setCurrentUser(null);
       }
-    });
-    return () => unsub();
+    }, () => { setAccountsReady(true); });
+
+    return () => {
+      unsubOwn();
+      if (unsubAll) unsubAll();
+    };
   }, [gUser]);
 
   // ---- Azioni admin sul controllo accessi ----
+  const isStudioRole = (r: string) => r === 'admin' || r === 'manager' || r === 'staff';
   const handleApproveAccount = (uid: string, role: any, sector?: string) => {
-    const patch: any = { status: 'approved', role, approvedBy: gUser?.uid || null, approvedAt: Date.now() };
+    const patch: any = {
+      status: 'approved',
+      role,
+      active: isStudioRole(role), // studio attivo; cliente/partner accedono solo ai propri progetti
+      approvedBy: gUser?.uid || null,
+      approvedAt: Date.now()
+    };
     if (role === 'cliente' && sector) patch.sector = sector;
     updateAccount(uid, patch)
       .then(() => showToast('Account approvato.'))
       .catch(() => showToast('Errore: controlla le regole del Database.', 'err'));
   };
   const handleRejectAccount = (uid: string) => {
-    updateAccount(uid, { status: 'rejected' })
+    updateAccount(uid, { status: 'rejected', active: false })
       .then(() => showToast('Richiesta rifiutata.', 'err'))
       .catch(() => showToast('Errore di scrittura.', 'err'));
   };
   const handleChangeAccountRole = (uid: string, role: any, sector?: string) => {
-    const patch: any = { role };
+    const patch: any = { role, active: isStudioRole(role) };
     if (role === 'cliente' && sector) patch.sector = sector;
     updateAccount(uid, patch)
       .then(() => showToast('Ruolo aggiornato.'))
       .catch(() => showToast('Errore di scrittura.', 'err'));
   };
   const handleRevokeAccount = (uid: string) => {
-    updateAccount(uid, { status: 'pending' })
+    updateAccount(uid, { status: 'pending', active: false })
       .then(() => showToast('Account rimesso in attesa.'))
       .catch(() => showToast('Errore di scrittura.', 'err'));
   };
@@ -357,10 +320,67 @@ export default function App() {
       .catch(() => showToast('Errore di scrittura.', 'err'));
   };
 
-  // Sync state helpers to preserve changes across reload
+  // Mappa chiave-stato -> nodo del Database (le tue regole usano "studioFinance")
+  const KEY2PATH: Record<string, string> = { finance: 'studioFinance' };
+
+  // Ogni modifica dell'app viene scritta sul Database condiviso.
   const syncState = (key: string, val: any) => {
-    localStorage.setItem(`onirico_${key}`, JSON.stringify(val));
+    if (key === 'users') {
+      // gli utenti si scrivono per-uid (le regole proteggono ogni record)
+      Object.entries(val || {}).forEach(([uid, u]) => setAccount(uid, u).catch(() => {}));
+      return;
+    }
+    const path = KEY2PATH[key] || key;
+    writeNode(path, val).catch(() => {});
   };
+
+  // ---- Sincronizzazione dati dal Database in base al ruolo ----
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!currentUser) return;
+    const role = currentUser.role;
+    const studio = isStudioRole(role);
+    const canFinance = role === 'admin' || role === 'manager';
+    const subs: Array<() => void> = [];
+    const add = (path: string, fn: (v: any) => void) =>
+      subs.push(watchNode(path, (v) => fn(v || {}), () => {}));
+
+    if (studio) {
+      // Seed iniziale dei template (solo admin, solo se vuoti)
+      if (role === 'admin' && !seededRef.current) {
+        seededRef.current = true;
+        getNode('templates')
+          .then((t) => {
+            if (!t || Object.keys(t).length === 0) writeNode('templates', SEED_TEMPLATES).catch(() => {});
+          })
+          .catch(() => {});
+      }
+      add('projects', (v) => setProjects(autoUpdateProjectsCompletion(v)));
+      add('tasks', setTasks);
+      add('templates', setTemplates);
+      add('projectsInternal', setProjectsInternal);
+      add('projectMessages', setProjectMessages);
+      add('documents', setDocuments);
+      add('estimates', setEstimates);
+      if (canFinance) add('studioFinance', setFinances);
+    } else {
+      // Cliente/Partner: solo i propri progetti (regole via clientUid)
+      const pids = Object.keys(currentUser.projectIds || {});
+      pids.forEach((pid) => {
+        subs.push(watchNode(`projects/${pid}`, (v) => {
+          if (v) setProjects((p) => ({ ...p, [pid]: v }));
+        }, () => {}));
+        subs.push(watchNode(`documents/${pid}`, (v) => {
+          setDocuments((d) => ({ ...d, [pid]: v || {} }));
+        }, () => {}));
+        subs.push(watchNode(`projectMessages/${pid}`, (v) => {
+          setProjectMessages((m) => ({ ...m, [pid]: v || {} }));
+        }, () => {}));
+      });
+    }
+
+    return () => subs.forEach((u) => u());
+  }, [currentUser?.uid, currentUser?.role]);
 
   const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Math.random().toString();
@@ -917,9 +937,10 @@ export default function App() {
       const prjDocs = { ...(prev[projId] || {}) };
       prjDocs[docId] = newDoc;
       const next = { ...prev, [projId]: prjDocs };
-      syncState('documents', next);
       return next;
     });
+    // Scrittura mirata (compatibile con le regole: anche i clienti possono creare)
+    writeNode(`documents/${projId}/${docId}`, newDoc).catch(() => {});
     showToast('Documento caricato!');
   };
 
@@ -928,9 +949,9 @@ export default function App() {
       const prjDocs = { ...(prev[projId] || {}) };
       delete prjDocs[docId];
       const next = { ...prev, [projId]: prjDocs };
-      syncState('documents', next);
       return next;
     });
+    removeNode(`documents/${projId}/${docId}`).catch(() => {});
     showToast('Documento rimosso.', 'err');
   };
 
@@ -950,9 +971,10 @@ export default function App() {
       const prjMsgs = { ...(prev[projId] || {}) };
       prjMsgs[mId] = newMsg;
       const next = { ...prev, [projId]: prjMsgs };
-      syncState('projectMessages', next);
       return next;
     });
+    // Scrittura mirata del singolo messaggio (regole: create consentito anche al cliente)
+    writeNode(`projectMessages/${projId}/${mId}`, newMsg).catch(() => {});
   };
 
   // 5. User accounts additions
