@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -72,7 +72,16 @@ import { Modal } from './components/Modal';
 import { AppleSwitch } from './components/AppleSwitch';
 import { injectSmartTextStyles } from './components/SmartText';
 import { GoogleLogin } from './components/GoogleLogin';
-import { watchAuth, logoutGoogle, type User as GUser } from './firebase';
+import { AccessRequests } from './components/AccessRequests';
+import {
+  watchAuth,
+  logoutGoogle,
+  watchAccounts,
+  setAccount,
+  updateAccount,
+  removeAccount,
+  type User as GUser
+} from './firebase';
 
 interface Toast {
   id: string;
@@ -128,6 +137,12 @@ export default function App() {
   const [gUser, setGUser] = useState<GUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
+  // Controllo accessi (Realtime Database)
+  const [accounts, setAccounts] = useState<Record<string, UserProfile>>({});
+  const [accountsReady, setAccountsReady] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false); // modale admin
+  const creatingRef = useRef(false); // evita doppia creazione record
+
   // Router route & params
   const [route, setRoute] = useState<string>('dashboard');
   const [routeParam, setRouteParam] = useState<string | null>(null);
@@ -167,50 +182,9 @@ export default function App() {
       return seed;
     };
 
-    const loadedUsers = getOrSeed<Record<string, UserProfile>>('users', SEED_USERS);
-    
-    // Dynamically merge new seed users and ensure "Famiglia Bianchi" is renamed to "Cliente Bianchi" and is only "studio"
-    let usersChanged = false;
-    if (loadedUsers['cliente_famiglia']) {
-      if (loadedUsers['cliente_famiglia'].name === 'Famiglia Bianchi') {
-        loadedUsers['cliente_famiglia'].name = 'Cliente Bianchi';
-        usersChanged = true;
-      }
-      if (loadedUsers['cliente_famiglia'].sector !== 'studio') {
-        loadedUsers['cliente_famiglia'].sector = 'studio';
-        usersChanged = true;
-      }
-      const currentKeys = Object.keys(loadedUsers['cliente_famiglia'].projectIds || {});
-      const hasNonStudio = currentKeys.some(k => k !== 'p-villa-ostuni' && k !== 'p-attico-lecce');
-      if (hasNonStudio || currentKeys.length === 0) {
-        loadedUsers['cliente_famiglia'].projectIds = {
-          'p-villa-ostuni': true,
-          'p-attico-lecce': true
-        };
-        usersChanged = true;
-      }
-    }
-
-    Object.entries(SEED_USERS).forEach(([uk, uv]) => {
-      if (!loadedUsers[uk]) {
-        loadedUsers[uk] = uv;
-        usersChanged = true;
-      } else {
-        if (uk === 'cliente_famiglia' && loadedUsers[uk].name === 'Famiglia Bianchi') {
-          loadedUsers[uk].name = 'Cliente Bianchi';
-          loadedUsers[uk].sector = 'studio';
-          loadedUsers[uk].projectIds = {
-            'p-villa-ostuni': true,
-            'p-attico-lecce': true
-          };
-          usersChanged = true;
-        }
-      }
-    });
-
-    if (usersChanged) {
-      localStorage.setItem('onirico_users', JSON.stringify(loadedUsers));
-    }
+    // NB: gli account NON vengono più seminati in locale.
+    // Gli utenti reali vivono sul Realtime Database (nodo "accounts")
+    // e vengono caricati/gestiti tramite il controllo accessi Google.
 
     const rawLoadedProjects = getOrSeed<Record<string, Project>>('projects', SEED_PROJECTS);
     
@@ -260,7 +234,6 @@ export default function App() {
       }
     });
 
-    setUsers(loadedUsers);
     setProjects(autoUpdateProjectsCompletion(loadedProjects));
     setTasks(loadedTasks);
     setTemplates(loadedTemplates);
@@ -270,14 +243,7 @@ export default function App() {
     setDocuments(loadedDocs);
     setEstimates(loadedEstimates);
 
-    // Initial Login fallback (default to Giorgio Pascali - admin)
-    const storedAuth = localStorage.getItem('onirico_logged_uid');
-    if (storedAuth && loadedUsers[storedAuth]) {
-      setCurrentUser(loadedUsers[storedAuth]);
-    } else {
-      setCurrentUser(loadedUsers['admin']);
-      localStorage.setItem('onirico_logged_uid', 'admin');
-    }
+    // L'accesso ora è gestito da Google + approvazione admin (vedi effetto auth).
 
     // Handle hash router on load
     const handleHash = () => {
@@ -300,6 +266,96 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // Controllo accessi: sincronizza il nodo "accounts" e ricava l'utente corrente
+  useEffect(() => {
+    if (!gUser) {
+      setAccounts({});
+      setAccountsReady(false);
+      setCurrentUser(null);
+      creatingRef.current = false;
+      return;
+    }
+    const unsub = watchAccounts((all: Record<string, UserProfile>) => {
+      setAccounts(all);
+      setAccountsReady(true);
+
+      // Utenti reali approvati -> usati ovunque nell'app (team, assegnazioni...)
+      const approved: Record<string, UserProfile> = {};
+      Object.entries(all).forEach(([uid, u]) => {
+        if ((u as any)?.status === 'approved') approved[uid] = u;
+      });
+      setUsers(approved);
+
+      const mine = all[gUser.uid];
+
+      if (!mine) {
+        // Crea il record. Primo utente in assoluto => admin approvato; gli altri => in attesa.
+        if (!creatingRef.current) {
+          creatingRef.current = true;
+          const isFirst = Object.keys(all).length === 0;
+          // Email sempre-admin (facoltativo). Lascia [] per usare solo "primo = admin".
+          const ADMIN_EMAILS: string[] = [];
+          const isAdminEmail = !!gUser.email && ADMIN_EMAILS.includes(gUser.email.toLowerCase());
+          const makeAdmin = isFirst || isAdminEmail;
+          const rec: any = {
+            uid: gUser.uid,
+            name: gUser.displayName || gUser.email || 'Utente',
+            email: gUser.email || '',
+            photoURL: gUser.photoURL || '',
+            active: true,
+            createdAt: Date.now(),
+            status: makeAdmin ? 'approved' : 'pending'
+          };
+          if (makeAdmin) rec.role = 'admin';
+          setAccount(gUser.uid, rec).catch(() => {});
+        }
+        setCurrentUser(null);
+        return;
+      }
+
+      creatingRef.current = false;
+
+      if (mine.status === 'approved' && mine.role) {
+        setCurrentUser(mine);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+    return () => unsub();
+  }, [gUser]);
+
+  // ---- Azioni admin sul controllo accessi ----
+  const handleApproveAccount = (uid: string, role: any, sector?: string) => {
+    const patch: any = { status: 'approved', role, approvedBy: gUser?.uid || null, approvedAt: Date.now() };
+    if (role === 'cliente' && sector) patch.sector = sector;
+    updateAccount(uid, patch)
+      .then(() => showToast('Account approvato.'))
+      .catch(() => showToast('Errore: controlla le regole del Database.', 'err'));
+  };
+  const handleRejectAccount = (uid: string) => {
+    updateAccount(uid, { status: 'rejected' })
+      .then(() => showToast('Richiesta rifiutata.', 'err'))
+      .catch(() => showToast('Errore di scrittura.', 'err'));
+  };
+  const handleChangeAccountRole = (uid: string, role: any, sector?: string) => {
+    const patch: any = { role };
+    if (role === 'cliente' && sector) patch.sector = sector;
+    updateAccount(uid, patch)
+      .then(() => showToast('Ruolo aggiornato.'))
+      .catch(() => showToast('Errore di scrittura.', 'err'));
+  };
+  const handleRevokeAccount = (uid: string) => {
+    updateAccount(uid, { status: 'pending' })
+      .then(() => showToast('Account rimesso in attesa.'))
+      .catch(() => showToast('Errore di scrittura.', 'err'));
+  };
+  const handleRemoveAccount = (uid: string) => {
+    if (!confirm('Eliminare definitivamente questo account?')) return;
+    removeAccount(uid)
+      .then(() => showToast('Account eliminato.', 'err'))
+      .catch(() => showToast('Errore di scrittura.', 'err'));
+  };
 
   // Sync state helpers to preserve changes across reload
   const syncState = (key: string, val: any) => {
@@ -1102,122 +1158,50 @@ export default function App() {
     return <GoogleLogin onError={(m) => showToast(m, 'err')} />;
   }
 
-  if (!currentUser) {
-    // Elegant Multi-Portal separated access landing screen
-    const portalGroups = [
-      {
-        id: 'team',
-        name: 'Team Onirico OS',
-        desc: 'Amministrazione, PM e gestori operativi dello studio.',
-        dot: 'bg-rose-500',
-        badge: 'Staff Interno',
-        badgeColor: 'bg-rose-50 text-rose-800 border-rose-200/60',
-        usersList: Object.values(users).filter((u: any) => u.role === 'admin' || u.role === 'manager' || u.role === 'staff')
-      },
-      {
-        id: 'studio',
-        name: 'Portale Studio',
-        desc: 'Stato avanzamento dei cantieri, approvazione e dettagli architettonici.',
-        dot: 'bg-zinc-950',
-        badge: 'Cliente Architettura',
-        badgeColor: 'bg-zinc-50 text-zinc-905 border-zinc-200',
-        usersList: Object.values(users).filter((u: any) => u.role === 'cliente' && (u.sector === 'studio' || !u.sector))
-      },
-      {
-        id: 'strategico',
-        name: 'Portale Strategico',
-        desc: 'Piani di marketing, strategie, report di crescita ed editoriali SEO.',
-        dot: 'bg-amber-500',
-        badge: 'Cliente Strategia',
-        badgeColor: 'bg-amber-50 text-amber-800 border-amber-205/60',
-        usersList: Object.values(users).filter((u: any) => u.role === 'cliente' && u.sector === 'strategico')
-      },
-      {
-        id: 'materico',
-        name: 'Portale Materico',
-        desc: 'Selezione finiture, moodboard d\'interni, materiali e arredi.',
-        dot: 'bg-orange-500',
-        badge: 'Cliente Moodboard',
-        badgeColor: 'bg-orange-50 text-orange-850 border-orange-205/60',
-        usersList: Object.values(users).filter((u: any) => u.role === 'cliente' && u.sector === 'materico')
-      },
-      {
-        id: 'partner',
-        name: 'Portale Partner B2B',
-        desc: 'Imprese di costruzione, geometri, impiantisti e artigiani del cantiere.',
-        dot: 'bg-purple-600',
-        badge: 'Partner Impresa',
-        badgeColor: 'bg-purple-50 text-purple-800 border-purple-205/60',
-        usersList: Object.values(users).filter((u: any) => u.role === 'partner' || u.sector === 'partner')
-      }
-    ];
-
+  // Account creato ma non ancora caricato/approvato
+  if (!accountsReady) {
     return (
-      <div className="min-h-screen bg-[#F5F5F3] p-8 flex flex-col justify-center select-none font-sans">
-        <div className="w-full max-w-[1360px] mx-auto scale-95 md:scale-100 transition-transform">
-          
-          {/* Header */}
-          <div className="text-center mb-10 animate-[popIn_0.35s_ease_both]">
-            <h1 className="font-black text-[32px] md:text-[36px] tracking-tight text-[#161616]">
-              Onirico Studio <span className="text-stone-400 font-light">· Portal Selection</span>
-            </h1>
-            <p className="text-[14px] text-stone-500 max-w-2xl mx-auto mt-2.5 font-medium">
-              Accedi a uno dei portali di Onirico Studio. Ciascun account simula l'esperienza reale di ciascun settore, con viste, grafiche e contenuti coordinati.
+      <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-stone-300 border-t-[#161616] animate-spin" />
+          <span className="text-[12px] font-bold uppercase tracking-wider text-stone-400">
+            Verifica accesso…
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    const mine = accounts[gUser.uid];
+    const rejected = mine?.status === 'rejected';
+    return (
+      <div className="min-h-screen bg-[#F5F5F3] p-8 flex flex-col justify-center items-center select-none font-sans">
+        <div className="w-full max-w-[440px] mx-auto text-center animate-[popIn_0.35s_ease_both]">
+          <h1 className="font-black text-[30px] tracking-tight text-[#161616]">
+            Onirico Studio <span className="text-stone-400 font-light">· OS</span>
+          </h1>
+          <div className="bg-white border border-[#e2e2e2] rounded-[24px] shadow-sm p-7 mt-6 flex flex-col items-center gap-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${rejected ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+              {rejected ? <AlertTriangle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+            </div>
+            <b className="text-[16px] text-[#161616]">
+              {rejected ? 'Accesso non autorizzato' : 'Richiesta in attesa di approvazione'}
+            </b>
+            <p className="text-[13px] text-[#8a8a8a] leading-relaxed">
+              {rejected
+                ? 'Il tuo account non è stato abilitato. Contatta l’amministratore dello studio.'
+                : 'Il tuo accesso è stato registrato. Un amministratore deve approvarlo e assegnarti un ruolo. Riprova più tardi.'}
             </p>
-          </div>
-
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 items-stretch">
-            {portalGroups.map((group) => (
-              <div 
-                key={group.id} 
-                className="bg-white border border-[#e2e2e2] rounded-[24px] shadow-sm hover:shadow-md transition-all p-5 flex flex-col h-full hover:-translate-y-1 duration-200"
-              >
-                {/* Visual Header */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`w-3 h-3 rounded-full shrink-0 ${group.dot}`} />
-                  <h3 className="font-extrabold text-[15.5px] text-[#161616] tracking-tight truncate">
-                    {group.name}
-                  </h3>
-                </div>
-
-                {/* Desc */}
-                <p className="text-[12px] text-stone-400 leading-relaxed font-medium mb-5 min-h-[46px]">
-                  {group.desc}
-                </p>
-
-                {/* User buttons list */}
-                <div className="flex flex-col gap-2.5 mt-auto">
-                  {group.usersList.map((u: any) => (
-                    <button
-                      key={u.uid}
-                      onClick={() => handleProfileSwitch(u.uid)}
-                      className="flex items-center gap-3 p-3 rounded-xl border border-stone-150 hover:bg-stone-50 hover:border-stone-400 cursor-pointer text-left transition-all active:scale-[0.98] w-full group"
-                    >
-                      <span
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white font-extrabold text-[12px] shrink-0 shadow-xs"
-                        style={{ background: avColor(u.name) }}
-                      >
-                        {initials(u.name)}
-                      </span>
-                      <div className="min-w-0 flex-grow">
-                        <b className="block text-[12.5px] text-[#161616] truncate font-extrabold group-hover:text-black">
-                          {u.name}
-                        </b>
-                        <span className={`inline-block text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md border mt-1 shrink-0 ${group.badgeColor}`}>
-                          {u.title || group.badge}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Footer Info line */}
-          <div className="text-center mt-12 text-[12px] text-stone-400 font-bold tracking-wide uppercase">
-            Onirico Studio OS · Hub Portali Coordinati 2026 · Tutti i dati modificati salvati in locale.
+            <div className="flex items-center gap-2 mt-2 text-[12px] text-stone-400 font-semibold">
+              <User className="w-3.5 h-3.5" /> {gUser.email}
+            </div>
+            <button
+              onClick={handleLogout}
+              className="btn bg-gray-100 hover:bg-gray-200 border-none text-[#161616] font-bold justify-center mt-3 w-full"
+            >
+              Esci
+            </button>
           </div>
         </div>
       </div>
@@ -1614,6 +1598,11 @@ export default function App() {
     return item ? item : 'Studio OS';
   };
 
+  // Controllo accessi (admin)
+  const isAdmin = currentUser.role === 'admin';
+  const pendingAccounts = Object.values(accounts).filter((a: any) => a?.status === 'pending') as UserProfile[];
+  const approvedAccounts = Object.values(accounts).filter((a: any) => a?.status === 'approved') as UserProfile[];
+
   return (
     <div className="shell flex h-screen select-none bg-[#F5F5F3] relative min-h-0">
       {/* Sidebar for widescreen */}
@@ -1667,6 +1656,22 @@ export default function App() {
                 className="btn btn-primary btn-sm rounded-xl py-1.5 px-3 flex items-center gap-1.5 cursor-pointer font-bold bg-[#1b1b1b] hover:bg-black text-white hover:shadow-md"
               >
                 <Plus className="w-4 h-4" /> Nuovo progetto
+              </button>
+            )}
+
+            {/* Accessi (solo admin) */}
+            {isAdmin && (
+              <button
+                onClick={() => setAccessOpen(true)}
+                className="relative w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-[#e2e2e2] text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer active:scale-95"
+                title="Gestione accessi"
+              >
+                <Users className="w-4.5 h-4.5" />
+                {pendingAccounts.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white">
+                    {pendingAccounts.length}
+                  </span>
+                )}
               </button>
             )}
 
@@ -1887,11 +1892,37 @@ export default function App() {
             </div>
           </div>
 
+          {isAdmin && (
+            <button
+              onClick={() => { setProfileOpen(false); setAccessOpen(true); }}
+              className="btn bg-[#1b1b1b] hover:bg-black text-white font-bold justify-center mt-2 flex items-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Gestione accessi{pendingAccounts.length > 0 ? ` (${pendingAccounts.length})` : ''}
+            </button>
+          )}
+
           <button onClick={handleLogout} className="btn bg-red-50 hover:bg-red-100 border border-red-200 text-red-800 font-bold justify-center mt-4">
             Esci dall'account
           </button>
         </div>
       </Modal>
+
+      {/* 1b. Gestione Accessi (solo admin) */}
+      {isAdmin && (
+        <Modal title="Gestione accessi" isOpen={accessOpen} onClose={() => setAccessOpen(false)} wide>
+          <AccessRequests
+            pending={pendingAccounts}
+            members={approvedAccounts}
+            currentUid={currentUser.uid}
+            onApprove={handleApproveAccount}
+            onReject={handleRejectAccount}
+            onChangeRole={handleChangeAccountRole}
+            onRevoke={handleRevokeAccount}
+            onRemove={handleRemoveAccount}
+          />
+        </Modal>
+      )}
 
       {/* 2. Agenda Task Editor Modal */}
       <Modal

@@ -18,6 +18,11 @@ export interface UserProfile {
   telefono?: string;
   pending?: boolean;
   sector?: 'studio' | 'strategico' | 'materico' | 'partner';
+  // Controllo accessi (Firebase)
+  status?: 'pending' | 'approved' | 'rejected';
+  photoURL?: string;
+  approvedBy?: string;
+  approvedAt?: number;
 }
 
 export interface ProjectTask {
