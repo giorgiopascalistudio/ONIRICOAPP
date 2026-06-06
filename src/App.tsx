@@ -74,6 +74,7 @@ import { injectSmartTextStyles } from './components/SmartText';
 import { GoogleLogin } from './components/GoogleLogin';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
+import { CrmView, type Lead, type Supplier } from './components/CrmView';
 import {
   watchAuth,
   logoutGoogle,
@@ -135,6 +136,10 @@ export default function App() {
   const [projectsInternal, setProjectsInternal] = useState<Record<string, ProjectInternal>>({});
   const [projectMessages, setProjectMessages] = useState<Record<string, Record<string, ProjectMessage>>>({});
   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
+
+  // CRM (pipeline lead + fornitori)
+  const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
+  const [crmSuppliers, setCrmSuppliers] = useState<Supplier[]>([]);
   const [estimates, setEstimates] = useState<Record<string, MatericoEstimate>>({});
 
   // Active session profile
@@ -335,7 +340,37 @@ export default function App() {
     writeNode(path, val).catch(() => {});
   };
 
-  // ---- Sincronizzazione dati dal Database in base al ruolo ----
+  // ---- CRM: salvataggio + conversione lead in commessa ----
+  const saveLeads = (arr: Lead[]) => {
+    setCrmLeads(arr);
+    writeNode('crmLeads', arr).catch(() => {});
+  };
+  const saveSuppliers = (arr: Supplier[]) => {
+    setCrmSuppliers(arr);
+    writeNode('crmSuppliers', arr).catch(() => {});
+  };
+  const handleConvertLead = (lead: Lead) => {
+    const pid = `p-${Date.now()}`;
+    const div = (lead.sector || 'studio') as any;
+    const newProject: any = {
+      id: pid,
+      name: lead.company || lead.name,
+      code: `${div.slice(0, 3).toUpperCase()}-${String(Date.now()).slice(-4)}`,
+      client: lead.name,
+      committente: lead.name,
+      status: 'attivo',
+      division: div,
+      phases: {},
+      createdAt: Date.now()
+    };
+    setProjects((prev) => {
+      const next = { ...prev, [pid]: newProject };
+      syncState('projects', next);
+      return next;
+    });
+    showToast('Lead convertito in commessa.');
+  };
+
   const seededRef = useRef(false);
   useEffect(() => {
     if (!currentUser) return;
@@ -364,6 +399,10 @@ export default function App() {
       add('documents', setDocuments);
       add('estimates', setEstimates);
       if (canFinance) add('studioFinance', setFinances);
+      // CRM (array nodes)
+      const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
+      subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
+      subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       const pids = Object.keys(currentUser.projectIds || {});
@@ -1467,6 +1506,18 @@ export default function App() {
             canEdit={currentUser.role !== 'cliente' && currentUser.role !== 'partner'}
             onUploadDocument={handleUploadDocument}
             onDeleteDocument={handleDeleteDocument}
+          />
+        );
+
+      case 'crm':
+        return (
+          <CrmView
+            leads={crmLeads}
+            suppliers={crmSuppliers}
+            myName={currentUser.name}
+            onSaveLeads={saveLeads}
+            onSaveSuppliers={saveSuppliers}
+            onConvertLead={handleConvertLead}
           />
         );
 

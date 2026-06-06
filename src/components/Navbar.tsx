@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { LayoutGrid, Calendar, Folder, FileText, Users, Bell } from 'lucide-react';
+import { LayoutGrid, Calendar, Folder, FileText, Users, Bell, Target } from 'lucide-react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { initials } from '../utils';
@@ -36,6 +36,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', label: 'Home', icon: LayoutGrid },
     { id: 'calendario', label: 'Agenda', icon: Calendar },
     { id: 'progetti', label: 'Progetti', icon: Folder },
+    ...(profile.role === 'admin' || profile.role === 'manager'
+      ? [{ id: 'crm', label: 'CRM', icon: Target }]
+      : []),
     { id: 'documenti', label: 'Documenti', icon: FileText },
     ...(profile.role === 'admin' ? [{ id: 'team', label: 'Team', icon: Users }] : [])
   ];
