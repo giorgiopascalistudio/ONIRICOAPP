@@ -32,7 +32,8 @@ import {
   Phase,
   ProjectTask,
   TaskAttachment,
-  MatericoEstimate
+  MatericoEstimate,
+  Appointment
 } from './types';
 
 import {
@@ -140,6 +141,20 @@ export default function App() {
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
   const [crmSuppliers, setCrmSuppliers] = useState<Supplier[]>([]);
+
+  // Agenda condivisa (appuntamenti / note tra utenti)
+  const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
+  const [apptOpen, setApptOpen] = useState(false);
+  const [apptDate, setApptDate] = useState('');
+  const [apptTitle, setApptTitle] = useState('');
+  const [apptTime, setApptTime] = useState('');
+  const [apptOwner, setApptOwner] = useState('');
+  const [apptWith, setApptWith] = useState('');
+  const [apptNote, setApptNote] = useState('');
+  const [apptKind, setApptKind] = useState<'appuntamento' | 'nota'>('appuntamento');
+
+  // Elenco pubblico dei membri studio (per i portali cliente/partner)
+  const [directory, setDirectory] = useState<Record<string, { name: string; role: string }>>({});
   const [estimates, setEstimates] = useState<Record<string, MatericoEstimate>>({});
 
   // Active session profile
@@ -272,6 +287,16 @@ export default function App() {
                 if (u?.status === 'approved') approved[uid] = u;
               });
               setUsers(approved);
+              // L'admin mantiene l'elenco pubblico dei membri studio per i portali
+              if (mine.role === 'admin') {
+                const dir: Record<string, { name: string; role: string }> = {};
+                Object.values(approved).forEach((u: any) => {
+                  if (u.role === 'admin' || u.role === 'manager' || u.role === 'staff') {
+                    dir[u.uid] = { name: u.name || '', role: u.role };
+                  }
+                });
+                writeNode('directory', dir).catch(() => {});
+              }
             },
             () => {}
           );
@@ -371,6 +396,91 @@ export default function App() {
     showToast('Lead convertito in commessa.');
   };
 
+  // ---- Agenda: appuntamenti / note tra utenti ----
+  const handleSaveAppointment = (a: Appointment) => {
+    setAppointments((prev) => ({ ...prev, [a.id]: a }));
+    writeNode(`appointments/${a.id}`, a).catch(() => showToast('Errore salvataggio appuntamento.', 'err'));
+  };
+  const handleConfirmAppointment = (id: string) => {
+    const a = appointments[id];
+    if (!a) return;
+    handleSaveAppointment({ ...a, status: 'confermato' });
+    showToast('Appuntamento confermato.');
+  };
+  const handleDeclineAppointment = (id: string) => {
+    const a = appointments[id];
+    if (!a) return;
+    handleSaveAppointment({ ...a, status: 'rifiutato' });
+    showToast('Appuntamento rifiutato.', 'err');
+  };
+  const handleDeleteAppointment = (id: string) => {
+    setAppointments((prev) => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+    removeNode(`appointments/${id}`).catch(() => {});
+  };
+
+  const handleOpenNewAppointment = (presetDate?: string) => {
+    setApptDate(presetDate || todayISO());
+    setApptTitle('');
+    setApptTime('');
+    setApptOwner(currentUser?.uid || '');
+    setApptWith('');
+    setApptNote('');
+    setApptKind('appuntamento');
+    setApptOpen(true);
+  };
+  const handleSubmitAppointment = () => {
+    if (!apptTitle.trim() || !apptDate) {
+      showToast('Inserisci titolo e data.', 'err');
+      return;
+    }
+    const ownerUid = apptOwner || currentUser!.uid;
+    const owner = users[ownerUid];
+    const a: Appointment = {
+      id: `appt-${Date.now()}`,
+      title: apptTitle.trim(),
+      date: apptDate,
+      time: apptTime || null,
+      ownerUid,
+      ownerName: owner?.name || '',
+      createdBy: currentUser!.uid,
+      createdByName: currentUser!.name,
+      withName: apptWith.trim() || undefined,
+      note: apptNote.trim() || undefined,
+      kind: apptKind,
+      // se lo assegni a un altro membro resta confermato (è un'aggiunta interna)
+      status: 'confermato',
+      createdAt: Date.now()
+    };
+    handleSaveAppointment(a);
+    setApptOpen(false);
+    showToast(ownerUid === currentUser!.uid ? 'Aggiunto in agenda.' : `Aggiunto all'agenda di ${owner?.name || 'utente'}.`);
+  };
+
+  // Richiesta appuntamento dai portali cliente/partner (resta "in attesa")
+  const handleRequestAppointment = (memberUid: string, memberName: string, date: string, time: string, note: string) => {
+    const a: Appointment = {
+      id: `appt-${Date.now()}`,
+      title: `Richiesta appuntamento — ${currentUser!.name}`,
+      date,
+      time: time || null,
+      ownerUid: memberUid,
+      ownerName: memberName,
+      createdBy: currentUser!.uid,
+      createdByName: currentUser!.name,
+      withName: currentUser!.name,
+      note: note || undefined,
+      kind: 'appuntamento',
+      status: 'pending',
+      createdAt: Date.now()
+    };
+    handleSaveAppointment(a);
+    showToast('Richiesta inviata. In attesa di conferma.');
+  };
+
   const seededRef = useRef(false);
   useEffect(() => {
     if (!currentUser) return;
@@ -390,6 +500,28 @@ export default function App() {
             if (!t || Object.keys(t).length === 0) writeNode('templates', SEED_TEMPLATES).catch(() => {});
           })
           .catch(() => {});
+        // Clienti/partner di test (uno per settore) per provare i flussi
+        const TEST_ACCOUNTS: any[] = [
+          { uid: 'test-cli-studio', name: 'Cliente Studio (test)', email: 'cliente.studio@test.local', role: 'cliente', sector: 'studio' },
+          { uid: 'test-cli-strategico', name: 'Cliente Strategico (test)', email: 'cliente.strategico@test.local', role: 'cliente', sector: 'strategico' },
+          { uid: 'test-cli-materico', name: 'Cliente Materico (test)', email: 'cliente.materico@test.local', role: 'cliente', sector: 'materico' },
+          { uid: 'test-partner-materico', name: 'Impresa Partner (test)', email: 'partner.materico@test.local', role: 'partner', sector: 'partner' }
+        ];
+        TEST_ACCOUNTS.forEach((acc) => {
+          getNode(`users/${acc.uid}`)
+            .then((ex) => {
+              if (!ex) {
+                setAccount(acc.uid, {
+                  ...acc,
+                  active: false,
+                  status: 'approved',
+                  createdAt: Date.now(),
+                  isTest: true
+                }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        });
       }
       add('projects', (v) => setProjects(autoUpdateProjectsCompletion(v)));
       add('tasks', setTasks);
@@ -403,8 +535,11 @@ export default function App() {
       const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
+      subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
+      subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
+      subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       const pids = Object.keys(currentUser.projectIds || {});
       pids.forEach((pid) => {
         subs.push(watchNode(`projects/${pid}`, (v) => {
@@ -1284,6 +1419,12 @@ export default function App() {
         onSetOpenPh={setClientOpenPh}
         onSendClientMessage={handleSendClientMessage}
         onUploadDocument={handleUploadDocument}
+        studioMembers={
+          Object.keys(directory).length > 0
+            ? Object.entries(directory).map(([uid, v]) => ({ uid, name: v.name, role: v.role } as any))
+            : Object.values(users).filter((u) => u.role === 'admin' || u.role === 'manager' || u.role === 'staff')
+        }
+        onRequestAppointment={handleRequestAppointment}
         projectMessages={projectMessages}
         documents={documents}
         onLogout={handleLogout}
@@ -1348,14 +1489,21 @@ export default function App() {
       case 'calendario':
         return (
           <CalendarView
-            tasks={Object.values(tasks)}
+            tasks={Object.values(tasks).filter((t) =>
+              t.assignee === currentUser.uid || t.createdBy === currentUser.uid || t.owner === currentUser.uid
+            )}
             projects={Object.values(projects)}
+            appointments={Object.values(appointments).filter((a) => a.ownerUid === currentUser.uid)}
             calView={calView}
             calDate={calDate}
             onSetCalView={setCalView}
             onSetCalDate={setCalDate}
             onToggleTask={handleToggleTask}
             onEditTask={handleEditTask}
+            onNewAppointment={handleOpenNewAppointment}
+            onConfirmAppointment={handleConfirmAppointment}
+            onDeclineAppointment={handleDeclineAppointment}
+            onDeleteAppointment={handleDeleteAppointment}
             onNewTask={(pDate) => {
               setEditTaskId(null);
               setTTitle('');
@@ -2009,6 +2157,65 @@ export default function App() {
           />
         </Modal>
       )}
+
+      {/* 1c. Nuovo appuntamento / nota agenda */}
+      <Modal title={apptKind === 'nota' ? 'Nuova nota' : 'Nuovo appuntamento'} isOpen={apptOpen} onClose={() => setApptOpen(false)}>
+        <div className="flex flex-col gap-3 text-left">
+          <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-fit">
+            {(['appuntamento', 'nota'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setApptKind(k)}
+                className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full cursor-pointer border-none capitalize transition-all ${apptKind === k ? 'bg-[#161616] text-white' : 'text-[#8a8a8a] bg-transparent'}`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Titolo *</span>
+            <input value={apptTitle} onChange={(e) => setApptTitle(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder={apptKind === 'nota' ? 'Promemoria…' : 'Sopralluogo, riunione…'} />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Data *</span>
+              <input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ora</span>
+              <input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Agenda di</span>
+            <select value={apptOwner} onChange={(e) => setApptOwner(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]">
+              <option value={currentUser.uid}>Io ({currentUser.name})</option>
+              {Object.values(users)
+                .filter((u) => u.uid !== currentUser.uid && (u.role === 'admin' || u.role === 'manager' || u.role === 'staff'))
+                .map((u) => (
+                  <option key={u.uid} value={u.uid}>{u.name}</option>
+                ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Con (controparte)</span>
+            <input value={apptWith} onChange={(e) => setApptWith(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder="Cliente, fornitore… (facoltativo)" />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Note</span>
+            <textarea value={apptNote} onChange={(e) => setApptNote(e.target.value)} rows={2} className="input border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none" />
+          </label>
+
+          <button onClick={handleSubmitAppointment} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">
+            {apptOwner && apptOwner !== currentUser.uid ? "Aggiungi all'agenda del membro" : 'Aggiungi in agenda'}
+          </button>
+        </div>
+      </Modal>
 
       {/* 2. Agenda Task Editor Modal */}
       <Modal

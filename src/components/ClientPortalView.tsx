@@ -271,6 +271,8 @@ interface ClientPortalViewProps {
   onSetOpenPh: (phId: string | undefined) => void;
   onSendClientMessage: (projId: string, text: string) => void;
   onUploadDocument: (projId: string, file: File) => void;
+  studioMembers?: UserProfile[];
+  onRequestAppointment?: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   onLogout: () => void;
@@ -291,6 +293,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onSetOpenPh,
   onSendClientMessage,
   onUploadDocument,
+  studioMembers,
+  onRequestAppointment,
   projectMessages,
   documents,
   onLogout,
@@ -748,7 +752,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
   return (
     <div className={`flex flex-col min-h-screen ${portalStyle.bgCanvas} text-[#161616] font-sans select-none pb-24`}>
-      {/* Top Warning Banner for Studio Managers */}
+      {!isPreview && onRequestAppointment && studioMembers && studioMembers.length > 0 && (
+        <AppointmentRequestFab
+          members={studioMembers}
+          onRequest={onRequestAppointment}
+        />
+      )}
       {isPreview && (
         <div className="bg-[#161616] text-[#eeeeee] text-[13px] font-bold py-2.5 px-6 flex items-center justify-between sticky top-0 z-[60]">
           <span>Anteprima Portale Cliente — Così il cliente vede la propria pratica</span>
@@ -2305,5 +2314,87 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         })()}
       </AnimatePresence>
     </div>
+  );
+};
+
+// --- Richiesta appuntamento dal portale (cliente/partner) ---
+const AppointmentRequestFab: React.FC<{
+  members: UserProfile[];
+  onRequest: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
+}> = ({ members, onRequest }) => {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(false);
+  const [member, setMember] = useState(members[0]?.uid || '');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [note, setNote] = useState('');
+
+  const submit = () => {
+    if (!member || !date) return;
+    const m = members.find((x) => x.uid === member);
+    onRequest(member, m?.name || '', date, time, note.trim());
+    setDone(true);
+    setTimeout(() => {
+      setOpen(false);
+      setDone(false);
+      setDate(''); setTime(''); setNote('');
+    }, 1600);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-6 right-6 z-[80] flex items-center gap-2 px-4 py-3 rounded-full bg-[#161616] hover:bg-black text-white font-bold text-[13px] shadow-xl cursor-pointer border-none active:scale-95 transition-all"
+      >
+        <Calendar className="w-4 h-4" /> Richiedi appuntamento
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="bg-white rounded-[24px] w-full max-w-[420px] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {done ? (
+              <div className="text-center py-6">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <b className="text-[16px] text-[#161616] block">Richiesta inviata</b>
+                <p className="text-[13px] text-[#8a8a8a] mt-1">Il membro dello studio dovrà confermare l'appuntamento.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[17px] font-black text-[#161616]">Richiedi appuntamento</h3>
+                  <button onClick={() => setOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><XCircle className="w-5 h-5" /></button>
+                </div>
+                <div className="flex flex-col gap-3 text-left">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Con</span>
+                    <select value={member} onChange={(e) => setMember(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]">
+                      {members.map((m) => <option key={m.uid} value={m.uid}>{m.name}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Data</span>
+                      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]" />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ora</span>
+                      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]" />
+                    </label>
+                  </div>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Motivo</span>
+                    <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none" placeholder="Es. sopralluogo, revisione progetto…" />
+                  </label>
+                  <button onClick={submit} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" /> Invia richiesta
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

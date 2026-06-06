@@ -1904,29 +1904,43 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             const { done, tot } = projTaskCounts(p);
             const pcpValue = tot ? Math.round((done / tot) * 100) : 0;
             const phSize = Object.keys(p.phases || {}).length;
+            const dv = (({
+              strategico: { bg: '#b45309', label: 'Strategico' },
+              materico: { bg: '#c2410c', label: 'Materico' },
+              unico: { bg: '#4338ca', label: 'Unico' }
+            } as any)[p.division as any]) || { bg: '#161616', label: 'Studio' };
 
             if (viewMode === 'grid') {
               return (
                 <div
                   key={p.id}
                   onClick={() => onNav(`progetto/${p.id}`)}
-                  className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col gap-4 text-left"
+                  className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col gap-4 text-left border-l-[5px]"
+                  style={{ borderLeftColor: dv.bg }}
                 >
                   <div className="flex justify-between items-start">
-                    <div className="w-11 h-11 bg-[#161616] text-white rounded-xl flex items-center justify-center shadow-xs">
+                    <div className="w-11 h-11 text-white rounded-xl flex items-center justify-center shadow-xs" style={{ background: dv.bg }}>
                       <Folder className="w-5 h-5" />
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10.5px] uppercase font-bold tracking-wide ${
-                        p.status === 'attivo'
-                          ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                          : p.status === 'completato'
-                          ? 'bg-green-50 text-green-850 border border-green-200'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {p.status}
-                    </span>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[9px] uppercase font-extrabold tracking-wider text-white"
+                        style={{ background: dv.bg }}
+                      >
+                        {dv.label}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10.5px] uppercase font-bold tracking-wide ${
+                          p.status === 'attivo'
+                            ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                            : p.status === 'completato'
+                            ? 'bg-green-50 text-green-850 border border-green-200'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {p.status}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="min-w-0">
@@ -1953,15 +1967,18 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               <div
                 key={p.id}
                 onClick={() => onNav(`progetto/${p.id}`)}
-                className="bg-white border border-[#e2e2e2] rounded-[18px] p-4 shadow-xs hover:shadow-sm transition-all cursor-pointer flex items-center justify-between gap-4 text-left"
+                className="bg-white border border-[#e2e2e2] rounded-[18px] p-4 shadow-xs hover:shadow-sm transition-all cursor-pointer flex items-center justify-between gap-4 text-left border-l-[5px]"
+                style={{ borderLeftColor: dv.bg }}
               >
                 <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                  <div className="w-10 h-10 bg-[#161616] text-white rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 text-white rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: dv.bg }}>
                     <Folder className="w-4.5 h-4.5" />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-[14.5px] text-[#161616] truncate pr-2">{p.name}</h3>
-                    <p className="text-[12px] text-[#8a8a8a] truncate mt-0.5">{p.client || 'Nessun cliente'} · {p.location || 'Ostuni'}</p>
+                    <p className="text-[12px] text-[#8a8a8a] truncate mt-0.5">
+                      <span className="font-extrabold" style={{ color: dv.bg }}>{dv.label}</span> · {p.client || 'Nessun cliente'} · {p.location || 'Ostuni'}
+                    </p>
                   </div>
                 </div>
 

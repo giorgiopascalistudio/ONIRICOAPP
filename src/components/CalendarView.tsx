@@ -4,14 +4,15 @@
  */
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Sparkles, Edit2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Sparkles, Edit2, Check, X, UserPlus, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, Task } from '../types';
+import { Project, Task, Appointment } from '../types';
 import { fmtMonthYear, fmtDayLong, DOW, addDays, startOfMonth, startOfWeek, isoDate, relDay, sameDay, parseISO } from '../utils';
 
 interface CalendarViewProps {
   tasks: Task[];
   projects: Project[];
+  appointments: Appointment[];
   calView: 'month' | 'week' | 'day';
   calDate: Date;
   onSetCalView: (view: 'month' | 'week' | 'day') => void;
@@ -19,12 +20,17 @@ interface CalendarViewProps {
   onToggleTask: (taskId: string, date: string) => void;
   onEditTask: (taskId: string) => void;
   onNewTask: (presetDate?: string) => void;
+  onNewAppointment: (presetDate?: string) => void;
+  onConfirmAppointment: (id: string) => void;
+  onDeclineAppointment: (id: string) => void;
+  onDeleteAppointment: (id: string) => void;
   myUid: string;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   tasks,
   projects,
+  appointments,
   calView,
   calDate,
   onSetCalView,
@@ -32,9 +38,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onToggleTask,
   onEditTask,
   onNewTask,
+  onNewAppointment,
+  onConfirmAppointment,
+  onDeclineAppointment,
+  onDeleteAppointment,
   myUid
 }) => {
   const todayISO = isoDate(new Date());
+
+  const apptsOn = (iso: string): Appointment[] =>
+    (appointments || []).filter(a => a.date === iso).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
 
   const occursOn = (t: Task, iso: string): boolean => {
     if (!t.date || iso < t.date) return false;
@@ -160,6 +173,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             const iso = isoDate(c);
             const inMonth = c.getMonth() === calDate.getMonth();
             const list = tasksOnDate(iso);
+            const aps = apptsOn(iso);
+            const apsPending = aps.some(a => a.status === 'pending');
             const isToday = iso === todayISO;
 
             return (
@@ -191,6 +206,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <span className="relative flex h-1.5 w-1.5 mr-0.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-450 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500"></span>
+                    </span>
+                  )}
+                  {!isToday && aps.length > 0 && (
+                    <span
+                      title={`${aps.length} appuntamenti`}
+                      className={`inline-flex items-center justify-center text-[8px] font-extrabold min-w-[14px] h-[14px] px-0.5 rounded-full ${apsPending ? 'bg-amber-500 text-white' : 'bg-sky-500 text-white'}`}
+                    >
+                      {aps.length}
                     </span>
                   )}
                 </div>
@@ -425,21 +448,86 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const renderDay = () => {
     const iso = isoDate(calDate);
     const list = tasksOnDate(iso);
+    const dayAppts = apptsOn(iso);
 
     return (
       <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-6 shadow-xs text-left">
         <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
           <div>
             <h2 className="text-[20px] font-extrabold tracking-tight text-[#161616] capitalize">{relDay(iso)}</h2>
-            <span className="text-[12.5px] text-[#8a8a8a] font-medium">{list.length} impegni in agenda</span>
+            <span className="text-[12.5px] text-[#8a8a8a] font-medium">{list.length + dayAppts.length} impegni in agenda</span>
           </div>
-          <button
-            onClick={() => onNewTask(iso)}
-            className="btn btn-sm bg-[#161616] hover:bg-black border-none text-white font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all hover:scale-[1.01]"
-          >
-            <Plus className="w-4 h-4" /> Nuovo impegno
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNewAppointment(iso)}
+              className="btn btn-sm bg-white hover:bg-gray-50 border border-[#e2e2e2] hover:border-black text-[#161616] font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <CalendarPlus className="w-4 h-4" /> Appuntamento
+            </button>
+            <button
+              onClick={() => onNewTask(iso)}
+              className="btn btn-sm bg-[#161616] hover:bg-black border-none text-white font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all hover:scale-[1.01]"
+            >
+              <Plus className="w-4 h-4" /> Nuovo impegno
+            </button>
+          </div>
         </div>
+
+        {/* Appuntamenti del giorno */}
+        {dayAppts.length > 0 && (
+          <div className="flex flex-col gap-2.5 mb-4">
+            {dayAppts.map(a => {
+              const pending = a.status === 'pending';
+              const refused = a.status === 'rifiutato';
+              return (
+                <div
+                  key={a.id}
+                  className={`flex items-center justify-between gap-3.5 py-3.5 px-4 rounded-2xl border transition-all ${
+                    pending
+                      ? 'bg-amber-50/70 border-amber-200'
+                      : refused
+                      ? 'bg-gray-50 border-[#f0f0f0] opacity-60'
+                      : 'bg-sky-50/60 border-sky-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${pending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                      {a.kind === 'nota' ? <Edit2 className="w-4 h-4" /> : <CalendarIcon className="w-4 h-4" />}
+                    </span>
+                    <div className="min-w-0">
+                      <b className="text-[13.5px] text-[#161616] block truncate">
+                        {a.time && <span className="font-extrabold mr-1.5 text-[12px]">{a.time}</span>}
+                        {a.title}
+                      </b>
+                      <span className="text-[11.5px] text-[#8a8a8a] truncate block">
+                        {[a.withName, a.createdByName && a.createdBy !== myUid ? `richiesto da ${a.createdByName}` : null, a.note]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        {pending && ' · in attesa di conferma'}
+                        {refused && ' · rifiutato'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {pending && (
+                      <>
+                        <button onClick={() => onConfirmAppointment(a.id)} title="Conferma" className="w-8 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer border-none">
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onDeclineAppointment(a.id)} title="Rifiuta" className="w-8 h-8 rounded-lg bg-white border border-[#e2e2e2] hover:bg-gray-50 text-gray-600 flex items-center justify-center cursor-pointer">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => onDeleteAppointment(a.id)} title="Elimina" className="w-8 h-8 rounded-lg bg-white border border-[#e2e2e2] hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-600 flex items-center justify-center cursor-pointer">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2.5">
           {list.length > 0 ? (
@@ -561,7 +649,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px] relative overflow-hidden">
-          {(['month', 'week', 'day'] as const).map(view => (
+          {(['day', 'month', 'week'] as const).map(view => (
             <button
               key={view}
               onClick={() => onSetCalView(view)}

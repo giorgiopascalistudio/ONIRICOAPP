@@ -181,3 +181,20 @@ export interface ProjectInternal {
   notes?: string | null;
   taskMeta?: Record<string, Record<string, TaskMeta>>; // phId -> tId -> TaskMeta
 }
+
+export interface Appointment {
+  id: string;
+  title: string;
+  date: string;            // ISO yyyy-mm-dd
+  time?: string | null;
+  ownerUid: string;        // di chi è l'agenda
+  ownerName?: string;
+  createdBy: string;       // uid creatore
+  createdByName?: string;
+  withName?: string;       // controparte (cliente/partner/altro)
+  note?: string;
+  kind: 'appuntamento' | 'nota';
+  status: 'confermato' | 'pending' | 'rifiutato';
+  projectId?: string | null;
+  createdAt: number;
+}
