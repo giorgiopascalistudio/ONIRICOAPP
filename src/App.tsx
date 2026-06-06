@@ -184,11 +184,7 @@ export default function App() {
 
   // Notifications states
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 'n1', title: 'Nuovo cantiere registrato', text: 'La pratica "Cantiere via Garibaldi 12" è stata creata correttamente da Giorgio.', time: '10 min fa', read: false },
-    { id: 'n2', title: 'Attività SCIA completata', text: 'Martina ha completato l\'attività "Presentazione SCIA al Comune".', time: '1 ora fa', read: false },
-    { id: 'n3', title: 'Movimento di cassa aggiunto', text: 'Aggiunto nuovo acconto di 1.500 € per il progetto "Ristrutturazione Rossi".', time: '5 ore fa', read: true }
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // ----------------------------------------------------
   // INITIALIZATIONS
@@ -500,28 +496,6 @@ export default function App() {
             if (!t || Object.keys(t).length === 0) writeNode('templates', SEED_TEMPLATES).catch(() => {});
           })
           .catch(() => {});
-        // Clienti/partner di test (uno per settore) per provare i flussi
-        const TEST_ACCOUNTS: any[] = [
-          { uid: 'test-cli-studio', name: 'Cliente Studio (test)', email: 'cliente.studio@test.local', role: 'cliente', sector: 'studio' },
-          { uid: 'test-cli-strategico', name: 'Cliente Strategico (test)', email: 'cliente.strategico@test.local', role: 'cliente', sector: 'strategico' },
-          { uid: 'test-cli-materico', name: 'Cliente Materico (test)', email: 'cliente.materico@test.local', role: 'cliente', sector: 'materico' },
-          { uid: 'test-partner-materico', name: 'Impresa Partner (test)', email: 'partner.materico@test.local', role: 'partner', sector: 'partner' }
-        ];
-        TEST_ACCOUNTS.forEach((acc) => {
-          getNode(`users/${acc.uid}`)
-            .then((ex) => {
-              if (!ex) {
-                setAccount(acc.uid, {
-                  ...acc,
-                  active: false,
-                  status: 'approved',
-                  createdAt: Date.now(),
-                  isTest: true
-                }).catch(() => {});
-              }
-            })
-            .catch(() => {});
-        });
       }
       add('projects', (v) => setProjects(autoUpdateProjectsCompletion(v)));
       add('tasks', setTasks);
@@ -1465,6 +1439,9 @@ export default function App() {
             tasks={Object.values(tasks)}
             projects={Object.values(projects)}
             users={users}
+            appointmentRequests={myApptRequests}
+            onConfirmAppointment={handleConfirmAppointment}
+            onDeclineAppointment={handleDeclineAppointment}
             onNav={(r) => {
               setRoute(r);
               window.location.hash = `#${r}`;
@@ -1837,6 +1814,20 @@ export default function App() {
   const pendingAccounts = Object.values(accounts).filter((a: any) => a?.status === 'pending') as UserProfile[];
   const approvedAccounts = Object.values(accounts).filter((a: any) => a?.status === 'approved') as UserProfile[];
 
+  // Richieste appuntamento in attesa dirette a ME (per notifiche + dashboard)
+  const myApptRequests = Object.values(appointments).filter(
+    (a) => a.ownerUid === currentUser.uid && a.status === 'pending'
+  );
+  const apptRequestNotifs = myApptRequests.map((a) => ({
+    id: `apptreq-${a.id}`,
+    title: 'Richiesta appuntamento',
+    text: `${a.createdByName || 'Un cliente'} ha richiesto un appuntamento il ${a.date}${a.time ? ' alle ' + a.time : ''}${a.note ? ' — ' + a.note : ''}.`,
+    time: 'Da confermare',
+    read: false,
+    apptDate: a.date
+  }));
+  const liveNotifications = [...apptRequestNotifs, ...notifications];
+
   return (
     <div className="shell flex h-screen select-none bg-[#F5F5F3] relative min-h-0">
       {/* Sidebar for widescreen */}
@@ -1866,7 +1857,7 @@ export default function App() {
           }}
           onOpenProfile={() => setProfileOpen(true)}
           title={formattedMobileTitle()}
-          notificationsCount={notifications.filter(n => !n.read).length}
+          notificationsCount={liveNotifications.filter(n => !n.read).length}
           onNotificationsClick={() => setNotificationsOpen(!notificationsOpen)}
           actionButton={
             route === 'progetti' ? (
@@ -1917,7 +1908,7 @@ export default function App() {
                 title="Notifiche"
               >
                 <Bell className="w-4.5 h-4.5" />
-                {notifications.some(n => !n.read) && (
+                {liveNotifications.some(n => !n.read) && (
                   <span className="absolute top-[6px] right-[6px] w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
                 )}
               </button>
@@ -1929,7 +1920,7 @@ export default function App() {
                   <div className="absolute right-0 mt-2 w-[340px] bg-white border border-[#ececec] rounded-2xl shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
                     <div className="flex items-center justify-between border-b border-gray-100 pb-2.5 mb-2.5">
                       <span className="font-extrabold text-[13.5px] text-[#161616]">
-                        Centro Notifiche ({notifications.filter(n => !n.read).length})
+                        Centro Notifiche ({liveNotifications.filter(n => !n.read).length})
                       </span>
                       {notifications.some(n => !n.read) && (
                         <button
@@ -1945,11 +1936,18 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
-                      {notifications.length > 0 ? (
-                        notifications.map(n => (
+                      {liveNotifications.length > 0 ? (
+                        liveNotifications.map(n => (
                           <div
                             key={n.id}
                             onClick={() => {
+                              if ((n as any).apptDate) {
+                                setCalDate(new Date((n as any).apptDate));
+                                setCalView('day');
+                                setNotificationsOpen(false);
+                                window.location.hash = 'calendario';
+                                return;
+                              }
                               setNotifications(p => p.map(item => item.id === n.id ? { ...item, read: true } : item));
                             }}
                             className={`p-2.5 rounded-xl border transition-all duration-150 cursor-pointer relative ${
@@ -2028,11 +2026,18 @@ export default function App() {
               </div>
 
               <div className="flex-grow overflow-y-auto space-y-2.5 pb-6">
-                {notifications.length > 0 ? (
-                  notifications.map(n => (
+                {liveNotifications.length > 0 ? (
+                  liveNotifications.map(n => (
                     <div
                       key={n.id}
                       onClick={() => {
+                        if ((n as any).apptDate) {
+                          setCalDate(new Date((n as any).apptDate));
+                          setCalView('day');
+                          setNotificationsOpen(false);
+                          window.location.hash = 'calendario';
+                          return;
+                        }
                         setNotifications(p => p.map(item => item.id === n.id ? { ...item, read: true } : item));
                       }}
                       className={`p-3 rounded-xl border transition-all relative ${

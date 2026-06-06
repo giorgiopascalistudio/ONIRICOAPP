@@ -305,6 +305,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onDeleteEstimate
 }) => {
   const [msgInput, setMsgInput] = useState('');
+  const [apptReqOpen, setApptReqOpen] = useState(false);
   const [approvedMarketingPosts, setApprovedMarketingPosts] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<string>('lavori');
@@ -753,7 +754,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   return (
     <div className={`flex flex-col min-h-screen ${portalStyle.bgCanvas} text-[#161616] font-sans select-none pb-24`}>
       {!isPreview && onRequestAppointment && studioMembers && studioMembers.length > 0 && (
-        <AppointmentRequestFab
+        <AppointmentRequestModal
+          open={apptReqOpen}
+          onClose={() => setApptReqOpen(false)}
           members={studioMembers}
           onRequest={onRequestAppointment}
         />
@@ -1317,9 +1320,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
                 {/* Right Column: Chat assistance */}
                 <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col h-[410px]">
-                  <div>
-                    <h3 className="text-[16px] font-extrabold text-[#161616]">Assistenza & Chat</h3>
-                    <p className="text-[12px] text-[#8a8a8a] mb-3.5">Parla direttamente con i progettisti del tuo cantiere.</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[16px] font-extrabold text-[#161616]">Assistenza & Chat</h3>
+                      <p className="text-[12px] text-[#8a8a8a] mb-3.5">Parla direttamente con i progettisti del tuo cantiere.</p>
+                    </div>
+                    {!isPreview && onRequestAppointment && studioMembers && studioMembers.length > 0 && (
+                      <button
+                        onClick={() => setApptReqOpen(true)}
+                        className="shrink-0 bg-[#161616] hover:bg-black text-white text-[11.5px] font-bold py-1.5 px-3 rounded-xl flex items-center gap-1.5 cursor-pointer border-none active:scale-95 transition-all"
+                      >
+                        <Calendar className="w-3.5 h-3.5" /> Appuntamento
+                      </button>
+                    )}
                   </div>
                   
                   {/* Chat window viewport */}
@@ -2318,11 +2331,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 };
 
 // --- Richiesta appuntamento dal portale (cliente/partner) ---
-const AppointmentRequestFab: React.FC<{
+const AppointmentRequestModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
   members: UserProfile[];
   onRequest: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
-}> = ({ members, onRequest }) => {
-  const [open, setOpen] = useState(false);
+}> = ({ open, onClose, members, onRequest }) => {
   const [done, setDone] = useState(false);
   const [member, setMember] = useState(members[0]?.uid || '');
   const [date, setDate] = useState('');
@@ -2335,23 +2349,18 @@ const AppointmentRequestFab: React.FC<{
     onRequest(member, m?.name || '', date, time, note.trim());
     setDone(true);
     setTimeout(() => {
-      setOpen(false);
+      onClose();
       setDone(false);
       setDate(''); setTime(''); setNote('');
     }, 1600);
   };
 
+  if (!open) return null;
+
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-[80] flex items-center gap-2 px-4 py-3 rounded-full bg-[#161616] hover:bg-black text-white font-bold text-[13px] shadow-xl cursor-pointer border-none active:scale-95 transition-all"
-      >
-        <Calendar className="w-4 h-4" /> Richiedi appuntamento
-      </button>
-
       {open && (
-        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
           <div className="bg-white rounded-[24px] w-full max-w-[420px] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {done ? (
               <div className="text-center py-6">
@@ -2363,7 +2372,7 @@ const AppointmentRequestFab: React.FC<{
               <>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-[17px] font-black text-[#161616]">Richiedi appuntamento</h3>
-                  <button onClick={() => setOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><XCircle className="w-5 h-5" /></button>
+                  <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><XCircle className="w-5 h-5" /></button>
                 </div>
                 <div className="flex flex-col gap-3 text-left">
                   <label className="flex flex-col gap-1.5">

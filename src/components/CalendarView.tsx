@@ -648,25 +648,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {calHeadLabel()}
         </div>
 
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px] relative overflow-hidden">
-          {(['day', 'month', 'week'] as const).map(view => (
+        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px]">
+          {(['day', 'week', 'month'] as const).map(view => (
             <button
               key={view}
               onClick={() => onSetCalView(view)}
-              className="relative text-[12.5px] font-bold px-[15px] py-1.5 rounded-xl capitalize transition-all cursor-pointer border-none bg-transparent outline-none flex items-center justify-center min-w-[76px]"
+              className={`text-[12.5px] font-bold px-[15px] py-1.5 rounded-xl cursor-pointer border-none outline-none flex items-center justify-center min-w-[76px] transition-colors duration-150 ${
+                calView === view
+                  ? 'bg-white text-[#161616] font-extrabold shadow-2xs'
+                  : 'bg-transparent text-[#8a8a8a] hover:text-[#161616]'
+              }`}
             >
-              <span className={`relative z-10 transition-colors duration-200 ${
-                calView === view ? 'text-[#161616] font-extrabold' : 'text-[#8a8a8a]'
-              }`}>
-                {view === 'month' ? 'Mese' : view === 'week' ? 'Settimana' : 'Giorno'}
-              </span>
-              {calView === view && (
-                <motion.div
-                  layoutId="activeCalViewIndicator"
-                  className="absolute inset-0 bg-white rounded-xl shadow-2xs z-0"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
+              {view === 'month' ? 'Mese' : view === 'week' ? 'Settimana' : 'Giorno'}
             </button>
           ))}
         </div>

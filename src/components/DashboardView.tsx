@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import { Clock, CheckSquare, Folder, Calendar, AlertTriangle, Plus, MoreHorizontal } from 'lucide-react';
-import { Project, Task, UserProfile } from '../types';
+import { Clock, CheckSquare, Folder, Calendar, AlertTriangle, Plus, MoreHorizontal, Check, X } from 'lucide-react';
+import { Project, Task, UserProfile, Appointment } from '../types';
 import { eur, fmtDayLong, initials } from '../utils';
 import { SmartText } from './SmartText';
 
@@ -18,6 +18,9 @@ interface DashboardViewProps {
   onToggleTask: (taskId: string, date: string) => void;
   onEditTask: (taskId: string) => void;
   onNewTask: () => void;
+  appointmentRequests?: Appointment[];
+  onConfirmAppointment?: (id: string) => void;
+  onDeclineAppointment?: (id: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -28,7 +31,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNav,
   onToggleTask,
   onEditTask,
-  onNewTask
+  onNewTask,
+  appointmentRequests = [],
+  onConfirmAppointment,
+  onDeclineAppointment
 }) => {
   const todayISO = () => {
     const x = new Date();
@@ -94,6 +100,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {fmtDayLong(new Date())}
         </div>
       </div>
+
+      {/* Richieste di appuntamento in attesa */}
+      {appointmentRequests.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-left">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="w-4 h-4 text-amber-700" />
+            <b className="text-[13.5px] text-amber-900">Richieste di appuntamento ({appointmentRequests.length})</b>
+          </div>
+          <div className="flex flex-col gap-2">
+            {appointmentRequests.map((a) => (
+              <div key={a.id} className="bg-white border border-amber-200/70 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <b className="text-[13px] text-[#161616] block truncate">{a.createdByName || 'Cliente'}</b>
+                  <span className="text-[11.5px] text-[#8a8a8a]">
+                    {a.date}{a.time ? ` · ${a.time}` : ''}{a.note ? ` · ${a.note}` : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => onConfirmAppointment?.(a.id)} className="w-8 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer border-none" title="Conferma">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onDeclineAppointment?.(a.id)} className="w-8 h-8 rounded-lg bg-white border border-amber-200 hover:bg-amber-50 text-amber-700 flex items-center justify-center cursor-pointer" title="Rifiuta">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
