@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { MatericoPortal } from './MatericoPortal';
+import type { MatericoRequest } from '../types';
 import { 
   Send, 
   FileText, 
@@ -273,6 +275,10 @@ interface ClientPortalViewProps {
   onUploadDocument: (projId: string, file: File) => void;
   studioMembers?: UserProfile[];
   onRequestAppointment?: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
+  matericoRequests?: MatericoRequest[];
+  onCreateMatericoRequest?: (req: MatericoRequest) => void;
+  onAcceptMatericoOffer?: (reqId: string, accept: boolean) => void;
+  onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   onLogout: () => void;
@@ -295,6 +301,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onUploadDocument,
   studioMembers,
   onRequestAppointment,
+  matericoRequests,
+  onCreateMatericoRequest,
+  onAcceptMatericoOffer,
+  onSubmitMatericoOffer,
   projectMessages,
   documents,
   onLogout,
@@ -760,6 +770,24 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           members={studioMembers}
           onRequest={onRequestAppointment}
         />
+      )}
+
+      {matericoRequests && (profile.role === 'partner' || (profile.role === 'cliente' && profile.sector === 'materico')) && (
+        <div className="max-w-[1100px] w-full mx-auto px-4 sm:px-6 pt-6">
+          <MatericoPortal
+            role={profile.role === 'partner' ? 'partner' : 'cliente'}
+            uid={profile.uid}
+            name={profile.name}
+            requests={(matericoRequests || []).filter((r) =>
+              profile.role === 'partner'
+                ? (r.forwardedTo || []).includes(profile.uid)
+                : r.clientUid === profile.uid
+            )}
+            onCreateRequest={onCreateMatericoRequest}
+            onAcceptOffer={onAcceptMatericoOffer}
+            onSubmitOffer={onSubmitMatericoOffer}
+          />
+        </div>
       )}
       {isPreview && (
         <div className="bg-[#161616] text-[#eeeeee] text-[13px] font-bold py-2.5 px-6 flex items-center justify-between sticky top-0 z-[60]">

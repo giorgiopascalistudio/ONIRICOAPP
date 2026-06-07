@@ -33,7 +33,8 @@ import {
   ProjectTask,
   TaskAttachment,
   MatericoEstimate,
-  Appointment
+  Appointment,
+  MatericoRequest
 } from './types';
 
 import {
@@ -76,6 +77,7 @@ import { GoogleLogin } from './components/GoogleLogin';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
 import { CrmView, type Lead, type Supplier } from './components/CrmView';
+import { MatericoView } from './components/MatericoView';
 import {
   watchAuth,
   logoutGoogle,
@@ -155,6 +157,9 @@ export default function App() {
 
   // Elenco pubblico dei membri studio (per i portali cliente/partner)
   const [directory, setDirectory] = useState<Record<string, { name: string; role: string }>>({});
+
+  // Materico — richieste forniture/posa
+  const [matericoRequests, setMatericoRequests] = useState<Record<string, MatericoRequest>>({});
   const [estimates, setEstimates] = useState<Record<string, MatericoEstimate>>({});
 
   // Active session profile
@@ -477,6 +482,47 @@ export default function App() {
     showToast('Richiesta inviata. In attesa di conferma.');
   };
 
+  // ---- MATERICO: richieste, offerte, accettazione ----
+  const saveMatericoRequest = (req: MatericoRequest) => {
+    setMatericoRequests((prev) => ({ ...prev, [req.id]: req }));
+    writeNode(`matericoRequests/${req.id}`, req).catch(() => showToast('Errore salvataggio richiesta.', 'err'));
+  };
+  const handleCreateMatericoRequest = (req: MatericoRequest) => {
+    saveMatericoRequest(req);
+    showToast('Richiesta inviata a Materico.');
+  };
+  const handleUpdateMatericoRequest = (req: MatericoRequest) => {
+    saveMatericoRequest({ ...req, updatedAt: Date.now() });
+  };
+  const handleDeleteMatericoRequest = (id: string) => {
+    setMatericoRequests((prev) => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+    removeNode(`matericoRequests/${id}`).catch(() => {});
+  };
+  const handleSubmitMatericoOffer = (reqId: string, amount: number, note: string) => {
+    const r = matericoRequests[reqId];
+    if (!r) return;
+    const offers = { ...(r.offers || {}) };
+    offers[currentUser!.uid] = {
+      partnerUid: currentUser!.uid,
+      partnerName: currentUser!.name,
+      amount,
+      note: note || undefined,
+      at: Date.now()
+    };
+    saveMatericoRequest({ ...r, offers, status: 'offerte', updatedAt: Date.now() });
+    showToast('Offerta inviata a Materico.');
+  };
+  const handleAcceptMatericoOffer = (reqId: string, accept: boolean) => {
+    const r = matericoRequests[reqId];
+    if (!r) return;
+    saveMatericoRequest({ ...r, status: accept ? 'accettata' : 'rifiutata', updatedAt: Date.now() });
+    showToast(accept ? 'Offerta accettata. Lavoro avviato.' : 'Offerta rifiutata.', accept ? 'ok' : 'err');
+  };
+
   const seededRef = useRef(false);
   useEffect(() => {
     if (!currentUser) return;
@@ -496,6 +542,16 @@ export default function App() {
             if (!t || Object.keys(t).length === 0) writeNode('templates', SEED_TEMPLATES).catch(() => {});
           })
           .catch(() => {});
+        // Pulizia: rimuove eventuali account di test rimasti nel Database
+        getNode('users')
+          .then((all) => {
+            Object.entries(all || {}).forEach(([uid, u]: any) => {
+              if (u && (u.isTest === true || String(uid).startsWith('test-'))) {
+                removeAccount(uid).catch(() => {});
+              }
+            });
+          })
+          .catch(() => {});
       }
       add('projects', (v) => setProjects(autoUpdateProjectsCompletion(v)));
       add('tasks', setTasks);
@@ -511,9 +567,11 @@ export default function App() {
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
+      subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
+      subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
       const pids = Object.keys(currentUser.projectIds || {});
       pids.forEach((pid) => {
         subs.push(watchNode(`projects/${pid}`, (v) => {
@@ -1399,6 +1457,10 @@ export default function App() {
             : Object.values(users).filter((u) => u.role === 'admin' || u.role === 'manager' || u.role === 'staff')
         }
         onRequestAppointment={handleRequestAppointment}
+        matericoRequests={Object.values(matericoRequests)}
+        onCreateMatericoRequest={handleCreateMatericoRequest}
+        onAcceptMatericoOffer={handleAcceptMatericoOffer}
+        onSubmitMatericoOffer={handleSubmitMatericoOffer}
         projectMessages={projectMessages}
         documents={documents}
         onLogout={handleLogout}
@@ -1643,6 +1705,16 @@ export default function App() {
             onSaveLeads={saveLeads}
             onSaveSuppliers={saveSuppliers}
             onConvertLead={handleConvertLead}
+          />
+        );
+
+      case 'materico':
+        return (
+          <MatericoView
+            requests={Object.values(matericoRequests)}
+            suppliers={crmSuppliers}
+            onUpdateRequest={handleUpdateMatericoRequest}
+            onDeleteRequest={handleDeleteMatericoRequest}
           />
         );
 

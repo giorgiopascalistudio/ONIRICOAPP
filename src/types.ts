@@ -198,3 +198,37 @@ export interface Appointment {
   projectId?: string | null;
   createdAt: number;
 }
+
+export interface MatericoItem {
+  id: string;
+  desc: string;
+  qty: number;
+  unit: string;
+}
+export interface MatericoOffer {
+  partnerUid: string;
+  partnerName: string;
+  amount: number;
+  note?: string;
+  at: number;
+}
+export interface MatericoRequest {
+  id: string;
+  clientUid: string;
+  clientName: string;
+  title: string;
+  description?: string;
+  category?: string;          // tipo di lavorazione (es. "Gres/Pavimenti")
+  items?: MatericoItem[];      // quantità inserite dal cliente
+  links?: string[];
+  note?: string;
+  status: 'nuova' | 'inoltrata' | 'offerte' | 'inviata_cliente' | 'accettata' | 'rifiutata';
+  forwardedTo?: string[];      // uid partner a cui è stata inoltrata
+  offers?: Record<string, MatericoOffer>;
+  selectedPartnerUid?: string | null;
+  marginPct?: number;
+  clientPrice?: number | null; // prezzo finale al cliente (con margine Materico)
+  contractText?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
