@@ -58,6 +58,17 @@ import {
   sameDay
 } from './utils';
 
+import {
+  INTERVENTI_EDILIZI,
+  TITOLI_ABILITATIVI,
+  STUDIO_CATEGORIE_BY_FASE,
+  buildStudioPhases,
+  studioSummary,
+  interventoById,
+  interventoLabel,
+  DEFAULT_INTERVENTO
+} from './studioConfig';
+
 // Subviews
 import { DashboardView } from './components/DashboardView';
 import { CalendarView } from './components/CalendarView';
@@ -681,6 +692,11 @@ export default function App() {
   const [pMatericoFinitureType, setPMatericoFinitureType] = useState<string>('');
   const [pMatericoSottofondiStatus, setPMatericoSottofondiStatus] = useState<string>('');
 
+  // Studio configurator (tipo intervento → titolo abilitativo → categorie di lavorazione)
+  const [pIntervento, setPIntervento] = useState<string>(DEFAULT_INTERVENTO);
+  const [pTitolo, setPTitolo] = useState<string>('scia');
+  const [pCategorie, setPCategorie] = useState<string[]>([]);
+
   // Project Editing
   const [editProjOpen, setEditProjOpen] = useState(false);
   const [editProjId, setEditProjId] = useState<string | null>(null);
@@ -917,7 +933,31 @@ export default function App() {
     setPMatericoFinitureType('');
     setPMatericoSottofondiStatus('');
 
+    // Configuratore Studio: imposta intervento di default + titolo/categorie suggeriti.
+    if (div === 'studio') {
+      const it = interventoById(DEFAULT_INTERVENTO) || INTERVENTI_EDILIZI[0];
+      setPIntervento(it.id);
+      setPTitolo(it.titolo);
+      setPCategorie(it.categorie);
+    } else {
+      setPCategorie([]);
+    }
+
     setNewProjOpen(true);
+  };
+
+  // Cambio tipo di intervento edilizio: auto-suggerisce titolo abilitativo e categorie.
+  const handleInterventoChange = (id: string) => {
+    setPIntervento(id);
+    const it = interventoById(id);
+    if (it) {
+      setPTitolo(it.titolo);
+      setPCategorie(it.categorie);
+    }
+  };
+
+  const toggleCategoria = (cat: string) => {
+    setPCategorie(prev => (prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]));
   };
 
   const handlePDivisionChange = (newDiv: 'studio' | 'strategico' | 'materico' | 'unico') => {
@@ -938,6 +978,16 @@ export default function App() {
     }
     setPTmplPicked(defaultTemplate);
     setPCode(`${prefix}-${yr}-${String(count).padStart(3, '0')}`);
+
+    // Configuratore Studio: reimposta intervento/titolo/categorie alla scelta della divisione.
+    if (newDiv === 'studio') {
+      const it = interventoById(pIntervento) || interventoById(DEFAULT_INTERVENTO) || INTERVENTI_EDILIZI[0];
+      setPIntervento(it.id);
+      setPTitolo(it.titolo);
+      setPCategorie(it.categorie);
+    } else {
+      setPCategorie([]);
+    }
   };
 
   const handleCreateProject = () => {
@@ -947,10 +997,14 @@ export default function App() {
     }
 
     const nId = `p-${Date.now()}`;
-    const tm = pTmplPicked !== '__blank__' ? (templates[pTmplPicked] as any) : null;
-    const phases: Record<string, Phase> = {};
+    // Studio: se sono state scelte delle categorie, le fasi/task nascono dalla libreria reale.
+    const isStudioConfig = pDivision === 'studio' && pCategorie.length > 0;
+    const tm = (!isStudioConfig && pTmplPicked !== '__blank__') ? (templates[pTmplPicked] as any) : null;
+    let phases: Record<string, Phase> = {};
 
-    if (tm) {
+    if (isStudioConfig) {
+      phases = buildStudioPhases(pCategorie, pTitolo);
+    } else if (tm) {
       Object.entries(tm.phases || {}).forEach(([k, ph]: [string, any]) => {
         const tasksMap: Record<string, ProjectTask> = {};
         Object.entries(ph.tasks || {}).forEach(([tk, tt]: [string, any]) => {
@@ -981,16 +1035,18 @@ export default function App() {
       startDate: pStart || todayISO(),
       dueDate: pDue || null,
       status: 'attivo',
-      icon: tm ? tm.icon : 'folder',
-      templateId: tm ? tm.id : null,
-      templateName: tm ? tm.name : null,
+      icon: isStudioConfig ? 'building' : (tm ? tm.icon : 'folder'),
+      templateId: isStudioConfig ? null : (tm ? tm.id : null),
+      templateName: isStudioConfig ? interventoLabel(pIntervento) : (tm ? tm.name : null),
       clientUid: pClientUid || null,
       committente: pCommittente.trim() || null,
       indirizzoImmobile: pIndirizzo.trim() || null,
       foglio: pFoglio.trim() || null,
       particella: pParticella.trim() || null,
       sub: pSub.trim() || null,
-      tipoIntervento: pTipo.trim() || null,
+      tipoIntervento: pDivision === 'studio' ? interventoLabel(pIntervento) : (pTipo.trim() || null),
+      interventoEdilizio: pDivision === 'studio' ? pIntervento : undefined,
+      titoloAbilitativo: pDivision === 'studio' ? pTitolo : undefined,
       phases,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -2435,6 +2491,42 @@ export default function App() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
           <div className="flex flex-col gap-3">
+            {pDivision === 'studio' ? (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-bold text-[#8a8a8a] uppercase tracking-wider block">Categorie di lavorazione</span>
+                  <span className="text-[10px] font-bold text-[#8a8a8a]">{pCategorie.length} sel.</span>
+                </div>
+                <div className="flex flex-col gap-3 max-h-[360px] overflow-y-auto pr-1">
+                  {STUDIO_CATEGORIE_BY_FASE.map(group => {
+                    const allSel = group.categorie.every(c => pCategorie.includes(c));
+                    return (
+                      <div key={group.fase} className="border border-[#ececec] rounded-2xl p-3 bg-[#fafafa]/60">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#161616]">{group.fase}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPCategorie(prev => allSel ? prev.filter(c => !group.categorie.includes(c)) : Array.from(new Set([...prev, ...group.categorie])))}
+                            className="text-[10px] font-bold text-[#8a8a8a] hover:text-[#161616] bg-transparent border-none cursor-pointer"
+                          >
+                            {allSel ? 'Deseleziona' : 'Tutte'}
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {group.categorie.map(cat => (
+                            <label key={cat} className="flex items-center gap-2 text-[12.5px] text-[#333] cursor-pointer py-0.5">
+                              <input type="checkbox" checked={pCategorie.includes(cat)} onChange={() => toggleCategoria(cat)} />
+                              <span>{cat}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
             <span className="text-[12px] font-bold text-[#8a8a8a] uppercase tracking-wider block mb-1">Seleziona Template Standard</span>
             <div className="flex flex-col gap-2 max-h-[340px] overflow-y-auto pr-1">
               {Object.values(templates)
@@ -2480,6 +2572,8 @@ export default function App() {
                 </div>
               </button>
             </div>
+              </>
+            )}
           </div>
 
           <div className="flex flex-col gap-3.5">
@@ -2527,20 +2621,30 @@ export default function App() {
 
             {pDivision === 'studio' && (
               <div className="border border-neutral-100 bg-[#fafafa] rounded-2xl p-4 flex flex-col gap-3">
-                <span className="text-[10px] font-mono tracking-wider text-gray-400 uppercase font-bold">Dettagli Architettura (STUDIO)</span>
+                <span className="text-[10px] font-mono tracking-wider text-gray-400 uppercase font-bold">Pratica edilizia (STUDIO)</span>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Tipo Intervento</label>
-                    <input value={pTipo} onChange={(e) => setPTipo(e.target.value)} placeholder="Es. Ristrutturazione" className="input text-xs bg-white h-9" />
+                    <label className="text-[11px] font-semibold text-gray-600">Tipo di intervento edilizio</label>
+                    <select value={pIntervento} onChange={(e) => handleInterventoChange(e.target.value)} className="select text-xs bg-white h-9 font-sans">
+                      {INTERVENTI_EDILIZI.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
+                    </select>
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-semibold text-gray-600">Titolo abilitativo <span className="text-gray-400 normal-case font-normal">(auto)</span></label>
+                    <select value={pTitolo} onChange={(e) => setPTitolo(e.target.value)} className="select text-xs bg-white h-9 font-sans">
+                      {TITOLI_ABILITATIVI.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[11px] font-semibold text-gray-600">Committente</label>
                     <input value={pCommittente} onChange={(e) => setPCommittente(e.target.value)} placeholder="Es. Mario Rossi" className="input text-xs bg-white h-9" />
                   </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-semibold text-gray-600">Indirizzo Immobile</label>
-                  <input value={pIndirizzo} onChange={(e) => setPIndirizzo(e.target.value)} placeholder="Es. Via Roma 15, Lecce" className="input text-xs bg-white h-9" />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-semibold text-gray-600">Indirizzo Immobile</label>
+                    <input value={pIndirizzo} onChange={(e) => setPIndirizzo(e.target.value)} placeholder="Es. Via Roma 15, Lecce" className="input text-xs bg-white h-9" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-1">
@@ -2556,6 +2660,12 @@ export default function App() {
                     <input value={pSub} onChange={(e) => setPSub(e.target.value)} placeholder="3" className="input text-xs bg-white h-9 font-mono" />
                   </div>
                 </div>
+                {(() => { const s = studioSummary(pCategorie, pTitolo); return (
+                  <div className="flex items-center gap-2 mt-1 text-[11px] font-bold text-[#161616] bg-white border border-[#ececec] rounded-xl px-3 py-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Verranno generate <span className="text-emerald-700">{s.fasi} fasi</span> e <span className="text-emerald-700">{s.tasks} task</span> dalla libreria Onirico.
+                  </div>
+                ); })()}
               </div>
             )}
 

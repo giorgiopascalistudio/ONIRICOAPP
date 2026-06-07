@@ -40,6 +40,7 @@ import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
 import { MatericoView } from './MatericoView';
 import type { Supplier } from './CrmView';
+import { interventoLabel, titoloLabel } from '../studioConfig';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProjectsViewProps {
@@ -464,19 +465,39 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                 rightVal={curTask.phase || 'Avvio'}
               />              {/* Practice Certificate / Division-specific Details */}
               {(!p.division || p.division === 'studio') ? (
-                (p.committente || p.indirizzoImmobile || p.foglio || p.particella) ? (
+                (p.committente || p.indirizzoImmobile || p.foglio || p.particella || p.interventoEdilizio) ? (
                   <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm flex flex-col gap-4">
                     <div className="pb-3 border-b border-[#f5f5f5] flex justify-between items-center">
-                      <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">Dati Catastali & Commessa</h3>
-                      <button 
-                        onClick={() => onOpenAnagrafica(p.id)} 
+                      <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">Pratica & Dati Catastali</h3>
+                      <button
+                        onClick={() => onOpenAnagrafica(p.id)}
                         className="text-[12px] font-bold text-[#161616] hover:underline bg-transparent border-none cursor-pointer"
                       >
                         Modifica
                       </button>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {p.interventoEdilizio && (
+                        <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
+                          <Layers className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans">Intervento</span>
+                            <b className="block text-[13px] mt-0.5 truncate text-[#161616]">{interventoLabel(p.interventoEdilizio)}</b>
+                          </div>
+                        </div>
+                      )}
+
+                      {p.titoloAbilitativo && (
+                        <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
+                          <FileText className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans">Titolo abilitativo</span>
+                            <b className="block text-[13px] mt-0.5 truncate text-[#161616]">{titoloLabel(p.titoloAbilitativo)}</b>
+                          </div>
+                        </div>
+                      )}
+
                       {p.committente && (
                         <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
                           <User className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />

@@ -63,6 +63,8 @@ export interface Project {
   particella?: string | null;
   sub?: string | null;
   tipoIntervento?: string | null;
+  interventoEdilizio?: string | null;   // id intervento edilizio (configuratore Studio)
+  titoloAbilitativo?: string | null;    // id titolo abilitativo: CILA/SCIA/PdC...
   clientMessage?: string | null;
   clientMessageAt?: number | null;
   clientMessageBy?: string | null;
