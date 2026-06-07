@@ -34,10 +34,12 @@ import {
   SlidersHorizontal,
   Clock
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest } from '../types';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
+import { MatericoView } from './MatericoView';
+import type { Supplier } from './CrmView';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProjectsViewProps {
@@ -72,6 +74,11 @@ interface ProjectsViewProps {
   onDeleteEstimate?: (id: string) => void;
   divisionFilter?: 'studio' | 'strategico' | 'materico' | 'unico';
   setDivisionFilter?: (val: 'studio' | 'strategico' | 'materico' | 'unico') => void;
+  // Materico — hub operatore (richieste clienti, inoltro partner, offerte) ora dentro Progetti
+  matericoRequests?: MatericoRequest[];
+  matericoSuppliers?: Supplier[];
+  onUpdateMatericoRequest?: (req: MatericoRequest) => void;
+  onDeleteMatericoRequest?: (id: string) => void;
 }
 
 export const ProjectsView: React.FC<ProjectsViewProps> = ({
@@ -105,7 +112,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onSaveEstimate,
   onDeleteEstimate,
   divisionFilter: propDivisionFilter,
-  setDivisionFilter: propSetDivisionFilter
+  setDivisionFilter: propSetDivisionFilter,
+  matericoRequests = [],
+  matericoSuppliers = [],
+  onUpdateMatericoRequest,
+  onDeleteMatericoRequest
 }) => {
   const [search, setSearch] = useState('');
   const [showSearchInput, setShowSearchInput] = useState(false);
@@ -118,6 +129,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [clientMessageInput, setClientMessageInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [projTab, setProjTab] = useState<string>('vista');
+  const [matericoTab, setMatericoTab] = useState<'progetti' | 'richieste'>('progetti');
   
   // For Materico & Strategico tools
   const [newEstOpen, setNewEstOpen] = useState(false);
@@ -1762,6 +1774,10 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     return true;
   });
 
+  // Materico: dentro la divisione Materico l'operatore può passare da "Progetti" all'inbox "Richieste & Offerte".
+  const showMatericoInbox = divisionFilter === 'materico' && isInternalBoss && matericoTab === 'richieste';
+  const matericoActionable = matericoRequests.filter(r => r.status === 'nuova' || r.status === 'offerte').length;
+
   return (
     <div className="flex flex-col gap-6 text-left">
       {/* Filtering and search */}
@@ -1803,7 +1819,44 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             })}
           </div>
 
+          {/* Materico sub-section: Progetti vs Richieste & Offerte (hub operatore) */}
+          {divisionFilter === 'materico' && isInternalBoss && (
+            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
+              {([
+                { id: 'progetti', label: 'Progetti' },
+                { id: 'richieste', label: 'Richieste & Offerte' }
+              ] as const).map(t => {
+                const active = matericoTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setMatericoTab(t.id)}
+                    className={`relative flex-1 sm:flex-initial text-center text-[11px] sm:text-[12px] font-extrabold px-3.5 sm:px-4 py-1.5 rounded-full cursor-pointer select-none transition-colors duration-300 border-none bg-transparent inline-flex items-center justify-center gap-1.5 ${
+                      active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
+                    }`}
+                    style={{ touchAction: 'none' }}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="matericoSubTabActivePill"
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
+                      />
+                    )}
+                    <span className="relative z-10 font-extrabold">{t.label}</span>
+                    {t.id === 'richieste' && matericoActionable > 0 && (
+                      <span className="relative z-10 text-[9px] font-extrabold min-w-[16px] h-[16px] px-1 rounded-full flex items-center justify-center bg-[#c2410c] text-white">
+                        {matericoActionable}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Main Status Navbar */}
+          {!showMatericoInbox && (<>
           <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
             {([
               { id: 'attivi', label: 'Attivi' },
@@ -1876,8 +1929,10 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               </button>
             )}
           </div>
+        </>)}
         </div>
 
+        {!showMatericoInbox && (
         <div className="flex items-center gap-1.5 bg-white border border-[#e2e2e2] p-1.5 rounded-2xl shadow-sm">
           <button
             onClick={() => setViewMode('grid')}
@@ -1896,9 +1951,17 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             <List className="w-4.5 h-4.5" />
           </button>
         </div>
+        )}
       </div>
 
-      {allList.length > 0 ? (
+      {showMatericoInbox ? (
+        <MatericoView
+          requests={matericoRequests}
+          suppliers={matericoSuppliers}
+          onUpdateRequest={onUpdateMatericoRequest || (() => {})}
+          onDeleteRequest={onDeleteMatericoRequest || (() => {})}
+        />
+      ) : allList.length > 0 ? (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5' : 'flex flex-col gap-3.5'}>
           {allList.map(p => {
             const { done, tot } = projTaskCounts(p);

@@ -77,7 +77,6 @@ import { GoogleLogin } from './components/GoogleLogin';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
 import { CrmView, type Lead, type Supplier } from './components/CrmView';
-import { MatericoView } from './components/MatericoView';
 import {
   watchAuth,
   logoutGoogle,
@@ -205,7 +204,13 @@ export default function App() {
     // Handle hash router on load
     const handleHash = () => {
       const hash = window.location.hash.slice(1).split('/');
-      setRoute(hash[0] || 'dashboard');
+      let r = hash[0] || 'dashboard';
+      // Materico non è più una sezione a sé: ora vive dentro "Progetti".
+      if (r === 'materico') {
+        r = 'progetti';
+        setActiveDivision('materico');
+      }
+      setRoute(r);
       setRouteParam(hash[1] || null);
     };
 
@@ -1659,6 +1664,10 @@ export default function App() {
             estimates={Object.values(estimates)}
             onSaveEstimate={handleSaveEstimate}
             onDeleteEstimate={handleDeleteEstimate}
+            matericoRequests={Object.values(matericoRequests)}
+            matericoSuppliers={crmSuppliers}
+            onUpdateMatericoRequest={handleUpdateMatericoRequest}
+            onDeleteMatericoRequest={handleDeleteMatericoRequest}
           />
         );
 
@@ -1705,16 +1714,6 @@ export default function App() {
             onSaveLeads={saveLeads}
             onSaveSuppliers={saveSuppliers}
             onConvertLead={handleConvertLead}
-          />
-        );
-
-      case 'materico':
-        return (
-          <MatericoView
-            requests={Object.values(matericoRequests)}
-            suppliers={crmSuppliers}
-            onUpdateRequest={handleUpdateMatericoRequest}
-            onDeleteRequest={handleDeleteMatericoRequest}
           />
         );
 
