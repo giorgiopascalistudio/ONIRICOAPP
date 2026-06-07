@@ -99,6 +99,14 @@ interface Toast {
   type?: 'ok' | 'err';
 }
 
+// Metadati divisioni (settori): il modale "nuova commessa" si adatta al settore selezionato in Progetti.
+const DIVISION_META: Record<'studio' | 'strategico' | 'materico' | 'unico', { label: string; color: string; desc: string; cta: string }> = {
+  studio: { label: 'Studio', color: '#161616', desc: 'Architettura, pratiche edilizie e catasto', cta: 'Crea pratica Studio' },
+  strategico: { label: 'Strategico', color: '#b45309', desc: 'Marketing, brand e campagne', cta: 'Crea progetto Strategico' },
+  materico: { label: 'Materico', color: '#c2410c', desc: 'Forniture e posa con partner', cta: 'Crea commessa Materico' },
+  unico: { label: 'Unico', color: '#4338ca', desc: 'Atelier di lusso su misura', cta: 'Crea progetto Unico' }
+};
+
 const projTaskCounts = (p: Project) => {
   let done = 0, tot = 0;
   Object.values(p.phases || {}).forEach(ph => {
@@ -1932,7 +1940,7 @@ export default function App() {
           onNotificationsClick={() => setNotificationsOpen(!notificationsOpen)}
           actionButton={
             route === 'progetti' ? (
-              <button onClick={handleOpenNewProject} className="w-8 h-8 rounded-full bg-[#1b1b1b] text-white flex items-center justify-center border-none">
+              <button onClick={() => handleOpenNewProject(activeDivision)} className="w-8 h-8 rounded-full bg-[#1b1b1b] text-white flex items-center justify-center border-none">
                 <Plus className="w-4.5 h-4.5" />
               </button>
             ) : undefined
@@ -1948,7 +1956,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             {route === 'progetti' && (
               <button
-                onClick={handleOpenNewProject}
+                onClick={() => handleOpenNewProject(activeDivision)}
                 className="btn btn-primary btn-sm rounded-xl py-1.5 px-3 flex items-center gap-1.5 cursor-pointer font-bold bg-[#1b1b1b] hover:bg-black text-white hover:shadow-md"
               >
                 <Plus className="w-4 h-4" /> Nuovo progetto
@@ -2411,7 +2419,20 @@ export default function App() {
       </Modal>
 
       {/* 3. New Project Creator Modal */}
-      <Modal title="Crea nuova pratica" isOpen={newProjOpen} onClose={() => setNewProjOpen(false)} wide>
+      <Modal title={`Nuova commessa — ${DIVISION_META[pDivision].label}`} isOpen={newProjOpen} onClose={() => setNewProjOpen(false)} wide>
+        {/* Settore selezionato: il modale si adatta alla divisione scelta in Progetti */}
+        <div
+          className="flex items-center gap-3 mb-4 p-3 rounded-2xl border"
+          style={{ borderColor: `${DIVISION_META[pDivision].color}33`, background: `${DIVISION_META[pDivision].color}0d` }}
+        >
+          <span
+            className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider text-white shrink-0"
+            style={{ background: DIVISION_META[pDivision].color }}
+          >
+            {DIVISION_META[pDivision].label}
+          </span>
+          <span className="text-[12px] text-[#555] font-medium">{DIVISION_META[pDivision].desc}</span>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
           <div className="flex flex-col gap-3">
             <span className="text-[12px] font-bold text-[#8a8a8a] uppercase tracking-wider block mb-1">Seleziona Template Standard</span>
@@ -2608,7 +2629,7 @@ export default function App() {
             </div>
 
             <button onClick={handleCreateProject} className="btn bg-[#1b1b1b] hover:bg-black text-white font-bold h-11 justify-center mt-2.5">
-              Crea commessa pratica
+              {DIVISION_META[pDivision].cta}
             </button>
           </div>
         </div>
