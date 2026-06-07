@@ -59,7 +59,11 @@ npm run build      # output in dist/ (esbuild: NON fa type-check)
 (agenda Giorno·Settimana·Mese), `ProjectsView`, `DocumentsView`, `CrmView`
 (pipeline lead + fornitori), `MatericoView` (hub operatore Materico),
 `MatericoPortal` (lato cliente/partner), `FinanzeView`, `TeamView`,
-`ClientPortalView` (portale cliente/partner, ~2400 righe), `AccessRequests`
+`ClientPortalView` (portale cliente/partner, ~2400 righe), `ServicesShowcase`
+(sezione "Scopri i servizi" del portale: pagine vetrina Studio/Materico/
+Strategico/Unico accanto ai progetti; Unico ha la vetrina immobili-investimento
+con dati **fittizi** da `src/showcaseData.ts` — contenuti demo, non su Firebase),
+`AuthFlow` (onboarding pubblico, vedi §5), `AccessRequests`
 (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
 `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
 `InteractiveView`.

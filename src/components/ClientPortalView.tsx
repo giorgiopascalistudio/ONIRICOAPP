@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MatericoPortal } from './MatericoPortal';
+import { ServicesShowcase } from './ServicesShowcase';
 import type { MatericoRequest } from '../types';
 import { 
   Send, 
@@ -319,6 +320,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   const [approvedMarketingPosts, setApprovedMarketingPosts] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<string>('lavori');
+  const [showcaseOpen, setShowcaseOpen] = useState(false); // vetrina "Scopri i servizi"
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [blogSearch, setBlogSearch] = useState('');
   const [blogFilter, setBlogFilter] = useState('Tutti');
@@ -605,6 +607,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
     return (code || '----').slice(0, 4).padEnd(4, ' ');
   };
 
+  // Vetrina "Scopri i servizi" — accessibile a qualunque cliente, anche senza progetti
+  if (showcaseOpen) {
+    return <ServicesShowcase profile={profile} onBack={() => setShowcaseOpen(false)} onLogout={onLogout} />;
+  }
+
   // If no projects connected
   if (!projectIds.length || !projects.length) {
     return (
@@ -614,9 +621,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           <span className="font-extrabold text-[20px] tracking-tight text-[#161616]">
             Onirico<span className="text-[#8a8a8a] font-normal"> · OS</span>
           </span>
-          <button onClick={onLogout} className="bg-[#1b1b1b] hover:bg-black text-white font-extrabold text-xs py-1.5 px-4 rounded-xl border-none cursor-pointer transition-all active:scale-95">
-            Esci
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => setShowcaseOpen(true)} className="bg-[#1b1b1b] hover:bg-black text-white font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
+              <Sparkles className="w-3.5 h-3.5" /> Scopri i servizi
+            </button>
+            <button onClick={onLogout} className="bg-[#f0f0f0] hover:bg-[#e4e4e4] text-[#161616] font-extrabold text-xs py-1.5 px-4 rounded-xl border-none cursor-pointer transition-all active:scale-95">
+              Esci
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 max-w-[500px] mx-auto flex items-center justify-center p-6">
@@ -832,6 +844,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               })}
             </select>
           )}
+
+          <button onClick={() => setShowcaseOpen(true)} className="bg-[#1b1b1b] hover:bg-black text-white font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
+            <Sparkles className="w-3.5 h-3.5" /> Scopri i servizi
+          </button>
 
           <button onClick={onLogout} className="bg-[#f0f0f0] hover:bg-[#e4e4e4] text-[#161616] font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
             <LogOut className="w-3.5 h-3.5" /> Esci
