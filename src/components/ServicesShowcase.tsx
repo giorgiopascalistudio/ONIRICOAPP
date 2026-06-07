@@ -91,7 +91,11 @@ export const ServicesShowcase: React.FC<ShowcaseProps> = ({ profile, onBack, onL
 };
 
 /* ---------------- HUB ---------------- */
-const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> = ({ profile, onOpen }) => (
+const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> = ({ profile, onOpen }) => {
+  const unico = SHOWCASE_SERVICES.find((s) => s.key === 'unico')!;
+  const others = SHOWCASE_SERVICES.filter((s) => s.key !== 'unico');
+  const minQuota = Math.min(...UNICO_PROPERTIES.map((p) => p.minInvestment));
+  return (
   <>
     <div className="mt-2 mb-7">
       <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-stone-500">
@@ -106,8 +110,39 @@ const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> =
       </p>
     </div>
 
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {SHOWCASE_SERVICES.map((s, i) => {
+    {/* Unico in evidenza */}
+    <motion.button
+      onClick={() => onOpen('unico')}
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+      className="group w-full text-left bg-white border border-indigo-200 rounded-[28px] overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer mb-5"
+    >
+      <div className="h-44 md:h-52 w-full overflow-hidden relative">
+        <img src={unico.image} alt="Unico" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute left-5 bottom-4 text-white">
+          <span className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wide bg-[#4338ca] px-2.5 py-1 rounded-full">
+            <Gem className="w-3 h-3" /> Unico · Investimenti
+          </span>
+          <h2 className="font-serif text-[26px] md:text-[30px] tracking-tight mt-2 drop-shadow">Investi negli immobili Onirico</h2>
+        </div>
+      </div>
+      <div className="p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <p className="text-[13.5px] text-stone-600 max-w-[540px] leading-relaxed">{unico.intro}</p>
+          <div className="flex items-center gap-4 mt-3 text-[12px] font-semibold text-stone-500">
+            <span className="flex items-center gap-1.5"><Gem className="w-3.5 h-3.5 text-[#4338ca]" /> {UNICO_PROPERTIES.length} immobili disponibili</span>
+            <span className="flex items-center gap-1.5"><Coins className="w-3.5 h-3.5 text-[#4338ca]" /> da {eur(minQuota)}</span>
+          </div>
+        </div>
+        <span className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl text-white font-bold text-[13.5px] h-11 px-5 group-hover:gap-3 transition-all" style={{ background: '#4338ca' }}>
+          Esplora gli immobili <ArrowRight className="w-4 h-4" />
+        </span>
+      </div>
+    </motion.button>
+
+    {/* Altri servizi */}
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {others.map((s, i) => {
         const Icon = ICONS[s.key];
         return (
           <motion.button
@@ -140,7 +175,8 @@ const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> =
       })}
     </div>
   </>
-);
+  );
+};
 
 /* ---------------- PAGINA SERVIZIO (studio/materico/strategico) ---------------- */
 const ServicePage: React.FC<{ service: typeof SHOWCASE_SERVICES[number]; onBack: () => void }> = ({ service, onBack }) => {
