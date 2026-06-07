@@ -84,7 +84,7 @@ import { Navbar } from './components/Navbar';
 import { Modal } from './components/Modal';
 import { AppleSwitch } from './components/AppleSwitch';
 import { injectSmartTextStyles } from './components/SmartText';
-import { GoogleLogin } from './components/GoogleLogin';
+import { AuthFlow } from './components/AuthFlow';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
 import { CrmView, type Lead, type Supplier } from './components/CrmView';
@@ -182,6 +182,9 @@ export default function App() {
 
   // Active session profile
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  // Proprio record users/<uid> SEMPRE disponibile (anche se non attivo): serve
+  // a decidere registrazione/attesa/rifiuto anche per cliente/azienda non-active.
+  const [ownProfile, setOwnProfile] = useState<UserProfile | null>(null);
 
   // Google (Firebase) authentication gate
   const [gUser, setGUser] = useState<GUser | null>(null);
@@ -255,6 +258,7 @@ export default function App() {
       setAccounts({});
       setAccountsReady(false);
       setCurrentUser(null);
+      setOwnProfile(null);
       setUsers({});
       creatingRef.current = false;
       return;
@@ -264,15 +268,17 @@ export default function App() {
 
     const unsubOwn = watchOwnAccount(gUser.uid, async (mine: any) => {
       setAccountsReady(true);
+      setOwnProfile(mine || null);
 
       if (!mine) {
-        // Crea il record al primo accesso.
+        // Bootstrap admin: il proprietario o il primissimo utente diventa admin
+        // attivo. Tutti gli altri completano la scheda dal form di registrazione
+        // (AuthFlow) — qui NON creiamo un record parziale.
         if (!creatingRef.current) {
           creatingRef.current = true;
           const OWNER_EMAIL = 'giorgio.pascali990@gmail.com';
-          const ADMIN_EMAILS = [OWNER_EMAIL];
           const email = (gUser.email || '').toLowerCase();
-          const isAdminEmail = ADMIN_EMAILS.includes(email);
+          const isAdminEmail = email === OWNER_EMAIL;
           let isFirst = false;
           try {
             const all = await getAccounts(); // leggibile solo se il nodo è vuoto (bootstrap)
@@ -280,18 +286,23 @@ export default function App() {
           } catch (_) {
             isFirst = false;
           }
-          const makeAdmin = isFirst || isAdminEmail;
-          const rec: any = {
-            uid: gUser.uid,
-            name: gUser.displayName || gUser.email || 'Utente',
-            email: gUser.email || '',
-            photoURL: gUser.photoURL || '',
-            createdAt: Date.now(),
-            status: makeAdmin ? 'approved' : 'pending',
-            active: makeAdmin // studio = active; in attesa = non active
-          };
-          if (makeAdmin) rec.role = 'admin';
-          setAccount(gUser.uid, rec).catch(() => {});
+          if (isFirst || isAdminEmail) {
+            setAccount(gUser.uid, {
+              uid: gUser.uid,
+              name: gUser.displayName || gUser.email || 'Amministratore',
+              email: gUser.email || '',
+              photoURL: gUser.photoURL || '',
+              createdAt: Date.now(),
+              role: 'admin',
+              status: 'approved',
+              active: true,
+              accountType: 'team',
+              profileComplete: true
+            }).catch(() => {});
+          } else {
+            // niente record: lascia che AuthFlow mostri il completamento profilo
+            creatingRef.current = false;
+          }
         }
         setCurrentUser(null);
         return;
@@ -1453,7 +1464,7 @@ export default function App() {
   }
 
   if (!gUser) {
-    return <GoogleLogin onError={(m) => showToast(m, 'err')} />;
+    return <AuthFlow gUser={null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />;
   }
 
   // Account creato ma non ancora caricato/approvato
@@ -1470,9 +1481,45 @@ export default function App() {
     );
   }
 
+  // Sessione non ancora attiva (currentUser = profilo approvato CON ruolo).
+  // Gli account già attivi/approvati saltano direttamente all'app qui sotto.
   if (!currentUser) {
-    const mine = accounts[gUser.uid];
-    const rejected = mine?.status === 'rejected';
+    const mine = ownProfile;
+
+    // Account rifiutato dall'amministratore
+    if (mine?.status === 'rejected') {
+      return (
+        <div className="min-h-screen bg-[#F5F5F3] p-8 flex flex-col justify-center items-center select-none font-sans">
+          <div className="w-full max-w-[440px] mx-auto text-center animate-[popIn_0.35s_ease_both]">
+            <h1 className="font-black text-[30px] tracking-tight text-[#161616]">
+              Onirico Studio <span className="text-stone-400 font-light">· OS</span>
+            </h1>
+            <div className="bg-white border border-[#e2e2e2] rounded-[24px] shadow-sm p-7 mt-6 flex flex-col items-center gap-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center bg-red-50 text-red-600">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <b className="text-[16px] text-[#161616]">Accesso non autorizzato</b>
+              <p className="text-[13px] text-[#8a8a8a] leading-relaxed">
+                Il tuo account non è stato abilitato. Contatta l’amministratore dello studio.
+              </p>
+              <div className="flex items-center gap-2 mt-2 text-[12px] text-stone-400 font-semibold">
+                <User className="w-3.5 h-3.5" /> {gUser.email}
+              </div>
+              <button onClick={handleLogout} className="btn bg-gray-100 hover:bg-gray-200 border-none text-[#161616] font-bold justify-center mt-3 w-full">
+                Esci
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Profilo non ancora completato (primo accesso) → form registrazione/completamento
+    if (!mine || !mine.profileComplete) {
+      return <AuthFlow gUser={gUser} pendingProfile={mine || null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />;
+    }
+
+    // Profilo completo ma ancora senza ruolo approvato → Team in attesa
     return (
       <div className="min-h-screen bg-[#F5F5F3] p-8 flex flex-col justify-center items-center select-none font-sans">
         <div className="w-full max-w-[440px] mx-auto text-center animate-[popIn_0.35s_ease_both]">
@@ -1480,24 +1527,18 @@ export default function App() {
             Onirico Studio <span className="text-stone-400 font-light">· OS</span>
           </h1>
           <div className="bg-white border border-[#e2e2e2] rounded-[24px] shadow-sm p-7 mt-6 flex flex-col items-center gap-3">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${rejected ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-              {rejected ? <AlertTriangle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-amber-50 text-amber-600">
+              <Clock className="w-6 h-6" />
             </div>
-            <b className="text-[16px] text-[#161616]">
-              {rejected ? 'Accesso non autorizzato' : 'Richiesta in attesa di approvazione'}
-            </b>
+            <b className="text-[16px] text-[#161616]">Richiesta in attesa di approvazione</b>
             <p className="text-[13px] text-[#8a8a8a] leading-relaxed">
-              {rejected
-                ? 'Il tuo account non è stato abilitato. Contatta l’amministratore dello studio.'
-                : 'Il tuo accesso è stato registrato. Un amministratore deve approvarlo e assegnarti un ruolo. Riprova più tardi.'}
+              La tua registrazione come <b>Team</b> è stata inviata. Un responsabile dello studio
+              deve approvarti e assegnarti un ruolo. Riprova più tardi.
             </p>
             <div className="flex items-center gap-2 mt-2 text-[12px] text-stone-400 font-semibold">
               <User className="w-3.5 h-3.5" /> {gUser.email}
             </div>
-            <button
-              onClick={handleLogout}
-              className="btn bg-gray-100 hover:bg-gray-200 border-none text-[#161616] font-bold justify-center mt-3 w-full"
-            >
+            <button onClick={handleLogout} className="btn bg-gray-100 hover:bg-gray-200 border-none text-[#161616] font-bold justify-center mt-3 w-full">
               Esci
             </button>
           </div>
@@ -1946,6 +1987,8 @@ export default function App() {
 
   // Controllo accessi (admin)
   const isAdmin = currentUser.role === 'admin';
+  // Gestione accessi (approvazione Team): admin e manager.
+  const canManageAccess = currentUser.role === 'admin' || currentUser.role === 'manager';
   const pendingAccounts = Object.values(accounts).filter((a: any) => a?.status === 'pending') as UserProfile[];
   const approvedAccounts = Object.values(accounts).filter((a: any) => a?.status === 'approved') as UserProfile[];
 
@@ -2019,8 +2062,8 @@ export default function App() {
               </button>
             )}
 
-            {/* Accessi (solo admin) */}
-            {isAdmin && (
+            {/* Accessi (admin e manager) */}
+            {canManageAccess && (
               <button
                 onClick={() => setAccessOpen(true)}
                 className="relative w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-[#e2e2e2] text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer active:scale-95"
@@ -2266,7 +2309,7 @@ export default function App() {
             </div>
           </div>
 
-          {isAdmin && (
+          {canManageAccess && (
             <button
               onClick={() => { setProfileOpen(false); setAccessOpen(true); }}
               className="btn bg-[#1b1b1b] hover:bg-black text-white font-bold justify-center mt-2 flex items-center gap-2"
@@ -2282,8 +2325,8 @@ export default function App() {
         </div>
       </Modal>
 
-      {/* 1b. Gestione Accessi (solo admin) */}
-      {isAdmin && (
+      {/* 1b. Gestione Accessi (admin e manager) */}
+      {canManageAccess && (
         <Modal title="Gestione accessi" isOpen={accessOpen} onClose={() => setAccessOpen(false)} wide>
           <AccessRequests
             pending={pendingAccounts}
@@ -2599,11 +2642,13 @@ export default function App() {
                 <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-semibold">Account Portale</label>
+                <label className="text-[12px] font-semibold">Collega cliente registrato</label>
                 <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
                   <option value="">— Nessuno —</option>
                   {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
-                    <option key={u.uid} value={u.uid}>{u.name}</option>
+                    <option key={u.uid} value={u.uid}>
+                      {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2770,11 +2815,13 @@ export default function App() {
               <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Account Cliente</label>
+              <label className="text-[12px] font-semibold">Collega cliente registrato</label>
               <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
                 <option value="">— Scollegati —</option>
                 {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
-                  <option key={u.uid} value={u.uid}>{u.name}</option>
+                  <option key={u.uid} value={u.uid}>
+                    {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+                  </option>
                 ))}
               </select>
             </div>

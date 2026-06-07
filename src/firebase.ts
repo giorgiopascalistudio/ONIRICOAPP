@@ -13,6 +13,10 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
   signOut,
   onAuthStateChanged,
   type User
@@ -47,6 +51,18 @@ provider.setCustomParameters({ prompt: 'select_account' });
 export const loginWithGoogle = () => signInWithPopup(auth, provider);
 export const logoutGoogle = () => signOut(auth);
 export const watchAuth = (cb: (u: User | null) => void) => onAuthStateChanged(auth, cb);
+
+// ---- Accesso/registrazione con email e password ----
+export const loginWithEmail = (email: string, password: string) =>
+  signInWithEmailAndPassword(auth, email.trim(), password);
+export const registerWithEmail = async (email: string, password: string, displayName?: string) => {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  if (displayName && cred.user) {
+    try { await updateProfile(cred.user, { displayName }); } catch (_) { /* non bloccante */ }
+  }
+  return cred;
+};
+export const resetPassword = (email: string) => sendPasswordResetEmail(auth, email.trim());
 
 // Rimuove undefined/funzioni: Firebase rifiuta i valori undefined
 export const clean = (val: any) => JSON.parse(JSON.stringify(val ?? null));

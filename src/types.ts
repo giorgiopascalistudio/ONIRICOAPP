@@ -5,6 +5,9 @@
 
 export type UserRole = 'admin' | 'manager' | 'staff' | 'cliente' | 'partner';
 
+/** Cosa sceglie l'utente in fase di iscrizione. */
+export type AccountType = 'cliente' | 'azienda' | 'team';
+
 export interface UserProfile {
   uid: string;
   name: string;
@@ -17,12 +20,27 @@ export interface UserProfile {
   projectIds?: Record<string, boolean>;
   telefono?: string;
   pending?: boolean;
-  sector?: 'studio' | 'strategico' | 'materico' | 'partner';
+  sector?: 'studio' | 'strategico' | 'materico' | 'unico' | 'partner' | 'altro';
   // Controllo accessi (Firebase)
   status?: 'pending' | 'approved' | 'rejected';
   photoURL?: string;
   approvedBy?: string;
   approvedAt?: number;
+  // ---- Onboarding / iscrizione ----
+  accountType?: AccountType;     // cliente | azienda | team (scelto all'iscrizione)
+  profileComplete?: boolean;     // true quando il form di registrazione è stato completato
+  firstName?: string;
+  lastName?: string;
+  residenza?: string;            // indirizzo di residenza (privato)
+  privacyAccepted?: boolean;
+  privacyAcceptedAt?: number;
+  // ---- Dati azienda (accountType === 'azienda') ----
+  companyName?: string;
+  partitaIva?: string;
+  codiceFiscale?: string;
+  pec?: string;
+  sdi?: string;                  // codice destinatario fatturazione elettronica
+  companyAddress?: string;       // sede legale
 }
 
 export interface ProjectTask {
