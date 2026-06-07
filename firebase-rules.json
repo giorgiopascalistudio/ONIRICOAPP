@@ -83,6 +83,11 @@
       ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
     },
 
+    "unicoDeals": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
+    },
+
     "appointments": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$id": {

@@ -34,11 +34,12 @@ import {
   SlidersHorizontal,
   Clock
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal } from '../types';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
 import { MatericoView } from './MatericoView';
+import { UnicoStudioView } from './UnicoStudioView';
 import type { Supplier } from './CrmView';
 import { interventoLabel, titoloLabel } from '../studioConfig';
 import { motion, AnimatePresence } from 'motion/react';
@@ -80,6 +81,8 @@ interface ProjectsViewProps {
   matericoSuppliers?: Supplier[];
   onUpdateMatericoRequest?: (req: MatericoRequest) => void;
   onDeleteMatericoRequest?: (id: string) => void;
+  unicoDeals?: UnicoDeal[];
+  onSaveUnicoDeals?: (deals: UnicoDeal[]) => void;
 }
 
 export const ProjectsView: React.FC<ProjectsViewProps> = ({
@@ -117,7 +120,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   matericoRequests = [],
   matericoSuppliers = [],
   onUpdateMatericoRequest,
-  onDeleteMatericoRequest
+  onDeleteMatericoRequest,
+  unicoDeals = [],
+  onSaveUnicoDeals
 }) => {
   const [search, setSearch] = useState('');
   const [showSearchInput, setShowSearchInput] = useState(false);
@@ -131,6 +136,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [uploading, setUploading] = useState(false);
   const [projTab, setProjTab] = useState<string>('vista');
   const [matericoTab, setMatericoTab] = useState<'progetti' | 'richieste'>('progetti');
+  const [unicoTab, setUnicoTab] = useState<'progetti' | 'studio'>('progetti');
   
   // For Materico & Strategico tools
   const [newEstOpen, setNewEstOpen] = useState(false);
@@ -1799,6 +1805,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const showMatericoInbox = divisionFilter === 'materico' && isInternalBoss && matericoTab === 'richieste';
   const matericoActionable = matericoRequests.filter(r => r.status === 'nuova' || r.status === 'offerte').length;
 
+  // Unico: dentro la divisione Unico l'operatore passa da "Progetti" al modulo "Operazioni & Investitori".
+  const showUnicoStudio = divisionFilter === 'unico' && isInternalBoss && unicoTab === 'studio';
+  // Nasconde lista/filtri progetti quando è attiva una sotto-vista dedicata.
+  const hideProjectsUI = showMatericoInbox || showUnicoStudio;
+
   return (
     <div className="flex flex-col gap-6 text-left">
       {/* Filtering and search */}
@@ -1876,8 +1887,39 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             </div>
           )}
 
+          {/* Unico sub-section: Progetti vs Operazioni & Investitori (modulo studio) */}
+          {divisionFilter === 'unico' && isInternalBoss && (
+            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
+              {([
+                { id: 'progetti', label: 'Progetti' },
+                { id: 'studio', label: 'Operazioni & Investitori' }
+              ] as const).map(t => {
+                const active = unicoTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setUnicoTab(t.id)}
+                    className={`relative flex-1 sm:flex-initial text-center text-[11px] sm:text-[12px] font-extrabold px-3.5 sm:px-4 py-1.5 rounded-full cursor-pointer select-none transition-colors duration-300 border-none bg-transparent inline-flex items-center justify-center gap-1.5 ${
+                      active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
+                    }`}
+                    style={{ touchAction: 'none' }}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="unicoSubTabActivePill"
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
+                      />
+                    )}
+                    <span className="relative z-10 font-extrabold">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Main Status Navbar */}
-          {!showMatericoInbox && (<>
+          {!hideProjectsUI && (<>
           <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
             {([
               { id: 'attivi', label: 'Attivi' },
@@ -1953,7 +1995,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         </>)}
         </div>
 
-        {!showMatericoInbox && (
+        {!hideProjectsUI && (
         <div className="flex items-center gap-1.5 bg-white border border-[#e2e2e2] p-1.5 rounded-2xl shadow-sm">
           <button
             onClick={() => setViewMode('grid')}
@@ -1975,7 +2017,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         )}
       </div>
 
-      {showMatericoInbox ? (
+      {showUnicoStudio ? (
+        <UnicoStudioView
+          deals={unicoDeals}
+          onSave={onSaveUnicoDeals || (() => {})}
+          projects={projects}
+          canEdit={isInternalBoss}
+        />
+      ) : showMatericoInbox ? (
         <MatericoView
           requests={matericoRequests}
           suppliers={matericoSuppliers}

@@ -34,7 +34,8 @@ import {
   TaskAttachment,
   MatericoEstimate,
   Appointment,
-  MatericoRequest
+  MatericoRequest,
+  UnicoDeal
 } from './types';
 
 import {
@@ -161,6 +162,7 @@ export default function App() {
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
   const [crmSuppliers, setCrmSuppliers] = useState<Supplier[]>([]);
+  const [unicoDeals, setUnicoDeals] = useState<UnicoDeal[]>([]);
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -410,6 +412,11 @@ export default function App() {
     setCrmSuppliers(arr);
     writeNode('crmSuppliers', arr).catch(() => {});
   };
+  // Unico (lato studio): operazioni immobiliari + investitori (nodo array)
+  const saveUnicoDeals = (arr: UnicoDeal[]) => {
+    setUnicoDeals(arr);
+    writeNode('unicoDeals', arr).catch(() => {});
+  };
   const handleConvertLead = (lead: Lead) => {
     const pid = `p-${Date.now()}`;
     const div = (lead.sector || 'studio') as any;
@@ -600,6 +607,7 @@ export default function App() {
       const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
+      subs.push(watchNode('unicoDeals', (v) => setUnicoDeals(toArr(v)), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
@@ -1773,6 +1781,8 @@ export default function App() {
             matericoSuppliers={crmSuppliers}
             onUpdateMatericoRequest={handleUpdateMatericoRequest}
             onDeleteMatericoRequest={handleDeleteMatericoRequest}
+            unicoDeals={unicoDeals}
+            onSaveUnicoDeals={saveUnicoDeals}
           />
         );
 

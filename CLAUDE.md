@@ -14,7 +14,10 @@ Le "divisioni"/società:
 - **Materico** — società controllata: riceve richieste clienti (forniture/posa),
   le subappalta a imprese partner aggiungendo un margine, coordina i lavori.
 - **Unico** — società controllata: acquisto immobili → ristrutturazione (via
-  Materico) → rivendita, con investitori. *(modulo non ancora costruito)*
+  Materico) → rivendita, con investitori. Lato studio: modulo **operazioni
+  immobiliari + investitori + ROI** (`UnicoStudioView`, sotto-tab "Operazioni &
+  Investitori" nella divisione UNICO di Progetti; nodo `unicoDeals`). Lato
+  cliente: vetrina investimenti (`ServicesShowcase`, oggi dati demo).
 - **Strategico** — società controllata: marketing per le altre società e per
   clienti esterni. *(modulo dedicato non ancora costruito)*
 
@@ -63,7 +66,8 @@ npm run build      # output in dist/ (esbuild: NON fa type-check)
 (sezione "Scopri i servizi" del portale: pagine vetrina Studio/Materico/
 Strategico/Unico accanto ai progetti; Unico ha la vetrina immobili-investimento
 con dati **fittizi** da `src/showcaseData.ts` — contenuti demo, non su Firebase),
-`AuthFlow` (onboarding pubblico, vedi §5), `AccessRequests`
+`AuthFlow` (onboarding pubblico, vedi §5), `UnicoStudioView` (modulo Unico lato
+studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`), `AccessRequests`
 (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
 `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
 `InteractiveView`.
@@ -177,8 +181,10 @@ regole** e ricordare all'utente di ripubblicarle.
 ## 12. Stato / roadmap
 Fatto: login+ruoli, DB condiviso, Documenti+generatore modulistica, Finanza
 condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
-Da fare: modulo **Unico** (immobili/investitori/ROI/SPV), modulo **Strategico**
-(marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
+Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
+investitori, ROI/margine — `unicoDeals`); manca la pubblicazione automatica in
+vetrina (oggi la vetrina Unico usa dati demo) e SPV/quote.
+Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
 
@@ -187,6 +193,7 @@ reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
   Authorized domains (`giorgiopascalistudio.github.io`, `localhost`).
 - Realtime Database → Regole → incollare `firebase-rules.json` → Pubblica.
   ⚠️ Le regole `users` ora permettono a cliente/azienda di auto-approvarsi
-  (`role:'cliente'`) e al manager di approvare il Team: **vanno ripubblicate**,
-  altrimenti la registrazione fallisce con "permission denied".
+  (`role:'cliente'`) e al manager di approvare il Team; aggiunto anche il nodo
+  `unicoDeals` (admin/manager). **Vanno ripubblicate**, altrimenti la
+  registrazione e il modulo Unico falliscono con "permission denied".
 - Mettere i 13 GLB in `public/model/`.

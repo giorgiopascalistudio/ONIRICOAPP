@@ -219,6 +219,43 @@ export interface Appointment {
   createdAt: number;
 }
 
+// ---- Unico (lato studio): operazioni immobiliari + investitori ----
+export type UnicoDealStatus =
+  | 'valutazione'      // immobile individuato, analisi
+  | 'acquisizione'     // in fase di acquisto / raccolta capitale
+  | 'ristrutturazione' // lavori in corso (via Materico)
+  | 'vendita'          // sul mercato
+  | 'concluso';        // venduto / operazione chiusa
+
+export interface UnicoInvestor {
+  id: string;
+  name: string;
+  amount: number;        // capitale conferito (€)
+  contact?: string | null;
+  at: number;
+}
+
+export interface UnicoDeal {
+  id: string;
+  title: string;
+  type: string;              // Trullo, Masseria, Villa, Palazzo...
+  location: string;
+  status: UnicoDealStatus;
+  acquisitionCost: number;   // costo di acquisto
+  renovationBudget: number;  // budget ristrutturazione (Materico)
+  targetSalePrice: number;   // prezzo di rivendita atteso
+  capitalGoal: number;       // capitale da raccogliere dagli investitori
+  minInvestment?: number;    // quota minima (vetrina)
+  targetRoi?: number;        // rendimento atteso annuo % (vetrina)
+  durationMonths?: number;
+  investors: UnicoInvestor[];
+  matericoProjectId?: string | null; // commessa Materico collegata (ristrutturazione)
+  published?: boolean;       // pubblicato nella vetrina Unico
+  notes?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export interface MatericoItem {
   id: string;
   desc: string;
