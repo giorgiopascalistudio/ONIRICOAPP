@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Manuali operativi MODULI (PDF pesanti ~130MB) — riferimento locale, non servono a build/deploy
+MODULI/*.pdf
