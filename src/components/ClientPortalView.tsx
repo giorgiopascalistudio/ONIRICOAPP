@@ -2040,7 +2040,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.computoTotal || 0)}</b>
                       </div>
                       <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
-                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi</span>
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi e finiture</span>
                         <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.arrediFissi || 0)}</b>
                       </div>
                       <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">

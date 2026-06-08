@@ -660,8 +660,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     const m: Record<string, ReturnType<typeof studioParcella> & { arrediFissi: number; arrediMobili: number }> = {};
     projects.forEach((p) => {
       const at = arrediTotals(Object.values(furnishings[p.id] || {}));
-      const parc = studioParcella(p, computoByProject[p.id] || 0, at.fissi, at.mobili);
-      m[p.id] = { ...parc, arrediFissi: at.fissi, arrediMobili: at.mobili };
+      // SOLO gli arredi confermati concorrono alla parcella/contabilità.
+      const parc = studioParcella(p, computoByProject[p.id] || 0, at.fissiConfermati, at.mobiliConfermati);
+      m[p.id] = { ...parc, arrediFissi: at.fissiConfermati, arrediMobili: at.mobiliConfermati };
     });
     return m;
   }, [projects, furnishings, computoByProject]);
@@ -1461,7 +1462,8 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
               <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Calcolo automatico onorari Studio</span>
               <h2 className="text-[19px] font-extrabold tracking-tight text-[#161616]">Parcelle & Onorari di commessa</h2>
               <span className="text-[12.5px] text-[#8a8a8a]">
-                15% su (computo lavori + arredi fissi) + 20% sugli arredi mobili se gestiti dallo Studio. Pagamento a SAL.
+                15% su (computo lavori + arredi fissi e finiture) + 20% sugli arredi mobili se gestiti dallo Studio.
+                Concorrono solo gli arredi <b>confermati</b>. Pagamento a SAL.
               </span>
             </div>
           </div>
@@ -1491,8 +1493,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                       <b className="text-[14px] font-black text-[#1a1a1a]">{eur(computoTot)}</b>
                     </div>
                     <div className="bg-white border border-stone-200 rounded-xl p-3">
-                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi</span>
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi e finiture</span>
                       <b className="text-[14px] font-black text-[#1a1a1a]">{eur(parc.arrediFissi)}</b>
+                      <span className="text-[9px] text-stone-400 block mt-0.5">solo confermati</span>
                     </div>
                     <div className="bg-white border border-stone-200 rounded-xl p-3">
                       <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Base opera</span>
@@ -1506,7 +1509,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                     <div className="bg-white border border-stone-200 rounded-xl p-3">
-                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi mobili</span>
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi mobili <span className="normal-case text-stone-300">(confermati)</span></span>
                       <b className="text-[14px] font-black text-[#1a1a1a]">{eur(parc.arrediMobili)}</b>
                       <span className="text-[10px] text-stone-500 block mt-0.5">{parc.managesMobili ? `Gestiti dallo Studio · fee ${Math.round(parc.mobiliFeePct * 100)}%` : 'Gestiti dal cliente · nessuna fee'}</span>
                     </div>

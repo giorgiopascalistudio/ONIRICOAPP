@@ -108,16 +108,33 @@ export function computoTotal(computo?: Computo | null): number {
   return computo.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
 }
 
-/** Totali arredi per tipo: fissi vs mobili. Σ price×(quantity||1). */
-export function arrediTotals(furnishings: Furnishing[]): { fissi: number; mobili: number } {
+/**
+ * Totali arredi per tipo: fissi vs mobili. Σ price×(quantity||1).
+ * Distingue il **valore selezionato** (tutti gli item con prezzo) dal **valore
+ * confermato** (`status:'confermato'`): SOLO i confermati entrano in contabilità
+ * (parcella, SAL, snapshot portale). I non confermati restano scelte in corso.
+ */
+export function arrediTotals(furnishings: Furnishing[]): {
+  fissi: number;
+  mobili: number;
+  fissiConfermati: number;
+  mobiliConfermati: number;
+} {
   let fissi = 0;
   let mobili = 0;
+  let fissiConfermati = 0;
+  let mobiliConfermati = 0;
   for (const f of furnishings || []) {
     const val = (Number(f.price) || 0) * (Number(f.quantity) || 1);
-    if (f.kind === 'fisso') fissi += val;
-    else mobili += val;
+    if (f.kind === 'fisso') {
+      fissi += val;
+      if (f.status === 'confermato') fissiConfermati += val;
+    } else {
+      mobili += val;
+      if (f.status === 'confermato') mobiliConfermati += val;
+    }
   }
-  return { fissi, mobili };
+  return { fissi, mobili, fissiConfermati, mobiliConfermati };
 }
 
 export interface ParcellaResult {

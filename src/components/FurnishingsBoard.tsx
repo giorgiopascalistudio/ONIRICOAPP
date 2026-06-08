@@ -38,7 +38,7 @@ interface FurnishingsBoardProps {
 type Section = 'fissi' | 'mobili' | 'moodboard';
 
 const SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: 'fissi', label: 'Arredi fissi', icon: Sofa },
+  { id: 'fissi', label: 'Arredi fissi e finiture', icon: Sofa },
   { id: 'mobili', label: 'Arredi mobili', icon: LayoutGrid },
   { id: 'moodboard', label: 'Moodboard', icon: Palette }
 ];
@@ -101,11 +101,12 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
   const mobili = items.filter((i) => i.kind === 'mobile');
   const boardItems = items.filter((i) => i.board);
 
-  // Subtotali e anteprima fee (motore finanziario)
+  // Subtotali e anteprima fee (motore finanziario).
+  // In contabilità entrano SOLO gli arredi confermati: la fee si calcola su quelli.
   const totals = arrediTotals(items);
   const managesMobili = !!project.studioManagesArrediMobili;
-  const feeFissi = totals.fissi * (project.studioFeePct ?? STUDIO_FEE_PCT);
-  const feeMobili = managesMobili ? totals.mobili * (project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) : 0;
+  const feeFissi = totals.fissiConfermati * (project.studioFeePct ?? STUDIO_FEE_PCT);
+  const feeMobili = managesMobili ? totals.mobiliConfermati * (project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) : 0;
 
   const resetForm = () => {
     setFTitle('');
@@ -220,8 +221,13 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
             </div>
             {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{item.category}</div>}
             {item.price != null && (
-              <div className="text-[11px] font-bold text-[#161616] mt-0.5">
-                {eur(item.price)}{(item.quantity ?? 1) !== 1 ? ` × ${item.quantity} = ${eur((item.price || 0) * (item.quantity || 1))}` : ''}
+              <div className="text-[11px] font-bold text-[#161616] mt-0.5 flex flex-wrap items-center gap-1.5">
+                <span>{eur(item.price)}{(item.quantity ?? 1) !== 1 ? ` × ${item.quantity} = ${eur((item.price || 0) * (item.quantity || 1))}` : ''}</span>
+                {item.status === 'confermato' && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold uppercase tracking-wide bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                    <Check className="w-2.5 h-2.5" /> in contabilità
+                  </span>
+                )}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -297,8 +303,9 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
           <div className="flex items-center justify-between">
             <p className="text-[11.5px] text-[#8a8a8a] font-medium">
               {section === 'fissi'
-                ? 'Scelte con impatto progettuale (impianti, dimensioni): vanno definite entro la scadenza.'
-                : 'Scelte estetiche, senza impatto sulla progettazione.'}
+                ? 'Finiture e arredi con impatto progettuale (impianti, dimensioni): da definire entro la scadenza. '
+                : 'Scelte estetiche, senza impatto sulla progettazione. '}
+              {isStudio && <span className="text-[#6b6b6b]">Porta una voce a <b>“Confermato”</b> per inserirla in contabilità.</span>}
             </p>
             <button
               onClick={() => openModal(section === 'fissi' ? 'fisso' : 'mobile')}
@@ -313,8 +320,13 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
             {section === 'fissi' ? (
               <>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Valore arredi fissi</span>
-                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.fissi)}</b>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">In contabilità · arredi fissi e finiture (confermati)</span>
+                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.fissiConfermati)}</b>
+                  {totals.fissi > totals.fissiConfermati && (
+                    <span className="text-[10px] text-[#8a8a8a] block mt-0.5">
+                      su {eur(totals.fissi)} selezionati · conferma una voce per inserirla in contabilità
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">
@@ -326,8 +338,13 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
             ) : (
               <>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Valore arredi mobili</span>
-                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.mobili)}</b>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">In contabilità · arredi mobili (confermati)</span>
+                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.mobiliConfermati)}</b>
+                  {totals.mobili > totals.mobiliConfermati && (
+                    <span className="text-[10px] text-[#8a8a8a] block mt-0.5">
+                      su {eur(totals.mobili)} selezionati · conferma una voce per inserirla in contabilità
+                    </span>
+                  )}
                 </div>
                 {isStudio ? (
                   <label className="flex items-center gap-2 cursor-pointer">

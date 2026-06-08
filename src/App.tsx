@@ -1317,14 +1317,9 @@ export default function App() {
       prj[item.id] = enriched;
       return { ...prev, [projId]: prj };
     });
-    const _fpath = `projectFurnishings/${projId}/${item.id}`;
-    console.log('[DIAG arredo] scrivo', _fpath, '| utente:', currentUser?.role, currentUser?.uid, '| active:', (currentUser as any)?.active);
-    writeNode(_fpath, enriched)
-      .then(() => console.log('[DIAG arredo] SCRITTURA OK →', _fpath))
-      .catch((e: any) => {
-        console.error('[DIAG arredo] SCRITTURA FALLITA →', _fpath, '| code:', e?.code, '| message:', e?.message, e);
-        showToast('Errore arredo: ' + (e?.message || e?.code || 'sconosciuto'), 'err');
-      });
+    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch((e: any) =>
+      showToast('Errore salvataggio arredo: ' + (e?.message || e?.code || 'controlla regole/permessi'), 'err')
+    );
   };
 
   const handleDeleteFurnishing = (projId: string, itemId: string) => {
