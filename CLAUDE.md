@@ -273,3 +273,17 @@ reporting/redditività, integrazioni esterne
   numerazione fatture per società (`FE-STU/STR/MAT/UNI`); Conto Economico per società +
   Consolidato di gruppo. Cash-flow/banca restano **simulati** ma etichettati.
 - Excel parsing: richiede **SheetJS (`xlsx`)** — non installato (oggi solo CSV nativo).
+- **Contabilità di commessa** (per-progetto): tab **"Contabilità di commessa"**
+  (`projTab === 'finanziario'`) nel fascicolo (`ProjectsView`, solo admin/manager).
+  Riusa il motore `finance.ts` per il quadro economico automatico (valore opera =
+  computo + arredi **fissi confermati**; parcella; ricavi/incassato/da-incassare da
+  `finInvoicesActive`; costi da `finInvoicesPassive`; margine atteso/realizzato;
+  avanzamento %; piano SAL). I pulsanti **Registra costo/ricavo/scadenza** scrivono
+  sui **nodi finanza globali** (`finInvoicesPassive`/`finInvoicesActive`/`finScadenze`)
+  con `projectId` + `sector = division` → confluiscono nel **consolidato** di `FinanzeView`.
+  Unica fonte di verità: nessun nodo per-progetto dedicato. App sottoscrive i 4 nodi
+  strutturati (gated `canFinance`) e passa array + handler (`handleSaveFinanceItem`/
+  `handleDeleteFinanceItem`) sia a `ProjectsView` sia (indirettamente) accanto a
+  `FinanzeView`. I "movimenti liberi" (cassa) restano su `studioFinance` e **non**
+  entrano nel margine. Lo snapshot `projectEconomics` per il cliente resta **solo
+  ricavi** (niente costi/margine dello studio).

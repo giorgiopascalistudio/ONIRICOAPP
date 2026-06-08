@@ -37,6 +37,7 @@ import {
   HardHat
 } from 'lucide-react';
 import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog } from '../types';
+import { computoTotal, arrediTotals, studioParcella, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
@@ -79,6 +80,13 @@ interface ProjectsViewProps {
   isInternalBoss: boolean;
   myUid: string;
   finance?: FinanceMovement[];
+  // Contabilità di commessa (nodi finanza strutturati condivisi con FinanzeView)
+  finComputi?: Computo[];
+  finInvoicesActive?: InvoiceActive[];
+  finInvoicesPassive?: InvoicePassive[];
+  finScadenze?: ScadenzaItem[];
+  onSaveFinanceItem?: (node: 'finInvoicesActive' | 'finInvoicesPassive' | 'finScadenze', item: any) => void;
+  onDeleteFinanceItem?: (node: 'finInvoicesActive' | 'finInvoicesPassive' | 'finScadenze', id: string) => void;
   estimates?: MatericoEstimate[];
   onSaveEstimate?: (est: MatericoEstimate) => void;
   onDeleteEstimate?: (id: string) => void;
@@ -142,6 +150,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   isInternalBoss,
   myUid,
   finance = [],
+  finComputi = [],
+  finInvoicesActive = [],
+  finInvoicesPassive = [],
+  finScadenze = [],
+  onSaveFinanceItem,
+  onDeleteFinanceItem,
   estimates = [],
   onSaveEstimate,
   onDeleteEstimate,
@@ -191,36 +205,20 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [estItemDesc, setEstItemDesc] = useState('');
   const [estBaseCost, setEstBaseCost] = useState<string>('');
   const [estMarkupPct, setEstMarkupPct] = useState<number>(15);
-  const [finTab, setFinTab] = useState<'studio' | 'progetto'>('studio');
   const [finType, setFinType] = useState<'tutti' | 'entrata' | 'uscita'>('tutti');
   const [finCategory, setFinCategory] = useState<string>('tutte');
   const [finSort, setFinSort] = useState<'data_desc' | 'data_asc' | 'importo_desc' | 'importo_asc'>('data_desc');
   const [finQuery, setFinQuery] = useState<string>('');
   const [showFinFilters, setShowFinFilters] = useState<boolean>(false);
 
-  // Synchronized global databases for invoices, computi and scadenze
-  const [gActiveInvoices, setGActiveInvoices] = useState<any[]>([]);
-  const [gPassiveInvoices, setGPassiveInvoices] = useState<any[]>([]);
-  const [gComputi, setGComputi] = useState<any[]>([]);
-  const [gScadenze, setGScadenze] = useState<any[]>([]);
-
-  useEffect(() => {
-    try {
-      const active = localStorage.getItem('onirico_invoices_active');
-      if (active) setGActiveInvoices(JSON.parse(active));
-
-      const passive = localStorage.getItem('onirico_invoices_passive');
-      if (passive) setGPassiveInvoices(JSON.parse(passive));
-
-      const comp = localStorage.getItem('onirico_computi');
-      if (comp) setGComputi(JSON.parse(comp));
-
-      const scad = localStorage.getItem('onirico_scadenze');
-      if (scad) setGScadenze(JSON.parse(scad));
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
+  // Contabilità di commessa — mini-form "Registra" (costo / ricavo / scadenza)
+  const [qaKind, setQaKind] = useState<null | 'costo' | 'ricavo' | 'scadenza'>(null);
+  const [qaDesc, setQaDesc] = useState('');
+  const [qaAmount, setQaAmount] = useState('');
+  const [qaDate, setQaDate] = useState('');
+  const [qaDue, setQaDue] = useState('');
+  const [qaParty, setQaParty] = useState('');
+  const [qaScadKind, setQaScadKind] = useState<'entrata' | 'uscita'>('entrata');
 
   const isDetail = route === 'progetto' && !!param;
   const projectDetail = isDetail ? projects.find(p => p.id === param) : null;
@@ -281,27 +279,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     const docs = getProjDocs(p.id);
     const msgs = getProjMessages(p.id);
 
-    // Finance computations
-    const isStudioMove = (m: any) => {
-      const cat = String(m.category || '').toLowerCase();
-      const desc = String(m.desc || '').toLowerCase();
-      
-      if (cat.startsWith('studio:')) return true;
-      if (cat.startsWith('cantiere:')) return false;
-      
-      return (
-        cat.includes('acconto') || 
-        cat.includes('onorari') || 
-        cat.includes('fattura emessa') || 
-        cat.includes('compenso') ||
-        cat.includes('rilievi') ||
-        desc.includes('acconto') ||
-        desc.includes('studio') ||
-        desc.includes('onorari')
-      );
-    };
-
-    // Merge legacy inner-project finances and global database finances
+    // ====== CONTABILITÀ DI COMMESSA (collegata ai nodi finanza reali) ======
+    // Movimenti liberi (cassa) del progetto: legacy p.finance + nodo studioFinance.
     const legacyFinList = p.finance ? Object.entries(p.finance).map(([id, x]: any) => ({ id, ...x })) : [];
     const dbFinList = (finance || []).filter((f: any) => f.projectId === p.id);
     const mergedMap = new Map();
@@ -309,24 +288,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     dbFinList.forEach(m => mergedMap.set(m.id, m));
     const finList = Array.from(mergedMap.values()).sort((a: any, b: any) => String(b.date || '').localeCompare(String(a.date || '')));
 
-    const studioFinances = finList.filter(m => isStudioMove(m));
-    const progettoFinances = finList.filter(m => !isStudioMove(m));
+    const movEntrate = finList.filter((m: any) => m.kind === 'entrata').reduce((s, m: any) => s + numIt(m.amount), 0);
+    const movUscite = finList.filter((m: any) => m.kind === 'uscita').reduce((s, m: any) => s + numIt(m.amount), 0);
+    const movSaldo = movEntrate - movUscite;
+    const movCategories = Array.from(new Set(finList.map((f: any) => f.category).filter(Boolean))) as string[];
 
-    const studioEntrate = studioFinances.filter((e: any) => e.kind === 'entrata').reduce((s, e: any) => s + numIt(e.amount), 0);
-    const studioUscite = studioFinances.filter((e: any) => e.kind === 'uscita').reduce((s, e: any) => s + numIt(e.amount), 0);
-    const studioSaldo = studioEntrate - studioUscite;
-
-    const progEntrate = progettoFinances.filter((e: any) => e.kind === 'entrata').reduce((s, e: any) => s + numIt(e.amount), 0);
-    const progUscite = progettoFinances.filter((e: any) => e.kind === 'uscita').reduce((s, e: any) => s + numIt(e.amount), 0);
-    const progSaldo = progEntrate - progUscite;
-
-    // Get unique categories for current tab
-    const studioCategories = Array.from(new Set(studioFinances.map((f: any) => f.category).filter(Boolean))) as string[];
-    const progettoCategories = Array.from(new Set(progettoFinances.map((f: any) => f.category).filter(Boolean))) as string[];
-    const currentCategories = finTab === 'studio' ? studioCategories : progettoCategories;
-
-    // Compute filtered lists
-    const filteredStudioFinances = studioFinances
+    const filteredFinList = finList
       .filter((f: any) => {
         if (finType !== 'tutti' && f.kind !== finType) return false;
         if (finCategory !== 'tutte' && f.category !== finCategory) return false;
@@ -344,23 +311,57 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         return 0;
       });
 
-    const filteredProgettoFinances = progettoFinances
-      .filter((f: any) => {
-        if (finType !== 'tutti' && f.kind !== finType) return false;
-        if (finCategory !== 'tutte' && f.category !== finCategory) return false;
-        if (finQuery.trim()) {
-          const q = finQuery.toLowerCase();
-          return (f.desc || '').toLowerCase().includes(q) || (f.note || '').toLowerCase().includes(q) || (f.category || '').toLowerCase().includes(q);
-        }
-        return true;
-      })
-      .sort((a: any, b: any) => {
-        if (finSort === 'data_desc') return String(b.date || '').localeCompare(String(a.date || ''));
-        if (finSort === 'data_asc') return String(a.date || '').localeCompare(String(b.date || ''));
-        if (finSort === 'importo_desc') return numIt(b.amount) - numIt(a.amount);
-        if (finSort === 'importo_asc') return numIt(a.amount) - numIt(b.amount);
-        return 0;
-      });
+    // --- Quadro economico automatico (motore finance.ts) ---
+    const projComputi = (finComputi || []).filter((c: any) => c.projectId === p.id);
+    const projComputoTot = projComputi.reduce((s: number, c: any) => s + computoTotal(c), 0);
+    const projFurnishings = Object.values(furnishings[p.id] || {}) as Furnishing[];
+    const projArredi = arrediTotals(projFurnishings);
+    const projParcella = studioParcella(p, projComputoTot, projArredi.fissiConfermati, projArredi.mobiliConfermati);
+    const valoreOpera = projComputoTot + projArredi.fissiConfermati;
+
+    // --- Fatture & scadenze del progetto (nodi strutturati) ---
+    const projInvActive = (finInvoicesActive || []).filter((i: any) => i.projectId === p.id);
+    const projInvPassive = (finInvoicesPassive || []).filter((i: any) => i.projectId === p.id);
+    const projScadenze = (finScadenze || []).filter((s: any) => s.projectId === p.id);
+
+    const ricaviFatturati = projInvActive.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+    const incassato = projInvActive.filter((i: any) => i.status === 'pagata').reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+    const daIncassare = Math.max(0, ricaviFatturati - incassato);
+    const costiFatture = projInvPassive.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+    const parcellaTeorica = projParcella.totaleParcella;
+    const margineAtteso = parcellaTeorica - costiFatture;
+    const margineRealizzato = incassato - costiFatture;
+    const avanzamentoEco = parcellaTeorica > 0 ? Math.min(100, Math.round((incassato / parcellaTeorica) * 100)) : 0;
+
+    // Piano SAL (quote uguali sulle fasi) — riuso della logica di FinanzeView.
+    const projPhases = p.phases ? Object.values(p.phases) : [];
+    const salPer = projPhases.length ? Math.round(parcellaTeorica / projPhases.length) : 0;
+
+    // Salvataggio mini-form "Registra costo / ricavo / scadenza".
+    const saveQuickAdd = () => {
+      const amt = parseFloat(String(qaAmount).replace(',', '.')) || 0;
+      if (!amt || !qaKind) return;
+      const sector = (p.division as any) || 'studio';
+      if (qaKind === 'costo') {
+        onSaveFinanceItem?.('finInvoicesPassive', {
+          id: `fpa-${Date.now()}`, supplierName: qaParty || 'Fornitore', projectId: p.id, projectName: p.name,
+          amount: amt, category: 'Fornitori', status: 'ricevuta', date: qaDate || todayISO(),
+          dueDate: qaDue || qaDate || todayISO(), sector, description: qaDesc || ''
+        });
+      } else if (qaKind === 'ricavo') {
+        onSaveFinanceItem?.('finInvoicesActive', {
+          id: `fea-${Date.now()}`, clientName: p.client || qaParty || 'Cliente', projectId: p.id, projectName: p.name,
+          amount: amt, taxRate: 22, status: 'inviata_sdi', sdiCode: '', date: qaDate || todayISO(),
+          dueDate: qaDue || qaDate || todayISO(), sector
+        });
+      } else if (qaKind === 'scadenza') {
+        onSaveFinanceItem?.('finScadenze', {
+          id: `sca-${Date.now()}`, kind: qaScadKind, desc: qaDesc || 'Scadenza', clientOrSupplier: qaParty || p.client || '',
+          amount: amt, dueDate: qaDue || qaDate || todayISO(), status: 'pago_attesa', projectId: p.id, sector
+        });
+      }
+      setQaKind(null); setQaDesc(''); setQaAmount(''); setQaDate(''); setQaDue(''); setQaParty(''); setQaScadKind('entrata');
+    };
 
     const handleSendMsg = () => {
       if (!clientMessageInput.trim()) return;
@@ -1531,351 +1532,280 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
         {/* TAB 3: CONTABILITÀ & BILANCIO (Partitioned Studio and Progetto) */}
         {projTab === 'finanziario' && (
-          <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm mt-2 animate-[riseIn_0.3s_ease_both]">
+          !isInternalBoss ? (
+            <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-8 shadow-sm mt-2 text-center">
+              <Wallet className="w-7 h-7 text-stone-300 mx-auto mb-2" />
+              <p className="text-[13px] text-stone-500 font-semibold">Contabilità riservata ad Amministratori e Manager.</p>
+            </div>
+          ) : (
+          <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm mt-2 animate-[riseIn_0.3s_ease_both] text-left">
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5 border-b border-[#f5f5f5] pb-4">
               <div>
-                <h2 className="text-[16px] font-extrabold tracking-tight text-[#161616] leading-none mb-1.5 font-sans">
-                  {finTab === 'studio' ? 'Contabilità Studio Onirico' : 'Contabilità Cantiere & Fornitori'}
-                </h2>
-                <p className="text-[12px] text-[#8a8a8a] font-medium">
-                  {finTab === 'studio' 
-                    ? 'Fatture emesse, acconti e onorari professionali dello studio per questo progetto.' 
-                    : 'Costi delle imprese esecutrici, fornitori di cantiere, acquisto materiali.'}
-                </p>
+                <h2 className="text-[16px] font-extrabold tracking-tight text-[#161616] leading-none mb-1.5 font-sans">Contabilità di commessa</h2>
+                <p className="text-[12px] text-[#8a8a8a] font-medium">Quadro economico, ricavi/costi e scadenze di questo progetto — collegati in tempo reale alla sezione <b>Finanze</b>.</p>
               </div>
-
-              {/* Sub-tabs selector pill */}
-              <div className="flex bg-[#f5f5f5] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] relative z-10">
-                <button
-                  onClick={() => {
-                    setFinTab('studio');
-                    setFinCategory('tutte');
-                  }}
-                  className={`relative text-[12px] font-bold px-3.5 py-1.5 rounded-full capitalize cursor-pointer border-none bg-transparent transition-colors duration-300 ${
-                    finTab === 'studio' ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
-                  }`}
-                  style={{ touchAction: 'none' }}
-                >
-                  {finTab === 'studio' && (
-                    <motion.div
-                      layoutId="projFinanceTabActivePill"
-                      transition={{
-                        type: 'spring',
-                        stiffness: 420,
-                        damping: 32
-                      }}
-                      className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
-                    />
-                  )}
-                  <span className="relative z-10">Studio (Onorari)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setFinTab('progetto');
-                    setFinCategory('tutte');
-                  }}
-                  className={`relative text-[12px] font-bold px-3.5 py-1.5 rounded-full capitalize cursor-pointer border-none bg-transparent transition-colors duration-300 ${
-                    finTab === 'progetto' ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
-                  }`}
-                  style={{ touchAction: 'none' }}
-                >
-                  {finTab === 'progetto' && (
-                    <motion.div
-                      layoutId="projFinanceTabActivePill"
-                      transition={{
-                        type: 'spring',
-                        stiffness: 420,
-                        damping: 32
-                      }}
-                      className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
-                    />
-                  )}
-                  <span className="relative z-10">Progetto (Cantiere)</span>
-                </button>
-              </div>
+              <span className="text-[10.5px] bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg font-black uppercase tracking-wide text-slate-700 capitalize">{p.division || 'studio'}</span>
             </div>
 
-            {/* Split KPIs based on selected section - designed exactly like General View cards boxes */}
-            <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
-              <div className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
-                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs sm:text-base shadow-xs flex-shrink-0">
-                  ↓
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[8.5px] sm:text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans truncate">Totale Entrate</span>
-                  <b className="block text-[11px] sm:text-[16px] md:text-[17px] font-extrabold tracking-tight mt-0.5 text-green-700 whitespace-nowrap">
-                    {eur(finTab === 'studio' ? studioEntrate : progEntrate)}
-                  </b>
-                </div>
+            {/* A. QUADRO ECONOMICO AUTOMATICO */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div className="bg-[#fafafa]/60 border border-[#f0f0f0] rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Valore opera</span>
+                <b className="text-[15px] font-black text-[#161616]">{eur(valoreOpera)}</b>
+                <span className="text-[9.5px] text-stone-400 block mt-0.5">computo + arredi fissi confermati</span>
               </div>
-
-              <div className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
-                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold text-xs sm:text-base shadow-xs flex-shrink-0">
-                  ↑
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[8.5px] sm:text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans truncate">Totale Uscite</span>
-                  <b className="block text-[11px] sm:text-[16px] md:text-[17px] font-extrabold tracking-tight mt-0.5 text-red-700 whitespace-nowrap">
-                    {eur(finTab === 'studio' ? studioUscite : progUscite)}
-                  </b>
-                </div>
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-indigo-500 tracking-wider block">Parcella Studio</span>
+                <b className="text-[15px] font-black text-indigo-800">{eur(parcellaTeorica)}</b>
+                <span className="text-[9.5px] text-indigo-400 block mt-0.5">onorari {Math.round(projParcella.feePct * 100)}%{projParcella.feeMobili > 0 ? ' + arredi' : ''}</span>
               </div>
-
-              <div className="flex items-center gap-2 sm:gap-3.5 p-2.5 sm:p-4 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
-                <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-bold text-xs sm:text-base shadow-xs flex-shrink-0 ${
-                  (finTab === 'studio' ? studioSaldo : progSaldo) >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                }`}>
-                  { (finTab === 'studio' ? studioSaldo : progSaldo) >= 0 ? '±' : '-' }
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[8.5px] sm:text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans truncate">Saldo Margine</span>
-                  <b className={`block text-[11px] sm:text-[16px] md:text-[17px] font-extrabold tracking-tight mt-0.5 whitespace-nowrap ${
-                    (finTab === 'studio' ? studioSaldo : progSaldo) >= 0 ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {eur(finTab === 'studio' ? studioSaldo : progSaldo)}
-                  </b>
+              <div className="bg-[#fafafa]/60 border border-[#f0f0f0] rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Ricavi fatturati</span>
+                <b className="text-[15px] font-black text-[#161616]">{eur(ricaviFatturati)}</b>
+                <span className="text-[9.5px] text-stone-400 block mt-0.5">{projInvActive.length} fatture attive</span>
+              </div>
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-emerald-600 tracking-wider block">Incassato</span>
+                <b className="text-[15px] font-black text-emerald-700">{eur(incassato)}</b>
+                <span className="text-[9.5px] text-emerald-500 block mt-0.5">da incassare {eur(daIncassare)}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              <div className="bg-rose-50/40 border border-rose-100 rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-rose-500 tracking-wider block">Costi</span>
+                <b className="text-[15px] font-black text-rose-700">{eur(costiFatture)}</b>
+                <span className="text-[9.5px] text-rose-400 block mt-0.5">{projInvPassive.length} fatture passive</span>
+              </div>
+              <div className="bg-[#fafafa]/60 border border-[#f0f0f0] rounded-2xl p-3.5">
+                <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Margine atteso</span>
+                <b className={`text-[15px] font-black ${margineAtteso >= 0 ? 'text-[#161616]' : 'text-rose-700'}`}>{eur(margineAtteso)}</b>
+                <span className="text-[9.5px] text-stone-400 block mt-0.5">parcella − costi</span>
+              </div>
+              <div className={`rounded-2xl p-3.5 border ${margineRealizzato >= 0 ? 'bg-[#1b1b1b] border-[#1b1b1b]' : 'bg-rose-700 border-rose-700'}`}>
+                <span className="text-[9.5px] uppercase font-black text-stone-300 tracking-wider block">Margine realizzato</span>
+                <b className="text-[16px] font-black text-green-400">{eur(margineRealizzato)}</b>
+                <span className="text-[9.5px] text-stone-400 block mt-0.5">incassato − costi</span>
+              </div>
+              <div className="bg-[#fafafa]/60 border border-[#f0f0f0] rounded-2xl p-3.5 flex flex-col justify-center">
+                <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Avanzamento economico</span>
+                <b className="text-[15px] font-black text-[#161616]">{avanzamentoEco}%</b>
+                <div className="h-1.5 mt-1.5 rounded-full bg-stone-200 overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${avanzamentoEco}%` }} />
                 </div>
               </div>
             </div>
 
-            {/* Sub-header and Add action */}
-            <div className="flex justify-end items-center mb-4">
-              <div className="flex items-center gap-2">
+            {/* Piano SAL */}
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50/40 border border-amber-100 rounded-2xl px-4 py-3 mb-6">
+              <span className="text-[11.5px] font-bold text-amber-800 inline-flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" /> Piano SAL: {projPhases.length} fasi × {eur(salPer)}
+              </span>
+              <span className="text-[11.5px] font-black text-amber-900">Totale parcella a SAL: {eur(parcellaTeorica)}</span>
+            </div>
+
+            {/* B. AZIONI RAPIDE — Registra */}
+            <div className="flex flex-wrap items-center gap-2 mb-5">
+              <span className="text-[11px] font-bold text-[#8a8a8a] mr-1">Registra:</span>
+              <button onClick={() => { setQaKind('ricavo'); setQaDate(todayISO()); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-emerald-200 text-emerald-700 bg-emerald-50/50 rounded-full px-3 py-1.5 hover:bg-emerald-100 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Ricavo / incasso
+              </button>
+              <button onClick={() => { setQaKind('costo'); setQaDate(todayISO()); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-rose-200 text-rose-700 bg-rose-50/50 rounded-full px-3 py-1.5 hover:bg-rose-100 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Costo (fornitore)
+              </button>
+              <button onClick={() => { setQaKind('scadenza'); setQaDate(todayISO()); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-sky-200 text-sky-700 bg-sky-50/50 rounded-full px-3 py-1.5 hover:bg-sky-100 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Scadenza
+              </button>
+              <button onClick={() => onOpenProjectFinance(p.id)} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-[#e2e2e2] text-[#6b6b6b] bg-white rounded-full px-3 py-1.5 hover:border-black hover:text-[#161616] transition-colors ml-auto">
+                <Plus className="w-3.5 h-3.5" /> Movimento libero
+              </button>
+            </div>
+
+            {/* Ricavi & Costi (fatture del progetto) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              {/* Ricavi */}
+              <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-4">
+                <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
+                  <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Ricavi (fatture attive)</span>
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold font-mono">{eur(ricaviFatturati)}</span>
+                </div>
+                <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1">
+                  {projInvActive.length === 0 ? (
+                    <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessun ricavo registrato.</p>
+                  ) : projInvActive.map((inv: any) => (
+                    <div key={inv.id} className="bg-white p-2.5 rounded-xl border border-stone-150 text-[12px] flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <b className="block text-stone-900 truncate">{inv.clientName || 'Cliente'}{inv.isSal ? ` · SAL ${inv.salNumber || ''}` : ''}</b>
+                        <span className="text-[10.5px] text-stone-500 font-mono">{fmtDay(inv.date)} · {inv.status === 'pagata' ? 'Incassata ✓' : 'Da incassare'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="font-black text-emerald-700 font-mono">{eur(Number(inv.amount))}</span>
+                        <button onClick={() => onDeleteFinanceItem?.('finInvoicesActive', inv.id)} className="text-stone-300 hover:text-red-500 transition-colors" title="Rimuovi"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Costi */}
+              <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-4">
+                <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
+                  <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Costi (fatture passive)</span>
+                  <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-bold font-mono">{eur(costiFatture)}</span>
+                </div>
+                <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1">
+                  {projInvPassive.length === 0 ? (
+                    <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessun costo registrato.</p>
+                  ) : projInvPassive.map((inv: any) => (
+                    <div key={inv.id} className="bg-white p-2.5 rounded-xl border border-stone-150 text-[12px] flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <b className="block text-stone-900 truncate">{inv.supplierName || 'Fornitore'}</b>
+                        <span className="text-[10.5px] text-stone-500 font-mono">{fmtDay(inv.date)} · {inv.category || 'Fornitori'}{inv.status === 'pagata' ? ' · Pagata ✓' : ''}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="font-black text-rose-700 font-mono">{eur(Number(inv.amount))}</span>
+                        <button onClick={() => onDeleteFinanceItem?.('finInvoicesPassive', inv.id)} className="text-stone-300 hover:text-red-500 transition-colors" title="Rimuovi"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* C. SCADENZIARIO */}
+            <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-4 mb-6">
+              <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
+                <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Scadenziario della commessa</span>
+                <span className="text-[10px] bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-bold font-mono">{projScadenze.length} scadenze</span>
+              </div>
+              <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
+                {projScadenze.length === 0 ? (
+                  <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessuna scadenza pianificata.</p>
+                ) : projScadenze.map((sc: any) => (
+                  <div key={sc.id} className="bg-white p-2.5 rounded-xl border border-stone-150 text-[12px] flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <b className="block text-stone-900 truncate">{sc.desc || 'Scadenza'} {sc.clientOrSupplier ? `· ${sc.clientOrSupplier}` : ''}</b>
+                      <span className="text-[10.5px] text-stone-500 font-mono">Scad: {fmtDay(sc.dueDate)} · {sc.kind === 'entrata' ? 'Entrata' : 'Uscita'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`font-black font-mono ${sc.kind === 'entrata' ? 'text-emerald-700' : 'text-rose-700'}`}>{eur(Number(sc.amount))}</span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc.status === 'pagato' ? 'bg-emerald-50 text-emerald-700' : sc.status === 'scaduta' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {sc.status === 'pagato' ? 'Saldata' : sc.status === 'scaduta' ? 'Scaduta' : 'In attesa'}
+                      </span>
+                      <button onClick={() => onDeleteFinanceItem?.('finScadenze', sc.id)} className="text-stone-300 hover:text-red-500 transition-colors" title="Rimuovi"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* D. MOVIMENTI LIBERI (cassa) */}
+            <div className="border-t border-stone-200 pt-5">
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                <div>
+                  <h3 className="text-[13px] font-black text-stone-900 uppercase tracking-wide font-sans">Movimenti liberi (cassa)</h3>
+                  <p className="text-[11px] text-stone-500">Saldo {eur(movSaldo)} · entrate {eur(movEntrate)} · uscite {eur(movUscite)} — non conteggiati nel margine.</p>
+                </div>
                 <button
                   onClick={() => setShowFinFilters(!showFinFilters)}
-                  className={`text-[12px] font-bold py-2 px-4 rounded-full flex items-center gap-1.5 cursor-pointer border transition-all active:scale-95 font-sans ${
-                    showFinFilters 
-                      ? 'bg-black text-white border-black shadow-xs' 
-                      : 'bg-white text-gray-700 border-[#e2e2e2] hover:border-black hover:text-[#161616]'
+                  className={`text-[12px] font-bold py-1.5 px-3.5 rounded-full flex items-center gap-1.5 cursor-pointer border transition-all active:scale-95 font-sans ${
+                    showFinFilters ? 'bg-black text-white border-black shadow-xs' : 'bg-white text-gray-700 border-[#e2e2e2] hover:border-black hover:text-[#161616]'
                   }`}
-                  title="Filtra transazioni"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>Filtri</span>
-                  {(finType !== 'tutti' || finCategory !== 'tutte' || finQuery !== '') && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  )}
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Filtri
+                  {(finType !== 'tutti' || finCategory !== 'tutte' || finQuery !== '') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>}
                 </button>
+              </div>
 
-                {isInternalBoss && (
-                  <button
-                    onClick={() => onOpenProjectFinance(p.id)}
-                    className="bg-[#161616] hover:bg-black text-white text-[12px] font-bold py-2 px-4 rounded-full flex items-center gap-1.5 cursor-pointer border-none shadow-sm transition-all active:scale-95 font-sans"
-                  >
-                    + Nuovo Movimento
-                  </button>
+              {showFinFilters && (
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center mb-4 p-4 rounded-2xl bg-[#fafafa]/80 border border-gray-150 animate-[riseIn_0.2s_ease_both]">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input type="text" value={finQuery} onChange={(e) => setFinQuery(e.target.value)} placeholder="Cerca movimento, causale..." className="pl-9 pr-4 py-2 text-[12.5px] font-medium rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] w-full" />
+                  </div>
+                  <div className="flex bg-white border border-[#e5e5e5] p-[2.5px] rounded-full self-start lg:self-auto shadow-xs">
+                    {(['tutti', 'entrata', 'uscita'] as const).map(t => (
+                      <button key={t} onClick={() => setFinType(t)} className={`text-[11.5px] font-bold px-3 py-1 rounded-full border-none cursor-pointer transition-all ${finType === t ? 'bg-[#161616] text-white shadow-xs' : 'text-[#8a8a8a] bg-transparent hover:text-[#161616]'}`}>
+                        {t === 'tutti' ? 'Tutti' : t === 'entrata' ? 'Entrate' : 'Uscite'}
+                      </button>
+                    ))}
+                  </div>
+                  <select value={finCategory} onChange={(e) => setFinCategory(e.target.value)} className="px-4 py-1.5 text-[11.5px] font-semibold text-[#161616] rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] cursor-pointer">
+                    <option value="tutte">Tutte le categorie</option>
+                    {movCategories.map(cat => (<option key={cat} value={cat}>{cat}</option>))}
+                  </select>
+                  <select value={finSort} onChange={(e) => setFinSort(e.target.value as any)} className="px-4 py-1.5 text-[11.5px] font-semibold text-[#161616] rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] cursor-pointer">
+                    <option value="data_desc">Più recenti</option>
+                    <option value="data_asc">Meno recenti</option>
+                    <option value="importo_desc">Importo: Decrescente</option>
+                    <option value="importo_asc">Importo: Crescente</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                {filteredFinList.length > 0 ? filteredFinList.map((f: any) => (
+                  <div key={f.id} className="flex items-center justify-between p-3 rounded-xl border border-[#ececec] bg-[#f9f9f9]/40 hover:border-gray-300 transition-colors">
+                    <div className="min-w-0">
+                      <b className="block text-[13px] font-bold text-[#161616] tracking-tight truncate">{f.desc}</b>
+                      <small className="text-[#8a8a8a] font-medium block mt-0.5 font-mono">
+                        {fmtDay(f.date)} {f.category ? <>· <span className="bg-[#f0f0f0] text-[#161616] px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase font-sans tracking-wide">{f.category}</span></> : null} {f.note ? `· ${f.note}` : ''}
+                      </small>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0 font-mono">
+                      <span className={`font-black text-[14px] ${f.kind === 'entrata' ? 'text-green-700' : 'text-red-700'}`}>{f.kind === 'entrata' ? '+' : '-'} {eur(f.amount)}</span>
+                      <button onClick={() => onDeleteProjectFinance(p.id, f.id)} className="w-8 h-8 rounded-lg hover:bg-red-50 text-[#a8a8a8] hover:text-red-750 flex items-center justify-center bg-transparent border-none cursor-pointer transition-colors" title="Rimuovi"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 bg-gray-50/40 rounded-2xl border border-dashed border-gray-200">
+                    <p className="text-[12.5px] text-gray-400 italic font-medium">Nessun movimento libero.</p>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Display Filters Toolbar (conditional build) */}
-            {showFinFilters && (
-              <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center mb-5 p-4 rounded-2xl bg-[#fafafa]/80 border border-gray-150 animate-[riseIn_0.2s_ease_both]">
-                {/* Text Search */}
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={finQuery}
-                    onChange={(e) => setFinQuery(e.target.value)}
-                    placeholder="Cerca movimento, causale..."
-                    className="pl-9 pr-4 py-2 text-[12.5px] font-medium rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] w-full"
-                  />
-                </div>
-
-                {/* Type Pills (Tutti, Entrate, Uscite) */}
-                <div className="flex bg-white border border-[#e5e5e5] p-[2.5px] rounded-full self-start lg:self-auto shadow-xs">
-                  {(['tutti', 'entrata', 'uscita'] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setFinType(t)}
-                      className={`text-[11.5px] font-bold px-3 py-1 rounded-full border-none cursor-pointer transition-all ${
-                        finType === t ? 'bg-[#161616] text-white shadow-xs' : 'text-[#8a8a8a] bg-transparent hover:text-[#161616]'
-                      }`}
-                    >
-                      {t === 'tutti' ? 'Tutti' : t === 'entrata' ? 'Entrate' : 'Uscite'}
+            {/* MODALE Registra costo/ricavo/scadenza */}
+            {qaKind && (
+              <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQaKind(null)}>
+                <div className="bg-white rounded-[24px] w-full max-w-sm p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                  <h4 className="text-[15px] font-extrabold text-[#161616] mb-4">
+                    {qaKind === 'costo' ? 'Registra costo (fornitore)' : qaKind === 'ricavo' ? 'Registra ricavo / incasso' : 'Aggiungi scadenza'}
+                  </h4>
+                  <div className="flex flex-col gap-3">
+                    {qaKind === 'scadenza' && (
+                      <div className="flex bg-[#f1f1f1] rounded-full p-1">
+                        {(['entrata', 'uscita'] as const).map(k => (
+                          <button key={k} onClick={() => setQaScadKind(k)} className={`flex-1 text-[11.5px] font-bold py-1.5 rounded-full transition-colors ${qaScadKind === k ? 'bg-[#1b1b1b] text-white' : 'text-[#6b6b6b]'}`}>
+                            {k === 'entrata' ? 'Entrata' : 'Uscita'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <input value={qaDesc} onChange={(e) => setQaDesc(e.target.value)} placeholder={qaKind === 'costo' ? 'Descrizione costo' : qaKind === 'ricavo' ? 'Descrizione / causale' : 'Descrizione scadenza'} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                    <input value={qaParty} onChange={(e) => setQaParty(e.target.value)} placeholder={qaKind === 'costo' ? 'Fornitore' : 'Cliente / controparte'} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                    <input type="number" inputMode="decimal" value={qaAmount} onChange={(e) => setQaAmount(e.target.value)} placeholder="Importo €" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                    <div className="flex gap-2">
+                      <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 flex-1">
+                        {qaKind === 'scadenza' ? 'Data' : 'Data documento'}
+                        <input type="date" value={qaDate} onChange={(e) => setQaDate(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                      </label>
+                      <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 flex-1">
+                        Scadenza
+                        <input type="date" value={qaDue} onChange={(e) => setQaDue(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button onClick={() => setQaKind(null)} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">Annulla</button>
+                    <button onClick={saveQuickAdd} disabled={!qaAmount.trim()} className="flex-1 bg-[#1b1b1b] hover:bg-black disabled:opacity-40 text-white rounded-full py-2.5 text-[12.5px] font-bold inline-flex items-center justify-center gap-1">
+                      <CheckCircle className="w-4 h-4" /> Registra
                     </button>
-                  ))}
+                  </div>
                 </div>
-
-                {/* Dynamic Category Dropdown Selector */}
-                <select
-                  value={finCategory}
-                  onChange={(e) => setFinCategory(e.target.value)}
-                  className="px-4 py-1.5 text-[11.5px] font-semibold text-[#161616] rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] cursor-pointer"
-                >
-                  <option value="tutte">Tutte le categorie</option>
-                  {currentCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-
-                {/* Sort Order Selector (Date / Amount) */}
-                <select
-                  value={finSort}
-                  onChange={(e) => setFinSort(e.target.value as any)}
-                  className="px-4 py-1.5 text-[11.5px] font-semibold text-[#161616] rounded-full border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] cursor-pointer"
-                >
-                  <option value="data_desc">Ordinamento: Più recenti</option>
-                  <option value="data_asc">Ordinamento: Meno recenti</option>
-                  <option value="importo_desc">Importo: Decrescente</option>
-                  <option value="importo_asc">Importo: Crescente</option>
-                </select>
               </div>
             )}
-
-            {/* List */}
-            <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1">
-              {(finTab === 'studio' ? filteredStudioFinances : filteredProgettoFinances).length > 0 ? (
-                (finTab === 'studio' ? filteredStudioFinances : filteredProgettoFinances).map((f: any) => (
-                  <div key={f.id} className="flex items-center justify-between p-3.5 rounded-xl border border-[#ececec] bg-[#f9f9f9]/40 hover:border-gray-300 transition-colors">
-                    <div>
-                      <b className="block text-[13.5px] font-bold text-[#161616] tracking-tight">{f.desc}</b>
-                      <small className="text-[#8a8a8a] font-medium block mt-1 font-mono">
-                        {fmtDay(f.date)} · <span className="bg-[#f0f0f0] text-[#161616] px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase font-sans tracking-wide">{f.category}</span> {f.note ? `· ${f.note}` : ''}
-                      </small>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0 font-mono">
-                      <span className={`font-black text-[14px] ${f.kind === 'entrata' ? 'text-green-700' : 'text-red-700'}`}>
-                        {f.kind === 'entrata' ? '+' : '-'} {eur(f.amount)}
-                      </span>
-                      {isInternalBoss && (
-                        <button
-                          onClick={() => onDeleteProjectFinance(p.id, f.id)}
-                          className="w-8 h-8 rounded-lg hover:bg-red-50 text-[#a8a8a8] hover:text-red-750 flex items-center justify-center bg-transparent border-none cursor-pointer transition-colors"
-                          title="Rimuovi"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-12 bg-gray-50/40 rounded-2xl border border-dashed border-gray-200">
-                  <p className="text-[13px] text-gray-400 italic font-medium">
-                    Nessun movimento corrisponde ai filtri impostati.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* LINKED FINANCE SYNC SECTION */}
-            <div className="mt-8 pt-6 border-t border-stone-200 text-left">
-              <h3 className="text-[14px] font-black text-stone-900 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider font-sans">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Integrazione Sezione Finanze Generale
-              </h3>
-              <p className="text-[12px] text-stone-500 mb-6">
-                I dati sottostanti sono sincronizzati in tempo reale con la sezione <b>Finanze</b> centrale del sistema. Qualsiasi modifica effettuata qui o nel pannello amministrativo si rifletterà istantaneamente.
-              </p>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 1. Computo Metrico Collegato */}
-                <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-5">
-                  <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
-                    <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Computo Metrico Regolamentato</span>
-                    <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold font-mono">
-                      {gComputi.filter((c: any) => c.projectId === p.id).length} voci
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                    {gComputi.filter((c: any) => c.projectId === p.id).length === 0 ? (
-                      <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessuna voce di computo inserita per questo progetto.</p>
-                    ) : (
-                      gComputi.filter((c: any) => c.projectId === p.id).map((c: any) => (
-                        <div key={c.id} className="bg-white p-2.5 rounded-xl border border-stone-150 text-[12px]">
-                          <div className="flex justify-between font-bold text-stone-900">
-                            <span className="truncate pr-2">{c.desc || c.description}</span>
-                            <span>{eur(Number(c.amount || c.total))}</span>
-                          </div>
-                          <div className="text-[10.5px] text-stone-500 mt-1 flex justify-between font-mono">
-                            <span>Q.tà: {c.qty || c.quantity || 1} {c.unit || 'cad'}</span>
-                            <span>PU: {eur(Number(c.price || c.unitPrice || c.amount))}</span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Fatturazione Collegata Active + Passive */}
-                <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-5">
-                  <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
-                    <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Fatture (Emesse & Fornitori)</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-bold font-mono">
-                      {gActiveInvoices.filter((inv: any) => inv.projectId === p.id).length + gPassiveInvoices.filter((inv: any) => inv.projectId === p.id).length} fatture
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                    {gActiveInvoices.filter((inv: any) => inv.projectId === p.id).length === 0 && gPassiveInvoices.filter((inv: any) => inv.projectId === p.id).length === 0 ? (
-                      <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessuna fattura collegata a questo progetto.</p>
-                    ) : (
-                      <>
-                        {/* Active Invoices */}
-                        {gActiveInvoices.filter((inv: any) => inv.projectId === p.id).map((inv: any) => (
-                          <div key={inv.id} className="bg-emerald-50/20 p-2.5 rounded-xl border border-emerald-100/50 text-[12px] mb-2">
-                            <div className="flex justify-between font-bold text-emerald-950">
-                              <span className="truncate pr-2">{inv.id} (Attiva)</span>
-                              <span className="font-mono">{eur(Number(inv.amount))}</span>
-                            </div>
-                            <div className="text-[10.5px] text-emerald-700 mt-1 flex justify-between font-semibold">
-                              <span>{inv.description || 'Acconto / SAL'}</span>
-                              <span className="uppercase">{inv.status === 'pagata' || inv.status === 'Paid' ? 'PAGATA ✓' : 'IN ATTESA'}</span>
-                            </div>
-                          </div>
-                        ))}
-                        {/* Passive Invoices */}
-                        {gPassiveInvoices.filter((inv: any) => inv.projectId === p.id).map((inv: any) => (
-                          <div key={inv.id} className="bg-rose-50/20 p-2.5 rounded-xl border border-rose-150 text-[12px] mb-2">
-                            <div className="flex justify-between font-bold text-rose-950">
-                              <span className="truncate pr-2">{inv.invoiceNum || inv.id || 'FAT-PA'} (Passiva)</span>
-                              <span className="font-mono">{eur(Number(inv.amount))}</span>
-                            </div>
-                            <div className="text-[10.5px] text-rose-700 mt-1 flex justify-between font-semibold">
-                              <span>{inv.supplier || 'Fornitore'}</span>
-                              <span className="uppercase">{inv.isPaid ? 'PAGATA ✓' : 'DA REGOLARE'}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Scadenziario Pagamenti Coerente */}
-                <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-5">
-                  <div className="flex justify-between items-center border-b border-stone-150 pb-2 mb-3">
-                    <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide">Scadenze & Incassi</span>
-                    <span className="text-[10px] bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded font-bold font-mono">
-                      {gScadenze.filter((sc: any) => sc.projectId === p.id).length} scadenze
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                    {gScadenze.filter((sc: any) => sc.projectId === p.id).length === 0 ? (
-                      <p className="text-[11.5px] text-stone-400 italic py-4 text-center">Nessuna scadenza pianificata.</p>
-                    ) : (
-                      gScadenze.filter((sc: any) => sc.projectId === p.id).map((sc: any) => (
-                        <div key={sc.id} className="bg-white p-2.5 rounded-xl border border-stone-150 text-[12px]">
-                          <div className="flex justify-between font-bold text-stone-900">
-                            <span className="truncate pr-2">{sc.desc || sc.description || 'Pianificazione'}</span>
-                            <span className="font-mono">{eur(Number(sc.amount))}</span>
-                          </div>
-                          <div className="text-[10.5px] text-stone-500 mt-1 flex justify-between font-mono">
-                            <span>Scad: {fmtDay(sc.date || sc.dueDate)}</span>
-                            <span className={sc.isPaid ? 'text-emerald-600 font-bold' : 'text-amber-500 font-bold'}>
-                              {sc.isPaid ? 'SALDATA ✓' : 'DA COMPLETARE'}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div>
+          )
         )}
       </div>
     );

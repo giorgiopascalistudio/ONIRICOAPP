@@ -115,6 +115,13 @@ import {
   type User as GUser
 } from './firebase';
 
+import {
+  Computo,
+  InvoiceActive,
+  InvoicePassive,
+  ScadenzaItem
+} from './finance';
+
 interface Toast {
   id: string;
   msg: string;
@@ -165,6 +172,11 @@ export default function App() {
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [templates, setTemplates] = useState<Record<string, Template>>({});
   const [finances, setFinances] = useState<Record<string, FinanceMovement>>({});
+  // Nodi finanza strutturati (admin/manager): condivisi con FinanzeView + contabilità di commessa
+  const [finComputi, setFinComputi] = useState<Computo[]>([]);
+  const [finInvoicesActive, setFinInvoicesActive] = useState<InvoiceActive[]>([]);
+  const [finInvoicesPassive, setFinInvoicesPassive] = useState<InvoicePassive[]>([]);
+  const [finScadenze, setFinScadenze] = useState<ScadenzaItem[]>([]);
   const [projectsInternal, setProjectsInternal] = useState<Record<string, ProjectInternal>>({});
   const [projectMessages, setProjectMessages] = useState<Record<string, Record<string, ProjectMessage>>>({});
   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
@@ -625,9 +637,16 @@ export default function App() {
       add('documents', setDocuments);
       add('projectFurnishings', setFurnishings);
       add('estimates', setEstimates);
-      if (canFinance) add('studioFinance', setFinances);
       // CRM (array nodes)
       const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
+      if (canFinance) {
+        add('studioFinance', setFinances);
+        // Nodi finanza strutturati: stessa fonte di FinanzeView, serve alla contabilità di commessa
+        subs.push(watchNode('finComputi', (v) => setFinComputi(toArr(v)), () => {}));
+        subs.push(watchNode('finInvoicesActive', (v) => setFinInvoicesActive(toArr(v)), () => {}));
+        subs.push(watchNode('finInvoicesPassive', (v) => setFinInvoicesPassive(toArr(v)), () => {}));
+        subs.push(watchNode('finScadenze', (v) => setFinScadenze(toArr(v)), () => {}));
+      }
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
       subs.push(watchNode('unicoDeals', (v) => setUnicoDeals(toArr(v)), () => {}));
@@ -1556,6 +1575,35 @@ export default function App() {
   };
 
   // ----------------------------------------------------
+  // Contabilità di commessa: scritture sui nodi finanza
+  // strutturati (fatture attive/passive, scadenze). Stessa
+  // fonte di FinanzeView → confluiscono nel consolidato.
+  // ----------------------------------------------------
+  type FinNode = 'finInvoicesActive' | 'finInvoicesPassive' | 'finScadenze';
+  const finStateFor = (node: FinNode): [any[], (v: any[]) => void] =>
+    node === 'finInvoicesActive' ? [finInvoicesActive, setFinInvoicesActive] :
+    node === 'finInvoicesPassive' ? [finInvoicesPassive, setFinInvoicesPassive] :
+    [finScadenze, setFinScadenze];
+
+  const handleSaveFinanceItem = (node: FinNode, item: any) => {
+    const [arr, setArr] = finStateFor(node);
+    const next = [...arr.filter((x: any) => x.id !== item.id), item];
+    setArr(next);
+    writeNode(node, next).catch((e: any) =>
+      showToast('Errore salvataggio (permessi?): ' + (e?.message || e?.code || ''), 'err')
+    );
+    showToast('Registrato in contabilità di commessa.');
+  };
+
+  const handleDeleteFinanceItem = (node: FinNode, id: string) => {
+    const [arr, setArr] = finStateFor(node);
+    const next = arr.filter((x: any) => x.id !== id);
+    setArr(next);
+    writeNode(node, next).catch(() => {});
+    showToast('Voce rimossa.', 'err');
+  };
+
+  // ----------------------------------------------------
   // ADDITIONAL OVERRIDES & PHASE ACTIONS
   // ----------------------------------------------------
   const handleAddPhase = (projId: string) => {
@@ -1967,6 +2015,12 @@ export default function App() {
             isInternalBoss={currentUser.role === 'admin' || currentUser.role === 'manager'}
             myUid={currentUser.uid}
             finance={Object.values(finances)}
+            finComputi={finComputi}
+            finInvoicesActive={finInvoicesActive}
+            finInvoicesPassive={finInvoicesPassive}
+            finScadenze={finScadenze}
+            onSaveFinanceItem={handleSaveFinanceItem}
+            onDeleteFinanceItem={handleDeleteFinanceItem}
             estimates={Object.values(estimates)}
             onSaveEstimate={handleSaveEstimate}
             onDeleteEstimate={handleDeleteEstimate}
