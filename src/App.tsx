@@ -1279,6 +1279,17 @@ export default function App() {
     removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() => {});
   };
 
+  // 3c. Flag "lo Studio gestisce gli arredi mobili" (→ fee 20%) sul progetto
+  const handleToggleStudioManagesMobili = (projId: string, value: boolean) => {
+    setProjects((prev) => {
+      const p = prev[projId];
+      if (!p) return prev;
+      const next = { ...prev, [projId]: { ...p, studioManagesArrediMobili: value, updatedAt: Date.now() } };
+      syncState('projects', next);
+      return next;
+    });
+  };
+
   // 4. Chat messages
   const handleSendClientMessage = (projId: string, text: string) => {
     const mId = `msg-${Date.now()}`;
@@ -1806,6 +1817,7 @@ export default function App() {
             furnishings={furnishings}
             onSaveFurnishing={handleSaveFurnishing}
             onDeleteFurnishing={handleDeleteFurnishing}
+            onToggleStudioManagesMobili={handleToggleStudioManagesMobili}
             isInternalBoss={currentUser.role === 'admin' || currentUser.role === 'manager'}
             myUid={currentUser.uid}
             finance={Object.values(finances)}
@@ -1826,6 +1838,9 @@ export default function App() {
           <FinanzeView
             finance={Object.values(finances)}
             projects={Object.values(projects)}
+            furnishings={furnishings}
+            matericoRequests={Object.values(matericoRequests)}
+            unicoDeals={unicoDeals}
             onNewMovement={() => {
               setFinCtx('studio');
               setFnDesc('');

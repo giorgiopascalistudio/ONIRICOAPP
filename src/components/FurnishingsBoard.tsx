@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 
 import { Furnishing, Project } from '../types';
-import { todayISO } from '../utils';
+import { todayISO, eur } from '../utils';
+import { arrediTotals, STUDIO_FEE_PCT, ARREDI_MOBILI_FEE_PCT } from '../finance';
 
 interface FurnishingsBoardProps {
   project: Project;
@@ -31,6 +32,7 @@ interface FurnishingsBoardProps {
   isStudio: boolean;
   onSaveItem: (pid: string, item: Furnishing) => void;
   onDeleteItem: (pid: string, itemId: string) => void;
+  onToggleStudioManagesMobili?: (pid: string, value: boolean) => void;
 }
 
 type Section = 'fissi' | 'mobili' | 'moodboard';
@@ -76,7 +78,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
   myRole,
   isStudio,
   onSaveItem,
-  onDeleteItem
+  onDeleteItem,
+  onToggleStudioManagesMobili
 }) => {
   const [section, setSection] = useState<Section>('fissi');
   const [modalKind, setModalKind] = useState<Furnishing['kind'] | null>(null);
@@ -90,11 +93,19 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
   const [fLink, setFLink] = useState('');
   const [fColor, setFColor] = useState('');
   const [fNote, setFNote] = useState('');
+  const [fPrice, setFPrice] = useState('');
+  const [fQuantity, setFQuantity] = useState('');
 
   const pid = project.id;
   const fissi = items.filter((i) => i.kind === 'fisso');
   const mobili = items.filter((i) => i.kind === 'mobile');
   const boardItems = items.filter((i) => i.board);
+
+  // Subtotali e anteprima fee (motore finanziario)
+  const totals = arrediTotals(items);
+  const managesMobili = !!project.studioManagesArrediMobili;
+  const feeFissi = totals.fissi * (project.studioFeePct ?? STUDIO_FEE_PCT);
+  const feeMobili = managesMobili ? totals.mobili * (project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) : 0;
 
   const resetForm = () => {
     setFTitle('');
@@ -104,6 +115,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
     setFLink('');
     setFColor('');
     setFNote('');
+    setFPrice('');
+    setFQuantity('');
   };
 
   const openModal = (kind: Furnishing['kind']) => {
@@ -125,6 +138,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
       link: fLink.trim() || null,
       color: fColor.trim() || null,
       note: fNote.trim() || null,
+      price: fPrice.trim() ? parseFloat(fPrice.replace(',', '.')) || null : null,
+      quantity: fQuantity.trim() ? parseFloat(fQuantity.replace(',', '.')) || null : null,
       board: null,
       createdBy: myUid,
       createdByName: undefined,
@@ -204,6 +219,11 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               </button>
             </div>
             {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{item.category}</div>}
+            {item.price != null && (
+              <div className="text-[11px] font-bold text-[#161616] mt-0.5">
+                {eur(item.price)}{(item.quantity ?? 1) !== 1 ? ` × ${item.quantity} = ${eur((item.price || 0) * (item.quantity || 1))}` : ''}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <button
                 onClick={() => cycleStatus(item)}
@@ -287,6 +307,52 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               <Plus className="w-3.5 h-3.5" /> Aggiungi
             </button>
           </div>
+
+          {/* Subtotale + anteprima fee (motore finanziario) */}
+          <div className="bg-[#fafafa] border border-[#ececec] rounded-[16px] p-3.5 flex flex-wrap items-center justify-between gap-3">
+            {section === 'fissi' ? (
+              <>
+                <div>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Valore arredi fissi</span>
+                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.fissi)}</b>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">
+                    Onorari Studio ({Math.round((project.studioFeePct ?? STUDIO_FEE_PCT) * 100)}% — concorre alla parcella)
+                  </span>
+                  <b className="text-[14px] font-black text-indigo-700">{eur(feeFissi)}</b>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Valore arredi mobili</span>
+                  <b className="text-[15px] font-black text-[#161616]">{eur(totals.mobili)}</b>
+                </div>
+                {isStudio ? (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={managesMobili}
+                      onChange={(e) => onToggleStudioManagesMobili?.(pid, e.target.checked)}
+                    />
+                    <span className="text-[11.5px] font-bold text-[#161616] leading-tight">
+                      Lo Studio gestisce scelta + approvvigionamento
+                      <span className="block text-[10.5px] font-semibold text-[#8a8a8a]">
+                        → fee {Math.round((project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) * 100)}%: <b className="text-indigo-700">{eur(feeMobili)}</b>
+                      </span>
+                    </span>
+                  </label>
+                ) : (
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Gestione Studio</span>
+                    <b className="text-[13px] font-black text-[#161616]">{managesMobili ? `Sì — fee ${eur(feeMobili)}` : 'No'}</b>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {(section === 'fissi' ? fissi : mobili).map((it) => renderCard(it, section === 'fissi'))}
           </div>
@@ -370,6 +436,16 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               )}
               <input value={fImageUrl} onChange={(e) => setFImageUrl(e.target.value)} placeholder="URL immagine di riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
               <input value={fLink} onChange={(e) => setFLink(e.target.value)} placeholder="Link prodotto/riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              <div className="flex gap-2">
+                <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 flex-1">
+                  Prezzo unitario (€)
+                  <input type="number" inputMode="decimal" value={fPrice} onChange={(e) => setFPrice(e.target.value)} placeholder="es. 450" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                </label>
+                <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 w-24">
+                  Quantità
+                  <input type="number" inputMode="decimal" value={fQuantity} onChange={(e) => setFQuantity(e.target.value)} placeholder="1" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                </label>
+              </div>
               <div className="flex items-center gap-2">
                 <input type="color" value={fColor || '#cccccc'} onChange={(e) => setFColor(e.target.value)} className="w-10 h-10 rounded-[10px] border border-[#e2e2e2] cursor-pointer" />
                 <span className="text-[11.5px] text-[#8a8a8a]">Campione colore (opzionale)</span>

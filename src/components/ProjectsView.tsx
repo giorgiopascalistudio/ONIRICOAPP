@@ -73,6 +73,7 @@ interface ProjectsViewProps {
   furnishings?: Record<string, Record<string, Furnishing>>;
   onSaveFurnishing?: (pid: string, item: Furnishing) => void;
   onDeleteFurnishing?: (pid: string, itemId: string) => void;
+  onToggleStudioManagesMobili?: (pid: string, value: boolean) => void;
   isInternalBoss: boolean;
   myUid: string;
   finance?: FinanceMovement[];
@@ -117,6 +118,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   furnishings = {},
   onSaveFurnishing,
   onDeleteFurnishing,
+  onToggleStudioManagesMobili,
   isInternalBoss,
   myUid,
   finance = [],
@@ -1453,6 +1455,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               isStudio={true}
               onSaveItem={onSaveFurnishing || (() => {})}
               onDeleteItem={onDeleteFurnishing || (() => {})}
+              onToggleStudioManagesMobili={onToggleStudioManagesMobili}
             />
           </div>
         )}

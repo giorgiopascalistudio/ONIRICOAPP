@@ -116,14 +116,22 @@ moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio i
 - `projects/<pid>`, `tasks/<id>`, `templates/<id>`, `projectsInternal/<id>`,
   `estimates/<id>`.
 - `studioFinance/<id>` + nodi finanza dedicati: `finComputi`, `finInvoicesActive`,
-  `finInvoicesPassive`, `finScadenze`, `finBank` (array; admin/manager).
+  `finInvoicesPassive`, `finScadenze`, `finBank` (array; admin/manager). Le interfacce
+  di questi nodi e il **motore di calcolo** vivono in **`src/finance.ts`** (funzioni
+  pure: `studioParcella`, `matericoMargin`, `unicoMargin`, `consolidato`, `arrediTotals`,
+  `computoTotal` + parser CSV `parseCsv`/`rowsToComputoItems`; costanti override-abili
+  `STUDIO_FEE_PCT=0.15`, `ARREDI_MOBILI_FEE_PCT=0.20`, `MATERICO_MARKUP_PCT=0.15`).
+- `projectEconomics/<pid>` — **snapshot read-only per il portale cliente** (scritto da
+  `FinanzeView` lato studio): quadro economico calcolato (computo, arredi fissi/mobili,
+  parcella 15%/20%, piano SAL) + fatture/scadenze del progetto. Letto dal cliente
+  collegato (`clientUid`) in `ClientPortalView` (sostituisce il vecchio localStorage).
 - `documents/<pid>/<docId>`, `projectMessages/<pid>/<msgId>` — **scritture
   mirate per-elemento** (così anche i clienti possono creare i propri).
 - `projectFurnishings/<pid>/<itemId>` — modulo "Arredi & Moodboard" (tipo
-  `Furnishing`): arredi **fissi/mobili** + tile moodboard (campo `board`).
-  Scrittura **mirata per-elemento** come documents; a differenza di documents il
-  cliente può anche **aggiornare** i propri item (non solo crearli), quindi la
-  regola di write è a livello `$pid` senza vincolo `!data.exists()`.
+  `Furnishing`): arredi **fissi/mobili** (ora con `price`/`quantity` → base parcella) +
+  tile moodboard (campo `board`). Scrittura **mirata per-elemento** come documents; a
+  differenza di documents il cliente può anche **aggiornare** i propri item (non solo
+  crearli), quindi la regola di write è a livello `$pid` senza vincolo `!data.exists()`.
 - `appointments/<id>` — agenda condivisa (vedi §8).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
@@ -204,8 +212,20 @@ reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
 - Realtime Database → Regole → incollare `firebase-rules.json` → Pubblica.
   ⚠️ Le regole `users` ora permettono a cliente/azienda di auto-approvarsi
   (`role:'cliente'`) e al manager di approvare il Team; aggiunto anche il nodo
-  `unicoDeals` (admin/manager) e il nodo `projectFurnishings` (studio + cliente
-  collegato via `clientUid`, in lettura e scrittura). **Vanno ripubblicate**,
-  altrimenti la registrazione e i moduli Unico / Arredi falliscono con
-  "permission denied".
+  `unicoDeals` (admin/manager), il nodo `projectFurnishings` (studio + cliente
+  collegato via `clientUid`, in lettura e scrittura) e il nodo **`projectEconomics`**
+  (write studio, read cliente collegato — quadro economico del portale). **Vanno
+  ripubblicate**, altrimenti la registrazione e i moduli Unico / Arredi / la
+  contabilità del portale falliscono con "permission denied".
 - Mettere i 13 GLB in `public/model/`.
+
+## 14. Finanza holding (parcelle + libri per società)
+- **Motore**: `src/finance.ts` (vedi §6). Regole ricavo: **Studio 15%** su
+  (computo + arredi fissi) **+ 20%** arredi mobili se `Project.studioManagesArrediMobili`;
+  **Materico 15%** sul costo partner; **Unico** = rivendita − acquisto − ristrutturazione.
+- **`FinanzeView`**: selettore **Società** (Studio·Strategico·Materico·**Unico**·
+  **Consolidato**); tab **Parcelle & Onorari** (calcolo automatico); import computo da
+  **CSV** (Excel/PDF → allegato `sourceFileName`, no parsing); SAL derivati dalla parcella;
+  numerazione fatture per società (`FE-STU/STR/MAT/UNI`); Conto Economico per società +
+  Consolidato di gruppo. Cash-flow/banca restano **simulati** ma etichettati.
+- Excel parsing: richiede **SheetJS (`xlsx`)** — non installato (oggi solo CSV nativo).

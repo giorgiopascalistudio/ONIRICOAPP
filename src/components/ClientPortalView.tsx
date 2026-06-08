@@ -38,6 +38,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Project, UserProfile, MatericoEstimate, Furnishing } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { eur, fmtDay, isoDate } from '../utils';
+import { watchNode } from '../firebase';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
 
@@ -334,25 +335,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   const [blogFilter, setBlogFilter] = useState('Tutti');
   const [selectedTaskForModal, setSelectedTaskForModal] = useState<{ phase: string; title: string; done: boolean } | null>(null);
 
-  // Unified global finance sync
-  const [activeInvoices, setActiveInvoices] = useState<any[]>([]);
-  const [scadenze, setScadenze] = useState<any[]>([]);
-  const [computi, setComputi] = useState<any[]>([]);
+  // Quadro economico per progetto (snapshot scritto dallo Studio: nodo projectEconomics/<pid>).
+  // Sostituisce il vecchio localStorage (mai popolato): dati reali e condivisi.
+  const [economics, setEconomics] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    try {
-      const cachedActive = localStorage.getItem('onirico_invoices_active');
-      if (cachedActive) setActiveInvoices(JSON.parse(cachedActive));
-
-      const cachedScadenze = localStorage.getItem('onirico_scadenze');
-      if (cachedScadenze) setScadenze(JSON.parse(cachedScadenze));
-
-      const cachedComputi = localStorage.getItem('onirico_computi');
-      if (cachedComputi) setComputi(JSON.parse(cachedComputi));
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
+    const ids = projects.map((p) => p.id);
+    const subs = ids.map((pid) =>
+      watchNode(`projectEconomics/${pid}`, (v) => {
+        setEconomics((prev) => ({ ...prev, [pid]: v || null }));
+      }, () => {})
+    );
+    return () => subs.forEach((u) => u && u());
+  }, [projects]);
 
   // Overrides and custom states for the new 3 portals (Strategico, Materico Cliente, Materico Partner B2B)
   const [overridePortal, setOverridePortal] = useState<'studio' | 'strategico' | 'materico_cliente' | 'materico_partner' | null>(null);
@@ -1928,10 +1923,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           )}
 
           {currentTab === 'finanze' && (() => {
-            // Filter active invoices and scadenze for this project
-            const projInvoices = activeInvoices.filter((inv: any) => inv.projectId === p.id);
-            const projScadenze = scadenze.filter((sc: any) => sc.projectId === p.id);
-            
+            // Quadro economico reale dallo snapshot Studio (projectEconomics/<pid>).
+            const econ = economics[p.id] || null;
+            const parc = econ?.parcella || null;
+            const projInvoices = (econ?.invoices || []) as any[];
+            const projScadenze = (econ?.scadenze || []) as any[];
+
             // Calculate totals
             const totalInvoiced = projInvoices.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
             const paidInvoices = projInvoices.filter((inv: any) => inv.status === 'pagata' || inv.status === 'Paid').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
@@ -1946,27 +1943,58 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     Contabilità e Stato dei Pagamenti
                   </h3>
                   <p className="text-[12.5px] text-[#8a8a8a] leading-relaxed">
-                    Consulta la rendicontazione dei pagamenti, lo stato delle fatture attive inviate tramite SDI e lo scadenziario finanziario concordato per la tua commessa: <b className="text-[#161616]">{p.name}</b>.
+                    Consulta il quadro economico della tua commessa <b className="text-[#161616]">{p.name}</b>: parcella professionale, fatture SDI e scadenziario concordato.
                   </p>
                 </div>
+
+                {/* QUADRO ECONOMICO (parcella calcolata dallo Studio) */}
+                {parc && (
+                  <div className="bg-white border border-[#e5e5e5] rounded-[24px] p-6 shadow-xs">
+                    <b className="text-[14px] font-black text-[#161616] block mb-3">Quadro economico della commessa</b>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Computo lavori</span>
+                        <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.computoTotal || 0)}</b>
+                      </div>
+                      <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi</span>
+                        <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.arrediFissi || 0)}</b>
+                      </div>
+                      <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi mobili</span>
+                        <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.arrediMobili || 0)}</b>
+                      </div>
+                      <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3">
+                        <span className="text-[9.5px] uppercase font-black text-indigo-700 tracking-wider block">Onorari Studio {Math.round((parc.feePct || 0.15) * 100)}%</span>
+                        <b className="text-[14px] font-black text-indigo-800">{eur(parc.onorari || 0)}</b>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 bg-[#1b1b1b] text-white rounded-xl px-4 py-3">
+                      <span className="text-[11px] uppercase font-black tracking-wider text-stone-300">
+                        Totale parcella professionale {parc.managesMobili ? `(incl. ${Math.round((parc.mobiliFeePct || 0.2) * 100)}% arredi mobili)` : ''}
+                      </span>
+                      <b className="text-[18px] font-black text-green-400">{eur(parc.totaleParcella || 0)}</b>
+                    </div>
+                  </div>
+                )}
 
                 {/* KPI Boxes */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white border border-[#e5e5e5] rounded-2xl p-5 shadow-xs">
                     <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">Totale Fatturato (SDI)</span>
-                    <b className="text-[20px] font-black mt-1 block text-stone-800">{eur(totalInvoiced || 12500)}</b>
+                    <b className="text-[20px] font-black mt-1 block text-stone-800">{eur(totalInvoiced)}</b>
                     <span className="text-[11px] text-stone-500 mt-1 block">{projInvoices.length} fatture emesse ad oggi</span>
                   </div>
 
                   <div className="bg-emerald-50/20 border border-emerald-100 rounded-2xl p-5 shadow-xs">
                     <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">Ricevuto / Pagato</span>
-                    <b className="text-[20px] font-black mt-1 block text-emerald-700">{eur(paidInvoices || 9000)}</b>
-                    <span className="text-[11px] text-emerald-600 mt-1 block">Riconciliato con saldi bancari</span>
+                    <b className="text-[20px] font-black mt-1 block text-emerald-700">{eur(paidInvoices)}</b>
+                    <span className="text-[11px] text-emerald-600 mt-1 block">Importi già saldati</span>
                   </div>
 
                   <div className={`rounded-2xl p-5 border shadow-xs ${pendingInvoices > 0 ? 'bg-amber-50/10 border-amber-200' : 'bg-white border-[#e5e5e5]'}`}>
                     <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">In Attesa di Saldo</span>
-                    <b className="text-[20px] font-black mt-1 block text-amber-700">{eur(pendingInvoices || 3500)}</b>
+                    <b className="text-[20px] font-black mt-1 block text-amber-700">{eur(pendingInvoices)}</b>
                     <span className="text-[11px] text-stone-500 mt-1 block">A scadenze programmate</span>
                   </div>
                 </div>

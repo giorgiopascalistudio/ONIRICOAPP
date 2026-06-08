@@ -90,6 +90,9 @@ export interface Project {
   createdAt: number;
   updatedAt: number;
   division?: 'studio' | 'strategico' | 'materico' | 'unico';
+  studioManagesArrediMobili?: boolean;   // lo Studio cura scelta+approvvigionamento arredi mobili → fee 20%
+  studioFeePct?: number;                  // override % onorari Studio (default 0.15)
+  arrediMobiliFeePct?: number;            // override % fee arredi mobili (default 0.20)
   marketingBudget?: number;
   marketingChannels?: string;
   marketingGoal?: string;
@@ -269,6 +272,8 @@ export interface Furnishing {
   color?: string | null;                     // swatch colore (campioni/moodboard)
   note?: string | null;
   board?: { x: number; y: number; w?: number; rot?: number } | null; // posizione sulla lavagna moodboard
+  price?: number | null;                     // prezzo unitario (€) — base parcella arredi
+  quantity?: number | null;                  // quantità (default 1)
   createdBy: string;
   createdByName?: string;
   createdByRole?: string;

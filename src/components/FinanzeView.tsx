@@ -4,79 +4,31 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  DollarSign, ArrowUpRight, ArrowDownRight, Briefcase, Plus, Trash2, 
+import {
+  DollarSign, ArrowUpRight, ArrowDownRight, Briefcase, Plus, Trash2,
   FileText, Calculator, TrendingUp, Calendar, CheckCircle2, AlertCircle,
   ArrowRightLeft, FileCheck, Layers, Landmark, Download, RefreshCw,
-  Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info
+  Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info,
+  Upload, Building2, Percent
 } from 'lucide-react';
-import { FinanceMovement, Project } from '../types';
+import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal } from '../types';
 import { eur, fmtDay, numIt, todayISO } from '../utils';
 import { watchNode, writeNode } from '../firebase';
+import {
+  Company, COMPANY_LABEL, COMPANY_INVOICE_PREFIX,
+  Computo, ComputoItem, InvoiceActive, InvoicePassive, ScadenzaItem,
+  computoTotal, arrediTotals, studioParcella, matericoMargin, unicoMargin, consolidato,
+  parseCsv, guessMapping, rowsToComputoItems, ColumnMapping, ParsedSheet
+} from '../finance';
 
 interface FinanzeViewProps {
   finance: FinanceMovement[];
   projects: Project[];
+  furnishings: Record<string, Record<string, Furnishing>>;
+  matericoRequests: MatericoRequest[];
+  unicoDeals: UnicoDeal[];
   onNewMovement: () => void;
   onDeleteMovement: (id: string) => void;
-}
-
-// Sub-interfaces for Finance Modules
-interface ComputoItem {
-  id: string;
-  desc: string;
-  category: string; // Demolizioni, Murature, Impianti, Finiture, Allestimenti, Strategia
-  quantity: number;
-  unitPrice: number;
-}
-
-interface Computo {
-  id: string;
-  projectId: string;
-  title: string;
-  items: ComputoItem[];
-}
-
-interface InvoiceActive {
-  id: string;
-  clientName: string;
-  projectId: string;
-  projectName: string;
-  amount: number;
-  taxRate: number; // e.g. 22
-  status: 'bozza' | 'inviata_sdi' | 'consegnata_sdi' | 'pagata' | 'scaduta';
-  sdiCode: string;
-  date: string;
-  dueDate: string;
-  sector: 'studio' | 'strategico' | 'materico';
-  isSal?: boolean;
-  salNumber?: number;
-}
-
-interface InvoicePassive {
-  id: string;
-  supplierName: string;
-  projectId: string;
-  projectName: string;
-  amount: number;
-  category: string;
-  status: 'ricevuta' | 'approvata' | 'pagata' | 'scaduta';
-  date: string;
-  dueDate: string;
-  sector: 'studio' | 'strategico' | 'materico';
-  description: string;
-}
-
-interface ScadenzaItem {
-  id: string;
-  kind: 'entrata' | 'uscita';
-  desc: string;
-  clientOrSupplier: string;
-  amount: number;
-  dueDate: string;
-  status: 'scaduta' | 'pago_attesa' | 'pagato';
-  projectId?: string;
-  sector: 'studio' | 'strategico' | 'materico';
 }
 
 interface BankMovementSim {
@@ -91,14 +43,23 @@ interface BankMovementSim {
 export const FinanzeView: React.FC<FinanzeViewProps> = ({
   finance: initialFinanceProp,
   projects,
+  furnishings,
+  matericoRequests,
+  unicoDeals,
   onNewMovement,
   onDeleteMovement
 }) => {
   // --- SUB-TABS STATE ---
-  const [activeTab, setActiveTab] = useState<'panoramica' | 'computi' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico'>('panoramica');
+  const [activeTab, setActiveTab] = useState<'panoramica' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico'>('panoramica');
 
-  // --- TOP BAR FILTERS ---
-  const [selectedSector, setSelectedSector] = useState<'all' | 'studio' | 'strategico' | 'materico'>('all');
+  // --- TOP BAR FILTERS (società) ---
+  type SectorFilter = 'all' | Company | 'consolidato';
+  const [selectedSector, setSelectedSector] = useState<SectorFilter>('all');
+  // Per il filtraggio dei libri, 'consolidato' equivale a 'all' (mostra tutto).
+  const matchesSector = (s: Company) =>
+    selectedSector === 'all' || selectedSector === 'consolidato' || s === selectedSector;
+  // Società di un progetto (la divisione; default Studio).
+  const projCompany = (p?: Project | null): Company => ((p?.division as Company) || 'studio');
   const [selectedClient, setSelectedClient] = useState<string>('all');
 
   // Load distinct clients for dropdown filtered by selected sector
@@ -192,6 +153,12 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   const [newCompQty, setNewCompQty] = useState('');
   const [newCompPrice, setNewCompPrice] = useState('');
 
+  // --- IMPORT COMPUTO da file (.csv/.tsv parse nativo; .xlsx/.pdf = allegato) ---
+  const [importComputoId, setImportComputoId] = useState<string | null>(null); // computo target
+  const [importSheet, setImportSheet] = useState<ParsedSheet | null>(null);
+  const [importMapping, setImportMapping] = useState<ColumnMapping | null>(null);
+  const [importFileName, setImportFileName] = useState<string>('');
+
   // Active Invoice form states
   const [invClient, setInvClient] = useState('');
   const [invProjId, setInvProjId] = useState('');
@@ -209,7 +176,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   // --- FILTERING LOGIC DEPENDING ON SECTOR & CLIENT ---
   const filteredActiveInvoices = useMemo(() => {
     return activeInvoices.filter(inv => {
-      const matchSector = selectedSector === 'all' || inv.sector === selectedSector;
+      const matchSector = matchesSector(inv.sector);
       const matchClient = selectedClient === 'all' || inv.clientName.toLowerCase().includes(selectedClient.toLowerCase());
       return matchSector && matchClient;
     });
@@ -217,7 +184,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
 
   const filteredPassiveInvoices = useMemo(() => {
     return passiveInvoices.filter(inv => {
-      const matchSector = selectedSector === 'all' || inv.sector === selectedSector;
+      const matchSector = matchesSector(inv.sector);
       const associatedProj = projects.find(p => p.id === inv.projectId);
       const matchClient = selectedClient === 'all' || (associatedProj && associatedProj.client?.toLowerCase().includes(selectedClient.toLowerCase()));
       return matchSector && matchClient;
@@ -226,7 +193,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
 
   const filteredScadenze = useMemo(() => {
     return scadenze.filter(sc => {
-      const matchSector = selectedSector === 'all' || sc.sector === selectedSector;
+      const matchSector = matchesSector(sc.sector);
       const matchClient = selectedClient === 'all' || sc.clientOrSupplier.toLowerCase().includes(selectedClient.toLowerCase());
       return matchSector && matchClient;
     });
@@ -374,6 +341,68 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     triggerToast("📂 Nuovo computo metrico inizializzato!");
   };
 
+  // --- IMPORT COMPUTO da file ---
+  const handleComputoFile = (idComputo: string, file: File) => {
+    setImportFileName(file.name);
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.csv') || lower.endsWith('.tsv') || lower.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const sheet = parseCsv(String(reader.result || ''));
+        if (sheet.headers.length === 0) {
+          triggerToast('⚠️ File vuoto o non leggibile.');
+          return;
+        }
+        setImportComputoId(idComputo);
+        setImportSheet(sheet);
+        setImportMapping(guessMapping(sheet.headers));
+      };
+      reader.onerror = () => triggerToast('⚠️ Errore nella lettura del file.');
+      reader.readAsText(file);
+    } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+      // Excel richiede SheetJS (non installato): salviamo come allegato di riferimento.
+      const updated = computi.map(c => c.id === idComputo ? { ...c, sourceFileName: file.name } : c);
+      saveComputi(updated);
+      triggerToast('📎 Excel allegato come riferimento. Per l\'estrazione automatica esporta il computo in CSV.');
+    } else {
+      // PDF / altro: solo allegato di riferimento (no parsing).
+      const updated = computi.map(c => c.id === idComputo ? { ...c, sourceFileName: file.name } : c);
+      saveComputi(updated);
+      triggerToast('📎 File allegato come riferimento (PDF non viene estratto automaticamente).');
+    }
+  };
+
+  const confirmImport = () => {
+    if (!importComputoId || !importSheet || !importMapping) return;
+    const items = rowsToComputoItems(importSheet.rows, importMapping);
+    if (items.length === 0) {
+      triggerToast('⚠️ Nessuna riga valida estratta: controlla la mappatura colonne.');
+      return;
+    }
+    const updated = computi.map(c =>
+      c.id === importComputoId ? { ...c, items: [...c.items, ...items], sourceFileName: importFileName || c.sourceFileName } : c
+    );
+    saveComputi(updated);
+    setImportComputoId(null);
+    setImportSheet(null);
+    setImportMapping(null);
+    setImportFileName('');
+    triggerToast(`✨ Importate ${items.length} voci dal file.`);
+  };
+
+  const cancelImport = () => {
+    setImportComputoId(null);
+    setImportSheet(null);
+    setImportMapping(null);
+    setImportFileName('');
+  };
+
+  // Numerazione fatture per società (libri separati).
+  const nextInvoiceId = (company: Company) => {
+    const count = activeInvoices.filter(i => i.sector === company).length + 1;
+    return `${COMPANY_INVOICE_PREFIX[company]}-2026-${String(count).padStart(3, '0')}`;
+  };
+
   // --- INVOICING TRIGGER CORES ---
   const handleAddActiveInvoice = (e: React.FormEvent) => {
     e.preventDefault();
@@ -385,8 +414,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     if (isNaN(val)) return;
 
     const relatedProj = projects.find(p => p.id === invProjId);
+    const company = projCompany(relatedProj);
     const newInv: InvoiceActive = {
-      id: `FE-2026-${String(activeInvoices.length + 1).padStart(3, '0')}`,
+      id: nextInvoiceId(company),
       clientName: invClient,
       projectId: invProjId,
       projectName: relatedProj ? relatedProj.name : 'Bespoke Project',
@@ -396,7 +426,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
       sdiCode: invSdi || 'M5UXCR1',
       date: todayISO(),
       dueDate: todayISO(),
-      sector: relatedProj && relatedProj.division && (relatedProj.division !== 'unico') ? (relatedProj.division as any) : 'studio'
+      sector: company
     };
 
     saveActiveInvoices([...activeInvoices, newInv]);
@@ -460,7 +490,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
       status: 'ricevuta',
       date: todayISO(),
       dueDate: todayISO(),
-      sector: relatedProj && relatedProj.division && (relatedProj.division !== 'unico') ? (relatedProj.division as any) : 'studio',
+      sector: projCompany(relatedProj),
       description: pasDesc
     };
 
@@ -520,8 +550,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     const proj = projects.find(p => p.id === projId);
     if (!proj) return;
 
+    const company = projCompany(proj);
     const newInv: InvoiceActive = {
-      id: `FE-SAL-${String(activeInvoices.length + 1).padStart(3, '0')}`,
+      id: `${COMPANY_INVOICE_PREFIX[company]}-SAL-${String(activeInvoices.filter(i => i.sector === company && i.isSal).length + 1).padStart(3, '0')}`,
       clientName: proj.client || 'Cliente Studio',
       projectId: projId,
       projectName: proj.name,
@@ -531,7 +562,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
       sdiCode: 'M5UXCR1',
       date: todayISO(),
       dueDate: todayISO(),
-      sector: proj.division && proj.division !== 'unico' ? (proj.division as any) : 'studio',
+      sector: company,
       isSal: true,
       salNumber: idx + 1
     };
@@ -555,6 +586,82 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     triggerToast(`⚡ Collegato SAL Tecnico! Creata Bozza di Fattura Attiva per ${proj.name} [SAL ${idx + 1}] pari a ${eur(amount)}.`);
     setActiveTab('fatture');
   };
+
+  // ============================================================
+  // DERIVAZIONI DAL MOTORE FINANZIARIO (finance.ts)
+  // ============================================================
+  // Totale computo metrico per progetto.
+  const computoByProject = useMemo(() => {
+    const m: Record<string, number> = {};
+    computi.forEach((c) => { m[c.projectId] = (m[c.projectId] || 0) + computoTotal(c); });
+    return m;
+  }, [computi]);
+
+  // Parcella Studio per progetto (15% computo+fissi, +20% mobili gestiti).
+  const parcellaByProject = useMemo(() => {
+    const m: Record<string, ReturnType<typeof studioParcella> & { arrediFissi: number; arrediMobili: number }> = {};
+    projects.forEach((p) => {
+      const at = arrediTotals(Object.values(furnishings[p.id] || {}));
+      const parc = studioParcella(p, computoByProject[p.id] || 0, at.fissi, at.mobili);
+      m[p.id] = { ...parc, arrediFissi: at.fissi, arrediMobili: at.mobili };
+    });
+    return m;
+  }, [projects, furnishings, computoByProject]);
+
+  // Libri per società (ricavi/costi) per Conto Economico + Consolidato.
+  const companyBooks = useMemo(() => {
+    const base: Record<Company, { ricavi: number; costi: number }> = {
+      studio: { ricavi: 0, costi: 0 }, strategico: { ricavi: 0, costi: 0 },
+      materico: { ricavi: 0, costi: 0 }, unico: { ricavi: 0, costi: 0 }
+    };
+    activeInvoices.forEach((i) => { if (base[i.sector]) base[i.sector].ricavi += i.amount; });
+    passiveInvoices.forEach((p) => { if (base[p.sector]) base[p.sector].costi += p.amount; });
+    // Rollup Materico: margine = clientPrice − costo partner.
+    matericoRequests.forEach((r) => {
+      if (r.status === 'inviata_cliente' || r.status === 'accettata') {
+        const mm = matericoMargin(r);
+        base.materico.ricavi += mm.clientPrice;
+        base.materico.costi += mm.baseCost;
+      }
+    });
+    // Rollup Unico: rivendita vs acquisto+ristrutturazione.
+    unicoDeals.forEach((d) => {
+      base.unico.ricavi += d.targetSalePrice || 0;
+      base.unico.costi += (d.acquisitionCost || 0) + (d.renovationBudget || 0);
+    });
+    return base;
+  }, [activeInvoices, passiveInvoices, matericoRequests, unicoDeals]);
+
+  const consolidatedBooks = useMemo(() => consolidato(companyBooks), [companyBooks]);
+
+  // Piano SAL derivato dalla parcella: quote uguali sulle fasi del progetto.
+  const salPlanForProject = (proj: Project) => {
+    const phases = (proj.phases ? Object.values(proj.phases) : []) as any[];
+    const tot = parcellaByProject[proj.id]?.totaleParcella || 0;
+    const per = phases.length ? Math.round(tot / phases.length) : 0;
+    return { phases, per, tot };
+  };
+
+  // --- SNAPSHOT per il portale cliente (nodo client-readable projectEconomics/<pid>) ---
+  useEffect(() => {
+    projects.forEach((p) => {
+      if (!p.clientUid) return;
+      const parc = parcellaByProject[p.id];
+      const snap = {
+        pid: p.id,
+        company: projCompany(p),
+        computoTotal: computoByProject[p.id] || 0,
+        arrediFissi: parc?.arrediFissi || 0,
+        arrediMobili: parc?.arrediMobili || 0,
+        parcella: parc || null,
+        invoices: activeInvoices.filter((i) => i.projectId === p.id),
+        scadenze: scadenze.filter((s) => s.projectId === p.id),
+        updatedAt: Date.now()
+      };
+      writeNode(`projectEconomics/${p.id}`, snap).catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, computoByProject, parcellaByProject, activeInvoices, scadenze]);
 
   return (
     <div className="flex flex-col gap-6 text-left animate-[riseIn_0.42s_ease_both]">
@@ -595,7 +702,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full md:w-auto">
             {/* Sector selectors */}
             <div className="flex flex-col gap-1 w-full sm:w-auto text-left">
-              <label className="text-[10px] uppercase font-black tracking-wider text-stone-400">Filtra Divisione Settore</label>
+              <label className="text-[10px] uppercase font-black tracking-wider text-stone-400">Società</label>
               <div className="flex bg-[#161616] rounded-xl p-1 mt-1 border border-stone-800 overflow-x-auto whitespace-nowrap scrollbar-none max-w-full">
                 <button
                   onClick={() => setSelectedSector('all')}
@@ -603,7 +710,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                     selectedSector === 'all' ? 'bg-[#333] text-white font-black' : 'text-stone-400 hover:text-white'
                   }`}
                 >
-                  Tutti
+                  Tutte
                 </button>
                 <button
                   onClick={() => setSelectedSector('studio')}
@@ -628,6 +735,22 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                   }`}
                 >
                   Materico
+                </button>
+                <button
+                  onClick={() => setSelectedSector('unico')}
+                  className={`text-[11px] font-extrabold px-3.5 py-1.5 rounded-lg transition-all ${
+                    selectedSector === 'unico' ? 'bg-[#333] text-white font-black' : 'text-[#a5b4fc] hover:text-white'
+                  }`}
+                >
+                  Unico
+                </button>
+                <button
+                  onClick={() => setSelectedSector('consolidato')}
+                  className={`text-[11px] font-extrabold px-3.5 py-1.5 rounded-lg transition-all ${
+                    selectedSector === 'consolidato' ? 'bg-emerald-700 text-white font-black' : 'text-emerald-400 hover:text-white'
+                  }`}
+                >
+                  Consolidato
                 </button>
               </div>
             </div>
@@ -675,6 +798,14 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           }`}
         >
           <Calculator className="w-4 h-4" /> Preventivi / Computi
+        </button>
+        <button
+          onClick={() => setActiveTab('parcella')}
+          className={`flex items-center gap-1.5 py-3 px-4 text-[12.5px] font-black tracking-tight border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'parcella' ? 'border-[#1b1b1b] text-[#1b1b1b]' : 'border-transparent text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <Percent className="w-4 h-4" /> Parcelle & Onorari
         </button>
         <button
           onClick={() => setActiveTab('fatture')}
@@ -744,7 +875,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <div className="bg-white border border-[#e2e2e2] rounded-[28px] p-5 md:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Analisi Previsionale Economica</span>
+                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Analisi Previsionale Economica <span className="text-amber-600">· Simulato</span></span>
                 <h3 className="text-[17px] font-extrabold text-[#1a1a1a] tracking-tight">Proiezione Cash Flow Aziendale Globale (6 Mesi)</h3>
               </div>
               <div className="text-left sm:text-right text-[11px] font-bold text-stone-500">
@@ -947,7 +1078,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
             {/* Quick Summary of Cash Burn & Runway Info */}
             <div className="lg:col-span-4 bg-white border border-[#e2e2e2] rounded-[28px] p-5 shadow-sm flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-black text-[#8a8a8a] uppercase tracking-widest block">Metrica di Sostenibilità</span>
+                <span className="text-[10px] font-black text-[#8a8a8a] uppercase tracking-widest block">Metrica di Sostenibilità <span className="text-amber-600">· Simulato</span></span>
                 <h4 className="text-[15px] font-black text-[#1a1a1a] mt-0.5">Cash Runway & Burn Rate</h4>
                 <p className="text-[12px] text-stone-500 mt-1 leading-normal">
                   Indicatore basato sul tasso medio di uscite fisse dei fornitori del mese corrente.
@@ -1013,9 +1144,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
               const correlatedProj = projects.find(p => p.id === comp.projectId);
               
               // Apply top filters
-              const isFilteredOutSector = selectedSector !== 'all' && correlatedProj?.division !== selectedSector;
+              const isFilteredOutSector = !matchesSector(projCompany(correlatedProj));
               const isFilteredOutClient = selectedClient !== 'all' && correlatedProj?.client !== selectedClient;
-              
+
               if (isFilteredOutSector || isFilteredOutClient) {
                 return null;
               }
@@ -1182,6 +1313,64 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                     </div>
                   </div>
 
+                  {/* IMPORT DA FILE (.csv/.tsv parse; .xlsx/.pdf allegato) */}
+                  <div className="bg-white border border-dashed border-[#d4d4d4] rounded-xl p-3.5 mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-[11.5px] text-stone-600 font-semibold">
+                      <Upload className="w-4 h-4 text-stone-500" />
+                      <span>Importa voci da <b>CSV</b> · Excel/PDF allegati come riferimento</span>
+                      {comp.sourceFileName && (
+                        <span className="text-[10.5px] bg-stone-100 border border-stone-200 px-2 py-0.5 rounded font-bold text-stone-700">📎 {comp.sourceFileName}</span>
+                      )}
+                    </div>
+                    <label className="btn text-[11px] py-1.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-850 rounded-xl flex items-center gap-1 border-0 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" /> Carica file
+                      <input
+                        type="file"
+                        accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleComputoFile(comp.id, f); e.currentTarget.value = ''; }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* PANNELLO MAPPATURA COLONNE (dopo parsing CSV) */}
+                  {importComputoId === comp.id && importSheet && importMapping && (
+                    <div className="bg-amber-50/40 border border-amber-200 rounded-xl p-4 mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <b className="text-[12.5px] text-stone-850">Mappa le colonne del file <span className="font-mono text-[11px]">{importFileName}</span></b>
+                        <span className="text-[10.5px] text-stone-500">{importSheet.rows.length} righe rilevate</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {([
+                          { key: 'desc', label: 'Descrizione' },
+                          { key: 'category', label: 'Categoria' },
+                          { key: 'quantity', label: 'Q.tà' },
+                          { key: 'unitPrice', label: 'Prezzo unit.' }
+                        ] as { key: keyof ColumnMapping; label: string }[]).map(({ key, label }) => (
+                          <div key={key} className="flex flex-col gap-1 text-left">
+                            <label className="text-[10px] font-bold text-stone-500 uppercase">{label}</label>
+                            <select
+                              value={importMapping[key]}
+                              onChange={(e) => setImportMapping({ ...importMapping, [key]: Number(e.target.value) })}
+                              className="select h-8 py-0.5 text-[11.5px] bg-white"
+                            >
+                              <option value={-1}>— ignora —</option>
+                              {importSheet.headers.map((h, i) => (
+                                <option key={i} value={i}>{h || `Col ${i + 1}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-end gap-2 mt-3">
+                        <button onClick={cancelImport} className="btn text-[11px] py-1.5 px-3 bg-stone-100 hover:bg-stone-200 rounded-xl border-0 cursor-pointer">Annulla</button>
+                        <button onClick={confirmImport} className="btn text-[11px] py-1.5 px-3 bg-[#1b1b1b] hover:bg-black text-white rounded-xl border-0 cursor-pointer flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Importa voci
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* PREVENTIVO ACTION TOOLBAR */}
                   <div className="flex justify-end gap-2 mt-4">
                     <button
@@ -1195,6 +1384,88 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                       className="btn text-[11.5px] py-1.5 bg-[#1b1b1b] hover:bg-black text-white rounded-xl flex items-center gap-1 border-0 cursor-pointer"
                     >
                       📃 Stampa Stampabile PDF
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* --- TAB CONTENT 2b: PARCELLE & ONORARI (motore finanziario) --- */}
+      {activeTab === 'parcella' && (
+        <div className="bg-white border border-[#e2e2e2] rounded-[28px] p-5 md:p-6 shadow-sm">
+          <div className="pb-4 border-b border-stone-100 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Calcolo automatico onorari Studio</span>
+              <h2 className="text-[19px] font-extrabold tracking-tight text-[#161616]">Parcelle & Onorari di commessa</h2>
+              <span className="text-[12.5px] text-[#8a8a8a]">
+                15% su (computo lavori + arredi fissi) + 20% sugli arredi mobili se gestiti dallo Studio. Pagamento a SAL.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 mt-4">
+            {projects.map((proj) => {
+              if (!matchesSector(projCompany(proj))) return null;
+              if (selectedClient !== 'all' && proj.client !== selectedClient) return null;
+              const parc = parcellaByProject[proj.id];
+              if (!parc) return null;
+              const computoTot = computoByProject[proj.id] || 0;
+              return (
+                <div key={proj.id} className="border border-stone-200 rounded-2xl p-5 bg-stone-50/30">
+                  <div className="flex justify-between items-start gap-3 border-b border-stone-150 pb-3 mb-4">
+                    <div>
+                      <h4 className="text-[15px] font-black text-[#1a1a1a]">{proj.name}</h4>
+                      <span className="text-[11px] text-stone-500 font-semibold">{proj.client || 'Cliente Studio'}</span>
+                    </div>
+                    <span className="text-[10.5px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg font-black uppercase">
+                      {COMPANY_LABEL[projCompany(proj)]}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-white border border-stone-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Computo lavori</span>
+                      <b className="text-[14px] font-black text-[#1a1a1a]">{eur(computoTot)}</b>
+                    </div>
+                    <div className="bg-white border border-stone-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi</span>
+                      <b className="text-[14px] font-black text-[#1a1a1a]">{eur(parc.arrediFissi)}</b>
+                    </div>
+                    <div className="bg-white border border-stone-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Base opera</span>
+                      <b className="text-[14px] font-black text-[#1a1a1a]">{eur(parc.baseOpera)}</b>
+                    </div>
+                    <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-indigo-700 tracking-wider block">Onorari {Math.round(parc.feePct * 100)}%</span>
+                      <b className="text-[14px] font-black text-indigo-800">{eur(parc.onorari)}</b>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                    <div className="bg-white border border-stone-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi mobili</span>
+                      <b className="text-[14px] font-black text-[#1a1a1a]">{eur(parc.arrediMobili)}</b>
+                      <span className="text-[10px] text-stone-500 block mt-0.5">{parc.managesMobili ? `Gestiti dallo Studio · fee ${Math.round(parc.mobiliFeePct * 100)}%` : 'Gestiti dal cliente · nessuna fee'}</span>
+                    </div>
+                    <div className="bg-white border border-stone-200 rounded-xl p-3">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Fee arredi mobili</span>
+                      <b className="text-[14px] font-black text-indigo-800">{eur(parc.feeMobili)}</b>
+                    </div>
+                    <div className="bg-[#1b1b1b] text-white rounded-xl p-3 flex flex-col justify-center">
+                      <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Totale parcella Studio</span>
+                      <b className="text-[18px] font-black text-green-400">{eur(parc.totaleParcella)}</b>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end mt-3">
+                    <button
+                      onClick={() => setActiveTab('sal')}
+                      className="text-[11px] font-extrabold bg-stone-100 hover:bg-stone-200 text-stone-850 px-3 py-1.5 rounded-xl cursor-pointer flex items-center gap-1"
+                    >
+                      <Layers className="w-3.5 h-3.5" /> Genera SAL dalla parcella
                     </button>
                   </div>
                 </div>
@@ -1591,16 +1862,16 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <div className="flex flex-col gap-6 mt-4">
             {projects.map(proj => {
               // Filters
-              const isFilteredOutSector = selectedSector !== 'all' && proj.division !== selectedSector;
+              const isFilteredOutSector = !matchesSector(projCompany(proj));
               const isFilteredOutClient = selectedClient !== 'all' && proj.client !== selectedClient;
-              
+
               if (isFilteredOutSector || isFilteredOutClient) {
                 return null;
               }
 
               // Access associated phases and calculate technical completion %
-              const phasesList = (proj.phases ? Object.values(proj.phases) : []) as any[];
-              
+              const { phases: phasesList, per: salPerPhase, tot: parcellaTot } = salPlanForProject(proj);
+
               return (
                 <div key={proj.id} className="border border-stone-200 rounded-2xl p-5 bg-stone-50/30">
                   <div className="flex justify-between items-center border-b border-stone-150 pb-3 mb-4">
@@ -1608,9 +1879,12 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                       <h4 className="text-[15px] font-black text-[#1a1a1a]">{proj.name}</h4>
                       <span className="text-[11px] text-stone-500 font-semibold">{proj.client}</span>
                     </div>
-                    <span className="text-[11px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg font-bold">
-                      {proj.division?.toUpperCase()}
-                    </span>
+                    <div className="text-right">
+                      <span className="text-[11px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg font-bold block">
+                        {COMPANY_LABEL[projCompany(proj)]}
+                      </span>
+                      <span className="text-[10.5px] text-stone-500 font-bold block mt-1">Parcella: <b className="text-[#161616]">{eur(parcellaTot)}</b></span>
+                    </div>
                   </div>
 
                   {/* Table of phase technical vs finance SAL */}
@@ -1623,13 +1897,13 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                         const tasks = (ph.tasks ? Object.values(ph.tasks) : []) as any[];
                         const completed = tasks.filter(t => t.done).length;
                         const techPercent = tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0;
-                        
-                        // Fake correlated payment rule based on indices
-                        const phaseEstimatedInflow = (idx === 0) ? 3500 : (idx === 1) ? 8200 : 5400;
 
-                        // Check if a SAL active invoice was already generated
+                        // Quota SAL derivata dalla parcella (ripartizione uguale sulle fasi)
+                        const phaseEstimatedInflow = salPerPhase;
+
+                        // Check if a SAL active invoice was already generated for this phase
                         let isAlreadyInvoiced = activeInvoices.some(
-                          i => i.projectId === proj.id && i.amount === phaseEstimatedInflow && i.isSal
+                          i => i.projectId === proj.id && i.isSal && i.salNumber === idx + 1
                         );
 
                         return (
@@ -1656,7 +1930,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
 
                             {/* Financial SAL Correlated Step */}
                             <div className="md:col-span-3">
-                              <span className="text-[10px] uppercase font-black text-rose-600 tracking-wider block">Target 1° SAL Finanziario</span>
+                              <span className="text-[10px] uppercase font-black text-rose-600 tracking-wider block">Quota SAL (da parcella)</span>
                               <span className="text-[13px] font-extrabold block text-stone-850 mt-0.5">{eur(phaseEstimatedInflow)}</span>
                             </div>
 
@@ -1699,6 +1973,36 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
             </div>
           </div>
 
+          {/* LIBRI PER SOCIETÀ + CONSOLIDATO HOLDING */}
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 className="w-4 h-4 text-stone-500" />
+              <b className="text-[13px] font-black text-[#1a1a1a]">
+                {selectedSector === 'consolidato' ? 'Consolidato Holding Onirico' : 'Libri per società'}
+              </b>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {consolidatedBooks.books.map((b) => {
+                const dim = selectedSector !== 'all' && selectedSector !== 'consolidato' && selectedSector !== b.company;
+                return (
+                  <div key={b.company} className={`bg-white border rounded-xl p-3 ${dim ? 'opacity-40 border-stone-150' : 'border-stone-200'}`}>
+                    <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">{COMPANY_LABEL[b.company]}</span>
+                    <b className="text-[14px] font-black text-[#1a1a1a] block">{eur(b.netto)}</b>
+                    <span className="text-[10px] text-stone-500 block mt-0.5">R {eur(b.ricavi)} · C {eur(b.costi)}</span>
+                  </div>
+                );
+              })}
+              <div className="bg-[#1b1b1b] text-white rounded-xl p-3">
+                <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Totale Gruppo</span>
+                <b className="text-[14px] font-black text-green-400 block">{eur(consolidatedBooks.totale.netto)}</b>
+                <span className="text-[10px] text-stone-400 block mt-0.5">R {eur(consolidatedBooks.totale.ricavi)} · C {eur(consolidatedBooks.totale.costi)}</span>
+              </div>
+            </div>
+            <p className="text-[10.5px] text-stone-400 mt-2">
+              Materico = margine sulle richieste inviate/accettate; Unico = rivendita attesa − acquisto − ristrutturazione (proiezione).
+            </p>
+          </div>
+
           {/* Desktop view */}
           <div className="hidden sm:block overflow-x-auto mt-4">
             <table className="w-full border-collapse text-left">
@@ -1715,9 +2019,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
               <tbody>
                 {projects.map(proj => {
                   // Apply Filters
-                  const isFilteredOutSector = selectedSector !== 'all' && proj.division !== selectedSector;
+                  const isFilteredOutSector = !matchesSector(projCompany(proj));
                   const isFilteredOutClient = selectedClient !== 'all' && proj.client !== selectedClient;
-                  
+
                   if (isFilteredOutSector || isFilteredOutClient) {
                     return null;
                   }
@@ -1778,9 +2082,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <div className="sm:hidden flex flex-col gap-3 mt-4">
             {projects.map(proj => {
               // Apply Filters
-              const isFilteredOutSector = selectedSector !== 'all' && proj.division !== selectedSector;
+              const isFilteredOutSector = !matchesSector(projCompany(proj));
               const isFilteredOutClient = selectedClient !== 'all' && proj.client !== selectedClient;
-              
+
               if (isFilteredOutSector || isFilteredOutClient) {
                 return null;
               }

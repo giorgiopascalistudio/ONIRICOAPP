@@ -59,7 +59,7 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
   const [openId, setOpenId] = useState<string | null>(null);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [selPartner, setSelPartner] = useState('');
-  const [margin, setMargin] = useState('20');
+  const [margin, setMargin] = useState('15');
 
   const active = openId ? requests.find((r) => r.id === openId) : null;
 
@@ -78,7 +78,7 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
     setOpenId(r.id);
     setPicked(Object.fromEntries((r.forwardedTo || []).map((u) => [u, true])));
     setSelPartner(r.selectedPartnerUid || '');
-    setMargin(String(r.marginPct ?? 20));
+    setMargin(String(r.marginPct ?? 15));
   };
 
   const forward = () => {
