@@ -118,7 +118,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   useEffect(() => {
     const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
     const subs = [
-      watchNode('finComputi', (v) => setComputi(toArr(v)), () => {}),
+      // items normalizzato ad array: Firebase non salva gli array vuoti → un
+      // computo senza voci tornerebbe con items=undefined e farebbe crashare il tab.
+      watchNode('finComputi', (v) => setComputi(toArr(v).map((c: any) => ({ ...c, items: Array.isArray(c.items) ? c.items : c.items ? Object.values(c.items) : [] }))), () => {}),
       watchNode('finInvoicesActive', (v) => setActiveInvoices(toArr(v)), () => {}),
       watchNode('finInvoicesPassive', (v) => setPassiveInvoices(toArr(v)), () => {}),
       watchNode('finScadenze', (v) => setScadenze(toArr(v)), () => {}),

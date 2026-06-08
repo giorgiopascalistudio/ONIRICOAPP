@@ -642,7 +642,8 @@ export default function App() {
       if (canFinance) {
         add('studioFinance', setFinances);
         // Nodi finanza strutturati: stessa fonte di FinanzeView, serve alla contabilità di commessa
-        subs.push(watchNode('finComputi', (v) => setFinComputi(toArr(v)), () => {}));
+        // items normalizzato ad array (Firebase non salva gli array vuoti)
+        subs.push(watchNode('finComputi', (v) => setFinComputi(toArr(v).map((c: any) => ({ ...c, items: Array.isArray(c.items) ? c.items : c.items ? Object.values(c.items) : [] }))), () => {}));
         subs.push(watchNode('finInvoicesActive', (v) => setFinInvoicesActive(toArr(v)), () => {}));
         subs.push(watchNode('finInvoicesPassive', (v) => setFinInvoicesPassive(toArr(v)), () => {}));
         subs.push(watchNode('finScadenze', (v) => setFinScadenze(toArr(v)), () => {}));
