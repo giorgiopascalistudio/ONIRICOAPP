@@ -33,10 +33,12 @@ import {
   Wallet,
   SlidersHorizontal,
   Clock,
-  Sofa
+  Sofa,
+  HardHat
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
+import { CantiereBoard } from './CantiereBoard';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
@@ -89,6 +91,24 @@ interface ProjectsViewProps {
   onDeleteMatericoRequest?: (id: string) => void;
   unicoDeals?: UnicoDeal[];
   onSaveUnicoDeals?: (deals: UnicoDeal[]) => void;
+  // Modulo Cantiere (lato studio)
+  cantieri?: Record<string, Cantiere>;
+  cantRapportini?: Record<string, Record<string, Rapportino>>;
+  cantPresenze?: Record<string, Record<string, Presenza>>;
+  cantFoto?: Record<string, Record<string, CantiereFoto>>;
+  cantMateriali?: Record<string, Record<string, CantiereMateriale>>;
+  cantChecklist?: Record<string, Record<string, ChecklistItem>>;
+  cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
+  cantSal?: Record<string, Record<string, CantiereSal>>;
+  cantLog?: Record<string, Record<string, CantiereLog>>;
+  partnerAccounts?: UserProfile[];
+  onSaveCantiere?: (c: Cantiere) => void;
+  onDeleteCantiere?: (cid: string) => void;
+  onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
+  onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
+  onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
+  onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
+  onApproveSal?: (cid: string, id: string) => void;
 }
 
 export const ProjectsView: React.FC<ProjectsViewProps> = ({
@@ -132,7 +152,24 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onUpdateMatericoRequest,
   onDeleteMatericoRequest,
   unicoDeals = [],
-  onSaveUnicoDeals
+  onSaveUnicoDeals,
+  cantieri = {},
+  cantRapportini = {},
+  cantPresenze = {},
+  cantFoto = {},
+  cantMateriali = {},
+  cantChecklist = {},
+  cantDocumenti = {},
+  cantSal = {},
+  cantLog = {},
+  partnerAccounts = [],
+  onSaveCantiere,
+  onDeleteCantiere,
+  onAssignPartner,
+  onSaveCantEntity,
+  onDeleteCantEntity,
+  onApproveRapportino,
+  onApproveSal
 }) => {
   const [search, setSearch] = useState('');
   const [showSearchInput, setShowSearchInput] = useState(false);
@@ -420,6 +457,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               ...(p.division === 'materico' ? [{ id: 'materico_prev', label: 'Preventivi & Fornitori', icon: SlidersHorizontal }] : []),
               { id: 'tecnico', label: 'Fascicolo Tecnico', icon: Layers },
               { id: 'arredi', label: 'Arredi & Moodboard', icon: Sofa },
+              ...((!p.division || p.division === 'studio' || p.division === 'materico' || p.division === 'unico')
+                ? [{ id: 'cantiere', label: 'Cantiere', icon: HardHat }] : []),
               { id: 'finanziario', label: 'Contabilità & Bilancio', icon: Wallet }
             ] as { id: string; label: string; icon: any }[]).map(tab => {
               const Icon = tab.icon;
@@ -1456,6 +1495,36 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               onSaveItem={onSaveFurnishing || (() => {})}
               onDeleteItem={onDeleteFurnishing || (() => {})}
               onToggleStudioManagesMobili={onToggleStudioManagesMobili}
+            />
+          </div>
+        )}
+
+        {/* TAB: CANTIERE (studio/materico/unico) */}
+        {projTab === 'cantiere' && (
+          <div className="mt-2 animate-[riseIn_0.3s_ease_both]">
+            <CantiereBoard
+              mode="studio"
+              myUid={myUid}
+              myName={users[myUid]?.name || 'Studio'}
+              myRole={users[myUid]?.role || 'staff'}
+              project={{ id: p.id, name: p.name, division: p.division }}
+              cantieri={Object.values(cantieri).filter((c) => c.projectId === p.id)}
+              rapportini={cantRapportini}
+              presenze={cantPresenze}
+              foto={cantFoto}
+              materiali={cantMateriali}
+              checklist={cantChecklist}
+              documenti={cantDocumenti}
+              sal={cantSal}
+              log={cantLog}
+              partnerAccounts={partnerAccounts}
+              onSaveCantiere={onSaveCantiere}
+              onDeleteCantiere={onDeleteCantiere}
+              onAssignPartner={onAssignPartner}
+              onSaveEntity={onSaveCantEntity}
+              onDeleteEntity={onDeleteCantEntity}
+              onApproveRapportino={onApproveRapportino}
+              onApproveSal={onApproveSal}
             />
           </div>
         )}

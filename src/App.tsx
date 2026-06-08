@@ -36,7 +36,16 @@ import {
   Appointment,
   MatericoRequest,
   UnicoDeal,
-  Furnishing
+  Furnishing,
+  Cantiere,
+  Rapportino,
+  Presenza,
+  CantiereFoto,
+  CantiereMateriale,
+  ChecklistItem,
+  CantiereDoc,
+  CantiereSal,
+  CantiereLog
 } from './types';
 
 import {
@@ -160,6 +169,17 @@ export default function App() {
   const [projectMessages, setProjectMessages] = useState<Record<string, Record<string, ProjectMessage>>>({});
   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
   const [furnishings, setFurnishings] = useState<Record<string, Record<string, Furnishing>>>({});
+
+  // Modulo Cantiere (record + sotto-collezioni keyed per cantiereId)
+  const [cantieri, setCantieri] = useState<Record<string, Cantiere>>({});
+  const [cantRapportini, setCantRapportini] = useState<Record<string, Record<string, Rapportino>>>({});
+  const [cantPresenze, setCantPresenze] = useState<Record<string, Record<string, Presenza>>>({});
+  const [cantFoto, setCantFoto] = useState<Record<string, Record<string, CantiereFoto>>>({});
+  const [cantMateriali, setCantMateriali] = useState<Record<string, Record<string, CantiereMateriale>>>({});
+  const [cantChecklist, setCantChecklist] = useState<Record<string, Record<string, ChecklistItem>>>({});
+  const [cantDocumenti, setCantDocumenti] = useState<Record<string, Record<string, CantiereDoc>>>({});
+  const [cantSal, setCantSal] = useState<Record<string, Record<string, CantiereSal>>>({});
+  const [cantLog, setCantLog] = useState<Record<string, Record<string, CantiereLog>>>({});
 
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
@@ -614,6 +634,16 @@ export default function App() {
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      // Cantiere (studio vede tutto)
+      add('cantieri', setCantieri);
+      add('cantiereRapportini', setCantRapportini);
+      add('cantierePresenze', setCantPresenze);
+      add('cantiereFoto', setCantFoto);
+      add('cantiereMateriali', setCantMateriali);
+      add('cantiereChecklist', setCantChecklist);
+      add('cantiereDocumenti', setCantDocumenti);
+      add('cantiereSal', setCantSal);
+      add('cantiereLog', setCantLog);
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
@@ -633,6 +663,26 @@ export default function App() {
           setFurnishings((f) => ({ ...f, [pid]: v || {} }));
         }, () => {}));
       });
+      // Partner: elenca i cantieri assegnati via indice inverso, poi sottoscrive per-cid.
+      if (currentUser.role === 'partner') {
+        const watched = new Set<string>();
+        subs.push(watchNode(`partnerCantieri/${currentUser.uid}`, (v) => {
+          Object.keys(v || {}).forEach((cid) => {
+            if (watched.has(cid)) return;
+            watched.add(cid);
+            subs.push(watchNode(`cantieri/${cid}`, (cv) => {
+              setCantieri((m) => { const n = { ...m }; if (cv) n[cid] = cv; else delete n[cid]; return n; });
+            }, () => {}));
+            subs.push(watchNode(`cantiereRapportini/${cid}`, (cv) => setCantRapportini((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantierePresenze/${cid}`, (cv) => setCantPresenze((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereFoto/${cid}`, (cv) => setCantFoto((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereMateriali/${cid}`, (cv) => setCantMateriali((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereChecklist/${cid}`, (cv) => setCantChecklist((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereDocumenti/${cid}`, (cv) => setCantDocumenti((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereSal/${cid}`, (cv) => setCantSal((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+          });
+        }, () => {}));
+      }
     }
 
     return () => subs.forEach((u) => u());
@@ -1267,7 +1317,9 @@ export default function App() {
       prj[item.id] = enriched;
       return { ...prev, [projId]: prj };
     });
-    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch(() => {});
+    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch(() =>
+      showToast('Errore salvataggio arredo (controlla regole/permessi).', 'err')
+    );
   };
 
   const handleDeleteFurnishing = (projId: string, itemId: string) => {
@@ -1276,7 +1328,9 @@ export default function App() {
       delete prj[itemId];
       return { ...prev, [projId]: prj };
     });
-    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() => {});
+    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() =>
+      showToast('Errore eliminazione arredo (controlla regole/permessi).', 'err')
+    );
   };
 
   // 3c. Flag "lo Studio gestisce gli arredi mobili" (→ fee 20%) sul progetto
@@ -1288,6 +1342,88 @@ export default function App() {
       syncState('projects', next);
       return next;
     });
+  };
+
+  // 3d. Modulo Cantiere
+  const cantSetters: Record<string, (updater: (m: any) => any) => void> = {
+    cantiereRapportini: setCantRapportini as any,
+    cantierePresenze: setCantPresenze as any,
+    cantiereFoto: setCantFoto as any,
+    cantiereMateriali: setCantMateriali as any,
+    cantiereChecklist: setCantChecklist as any,
+    cantiereDocumenti: setCantDocumenti as any,
+    cantiereSal: setCantSal as any
+  };
+  const cantErr = () => showToast('Errore cantiere (controlla regole/permessi).', 'err');
+  // Storico/audit (scrittura solo lato studio: le regole vietano la scrittura ai partner)
+  const logCantiere = (cid: string, action: string, entity: string, detail?: string) => {
+    if (!currentUser || currentUser.role === 'cliente' || currentUser.role === 'partner') return;
+    const id = `log-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    const entry: CantiereLog = { id, action, entity, by: currentUser.uid, role: currentUser.role, at: Date.now(), detail: detail || null };
+    setCantLog((m) => ({ ...m, [cid]: { ...(m[cid] || {}), [id]: entry } }));
+    writeNode(`cantiereLog/${cid}/${id}`, entry).catch(() => {});
+  };
+
+  const handleSaveCantiere = (c: Cantiere) => {
+    const enriched: Cantiere = { ...c, createdByName: c.createdByName || currentUser?.name, updatedAt: Date.now() };
+    setCantieri((prev) => ({ ...prev, [c.id]: enriched }));
+    writeNode(`cantieri/${c.id}`, enriched).catch(cantErr);
+    logCantiere(c.id, 'cantiere.salvato', 'cantiere', c.name);
+  };
+  const handleDeleteCantiere = (cid: string) => {
+    const c = cantieri[cid];
+    setCantieri((prev) => { const n = { ...prev }; delete n[cid]; return n; });
+    removeNode(`cantieri/${cid}`).catch(cantErr);
+    // ripulisce l'indice inverso dei partner assegnati
+    Object.keys(c?.partnerUids || {}).forEach((uid) => removeNode(`partnerCantieri/${uid}/${cid}`).catch(() => {}));
+  };
+  const handleAssignPartner = (cid: string, uid: string, name: string, on: boolean) => {
+    setCantieri((prev) => {
+      const c = prev[cid];
+      if (!c) return prev;
+      const partnerUids = { ...(c.partnerUids || {}) };
+      if (on) partnerUids[uid] = true; else delete partnerUids[uid];
+      return { ...prev, [cid]: { ...c, partnerUids } };
+    });
+    if (on) {
+      writeNode(`cantieri/${cid}/partnerUids/${uid}`, true).catch(cantErr);
+      writeNode(`partnerCantieri/${uid}/${cid}`, true).catch(cantErr);
+    } else {
+      removeNode(`cantieri/${cid}/partnerUids/${uid}`).catch(cantErr);
+      removeNode(`partnerCantieri/${uid}/${cid}`).catch(cantErr);
+    }
+    logCantiere(cid, on ? 'partner.assegnato' : 'partner.rimosso', 'partner', name);
+  };
+  const handleSaveCantEntity = (coll: string, cid: string, item: any) => {
+    cantSetters[coll]?.((m) => ({ ...m, [cid]: { ...(m[cid] || {}), [item.id]: item } }));
+    writeNode(`${coll}/${cid}/${item.id}`, item).catch(cantErr);
+  };
+  const handleDeleteCantEntity = (coll: string, cid: string, id: string) => {
+    cantSetters[coll]?.((m) => { const sub = { ...(m[cid] || {}) }; delete sub[id]; return { ...m, [cid]: sub }; });
+    removeNode(`${coll}/${cid}/${id}`).catch(cantErr);
+  };
+  const handleApproveRapportino = (cid: string, id: string, approve: boolean) => {
+    const r = cantRapportini[cid]?.[id];
+    if (!r) return;
+    const next: Rapportino = { ...r, status: approve ? 'approvato' : 'rifiutato', approvedBy: currentUser?.uid };
+    handleSaveCantEntity('cantiereRapportini', cid, next);
+    logCantiere(cid, approve ? 'rapportino.approvato' : 'rapportino.rifiutato', 'rapportino', r.partnerName || '');
+    showToast(approve ? 'Rapportino approvato.' : 'Rapportino rifiutato.', approve ? 'ok' : 'err');
+  };
+  const handleApproveSal = (cid: string, id: string) => {
+    const s = cantSal[cid]?.[id];
+    if (!s) return;
+    const next: CantiereSal = { ...s, status: 'approvato', approvedBy: currentUser?.uid };
+    handleSaveCantEntity('cantiereSal', cid, next);
+    logCantiere(cid, 'sal.approvato', 'sal', `SAL ${s.number}`);
+    showToast('SAL approvato. Emetti la bozza fattura da Finanze → SAL.', 'ok');
+  };
+  // Collega un SAL di cantiere alla fattura generata (chiamato da FinanzeView)
+  const handleLinkCantiereSalInvoice = (cid: string, salId: string, invoiceId: string) => {
+    const s = cantSal[cid]?.[salId];
+    if (!s) return;
+    handleSaveCantEntity('cantiereSal', cid, { ...s, linkedInvoiceId: invoiceId });
+    logCantiere(cid, 'sal.fatturato', 'sal', invoiceId);
   };
 
   // 4. Chat messages
@@ -1628,6 +1764,16 @@ export default function App() {
         estimates={Object.values(estimates)}
         onSaveEstimate={handleSaveEstimate}
         onDeleteEstimate={handleDeleteEstimate}
+        cantieri={cantieri}
+        cantRapportini={cantRapportini}
+        cantPresenze={cantPresenze}
+        cantFoto={cantFoto}
+        cantMateriali={cantMateriali}
+        cantChecklist={cantChecklist}
+        cantDocumenti={cantDocumenti}
+        cantSal={cantSal}
+        onSaveCantEntity={handleSaveCantEntity}
+        onDeleteCantEntity={handleDeleteCantEntity}
       />
     );
   }
@@ -1830,6 +1976,23 @@ export default function App() {
             onDeleteMatericoRequest={handleDeleteMatericoRequest}
             unicoDeals={unicoDeals}
             onSaveUnicoDeals={saveUnicoDeals}
+            cantieri={cantieri}
+            cantRapportini={cantRapportini}
+            cantPresenze={cantPresenze}
+            cantFoto={cantFoto}
+            cantMateriali={cantMateriali}
+            cantChecklist={cantChecklist}
+            cantDocumenti={cantDocumenti}
+            cantSal={cantSal}
+            cantLog={cantLog}
+            partnerAccounts={Object.values(accounts).filter((a: any) => a?.role === 'partner' && a?.status === 'approved') as UserProfile[]}
+            onSaveCantiere={handleSaveCantiere}
+            onDeleteCantiere={handleDeleteCantiere}
+            onAssignPartner={handleAssignPartner}
+            onSaveCantEntity={handleSaveCantEntity}
+            onDeleteCantEntity={handleDeleteCantEntity}
+            onApproveRapportino={handleApproveRapportino}
+            onApproveSal={handleApproveSal}
           />
         );
 
@@ -1852,6 +2015,9 @@ export default function App() {
               setFinOpen(true);
             }}
             onDeleteMovement={handleDeleteMovement}
+            cantieri={cantieri}
+            cantSal={cantSal}
+            onLinkCantiereSal={handleLinkCantiereSalInvoice}
           />
         );
 

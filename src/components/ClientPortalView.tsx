@@ -32,11 +32,13 @@ import {
   DollarSign,
   Smartphone,
   Target,
-  Sofa
+  Sofa,
+  HardHat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
+import { CantiereBoard } from './CantiereBoard';
 import { eur, fmtDay, isoDate } from '../utils';
 import { watchNode } from '../firebase';
 import { ThreeDProgress } from './ThreeDProgress';
@@ -294,6 +296,17 @@ interface ClientPortalViewProps {
   estimates?: MatericoEstimate[];
   onSaveEstimate?: (est: MatericoEstimate) => void;
   onDeleteEstimate?: (id: string) => void;
+  // Modulo Cantiere (lato partner: solo cantieri assegnati)
+  cantieri?: Record<string, Cantiere>;
+  cantRapportini?: Record<string, Record<string, Rapportino>>;
+  cantPresenze?: Record<string, Record<string, Presenza>>;
+  cantFoto?: Record<string, Record<string, CantiereFoto>>;
+  cantMateriali?: Record<string, Record<string, CantiereMateriale>>;
+  cantChecklist?: Record<string, Record<string, ChecklistItem>>;
+  cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
+  cantSal?: Record<string, Record<string, CantiereSal>>;
+  onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
+  onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
 }
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
@@ -322,7 +335,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onExitPreview,
   estimates = [],
   onSaveEstimate,
-  onDeleteEstimate
+  onDeleteEstimate,
+  cantieri = {},
+  cantRapportini = {},
+  cantPresenze = {},
+  cantFoto = {},
+  cantMateriali = {},
+  cantChecklist = {},
+  cantDocumenti = {},
+  cantSal = {},
+  onSaveCantEntity,
+  onDeleteCantEntity
 }) => {
   const [msgInput, setMsgInput] = useState('');
   const [apptReqOpen, setApptReqOpen] = useState(false);
@@ -650,6 +673,44 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   }
 
   const p = activeProject || projects[0];
+
+  // Fallback: partner assegnato solo a cantieri (nessun progetto collegato) → evita il crash
+  // della vista per-progetto e mostra direttamente i cantieri assegnati.
+  if (!p) {
+    const assignedCantieri = Object.values(cantieri);
+    return (
+      <div className="min-h-screen bg-[#F5F5F3] p-4 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h1 className="text-[20px] font-extrabold text-[#161616]">Cantieri</h1>
+              <p className="text-[12.5px] text-[#8a8a8a]">Impresa partner · {profile.name}</p>
+            </div>
+            <button onClick={onLogout} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold">
+              <LogOut className="w-4 h-4" /> Esci
+            </button>
+          </div>
+          <CantiereBoard
+            mode="partner"
+            myUid={profile.uid}
+            myName={profile.name}
+            myRole={profile.role}
+            cantieri={assignedCantieri}
+            rapportini={cantRapportini}
+            presenze={cantPresenze}
+            foto={cantFoto}
+            materiali={cantMateriali}
+            checklist={cantChecklist}
+            documenti={cantDocumenti}
+            sal={cantSal}
+            onSaveEntity={onSaveCantEntity}
+            onDeleteEntity={onDeleteCantEntity}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const { done, tot } = projTaskCounts(p);
   const pc = pct(done, tot);
 
@@ -694,6 +755,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       case 'materico_partner':
         return [
           { id: 'lavori', label: 'Posa in Cantiere', icon: ClipboardList },
+          { id: 'cantiere', label: 'Cantieri', icon: HardHat },
           { id: 'b2b_preventivi', label: 'Offerte B2B', icon: ClipboardList },
           { id: 'documenti', label: 'Tavole & Disegni', icon: FileText },
           { id: 'b2b_chat', label: 'Coordinamento Cantiere', icon: MessageSquare }
@@ -1907,6 +1969,27 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               </div>
             );
           })()}
+
+          {currentTab === 'cantiere' && (
+            <div className="animate-[riseIn_0.22s_ease_both]">
+              <CantiereBoard
+                mode="partner"
+                myUid={profile.uid}
+                myName={profile.name}
+                myRole={profile.role}
+                cantieri={Object.values(cantieri)}
+                rapportini={cantRapportini}
+                presenze={cantPresenze}
+                foto={cantFoto}
+                materiali={cantMateriali}
+                checklist={cantChecklist}
+                documenti={cantDocumenti}
+                sal={cantSal}
+                onSaveEntity={onSaveCantEntity}
+                onDeleteEntity={onDeleteCantEntity}
+              />
+            </div>
+          )}
 
           {currentTab === 'arredi' && (
             <div className="animate-[riseIn_0.22s_ease_both]">

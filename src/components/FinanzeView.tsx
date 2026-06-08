@@ -11,7 +11,7 @@ import {
   Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info,
   Upload, Building2, Percent
 } from 'lucide-react';
-import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal } from '../types';
+import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal } from '../types';
 import { eur, fmtDay, numIt, todayISO } from '../utils';
 import { watchNode, writeNode } from '../firebase';
 import {
@@ -29,6 +29,10 @@ interface FinanzeViewProps {
   unicoDeals: UnicoDeal[];
   onNewMovement: () => void;
   onDeleteMovement: (id: string) => void;
+  // Modulo Cantiere → SAL collegati alla fatturazione
+  cantieri?: Record<string, Cantiere>;
+  cantSal?: Record<string, Record<string, CantiereSal>>;
+  onLinkCantiereSal?: (cid: string, salId: string, invoiceId: string) => void;
 }
 
 interface BankMovementSim {
@@ -47,7 +51,10 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   matericoRequests,
   unicoDeals,
   onNewMovement,
-  onDeleteMovement
+  onDeleteMovement,
+  cantieri = {},
+  cantSal = {},
+  onLinkCantiereSal
 }) => {
   // --- SUB-TABS STATE ---
   const [activeTab, setActiveTab] = useState<'panoramica' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico'>('panoramica');
@@ -586,6 +593,57 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
     triggerToast(`⚡ Collegato SAL Tecnico! Creata Bozza di Fattura Attiva per ${proj.name} [SAL ${idx + 1}] pari a ${eur(amount)}.`);
     setActiveTab('fatture');
   };
+
+  // --- SAL DI CANTIERE APPROVATO → BOZZA FATTURA ATTIVA (riusa la logica SAL) ---
+  const handleGenerateCantiereSalInvoice = (cid: string, sal: CantiereSal, proj: Project) => {
+    const company = projCompany(proj);
+    const amount = sal.importo || 0;
+    const invId = `${COMPANY_INVOICE_PREFIX[company]}-SAL-${String(activeInvoices.filter(i => i.sector === company && i.isSal).length + 1).padStart(3, '0')}`;
+    const newInv: InvoiceActive = {
+      id: invId,
+      clientName: proj.client || 'Cliente Studio',
+      projectId: proj.id,
+      projectName: proj.name,
+      amount,
+      taxRate: 22,
+      status: 'bozza',
+      sdiCode: 'M5UXCR1',
+      date: todayISO(),
+      dueDate: todayISO(),
+      sector: company,
+      isSal: true,
+      salNumber: sal.number
+    };
+    saveActiveInvoices([...activeInvoices, newInv]);
+    saveScadenze([...scadenze, {
+      id: `sc-cant-${Date.now()}`,
+      kind: 'entrata',
+      desc: `SAL Cantiere ${sal.number} - ${proj.name}`,
+      clientOrSupplier: proj.client || 'Cliente Studio',
+      amount,
+      dueDate: todayISO(),
+      status: 'pago_attesa',
+      projectId: proj.id,
+      sector: company
+    }]);
+    onLinkCantiereSal?.(cid, sal.id, invId);
+    triggerToast(`⚡ Bozza fattura da SAL di cantiere creata per ${proj.name} (${eur(amount)}).`);
+    setActiveTab('fatture');
+  };
+
+  // SAL di cantiere approvati e NON ancora fatturati (pronti per la bozza fattura)
+  const cantiereSalToBill = useMemo(() => {
+    const out: { cid: string; sal: CantiereSal; proj: Project }[] = [];
+    Object.entries(cantSal).forEach(([cid, sals]) => {
+      const c = cantieri[cid];
+      const proj = c && projects.find(p => p.id === c.projectId);
+      if (!proj) return;
+      Object.values(sals || {}).forEach((s) => {
+        if (s.status === 'approvato' && !s.linkedInvoiceId) out.push({ cid, sal: s, proj });
+      });
+    });
+    return out;
+  }, [cantSal, cantieri, projects]);
 
   // ============================================================
   // DERIVAZIONI DAL MOTORE FINANZIARIO (finance.ts)
@@ -1858,6 +1916,33 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
               <span className="text-[12.5px] text-[#8a8a8a]">Verifica l'avanzamento dei lavori reali e genera istantaneamente lo stato di cassa corrispondente</span>
             </div>
           </div>
+
+          {/* SAL di CANTIERE approvati dallo studio → bozza fattura (modulo Cantiere) */}
+          {cantiereSalToBill.length > 0 && (
+            <div className="mt-4 border border-emerald-200 bg-emerald-50/40 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-emerald-700" />
+                <h4 className="text-[13px] font-black text-emerald-800 uppercase tracking-wide">SAL di Cantiere approvati — pronti per la fattura</h4>
+              </div>
+              <div className="flex flex-col gap-2">
+                {cantiereSalToBill.map(({ cid, sal, proj }) => (
+                  <div key={`${cid}-${sal.id}`} className="flex items-center justify-between gap-3 bg-white border border-emerald-100 rounded-xl px-3 py-2.5">
+                    <div className="text-[12.5px]">
+                      <span className="font-black text-[#161616]">{proj.name}</span>
+                      <span className="text-stone-500"> · SAL {sal.number}{sal.descrizione ? ` — ${sal.descrizione}` : ''}</span>
+                      <span className="block text-[11px] text-stone-500">{sal.importo != null ? eur(sal.importo) : 'importo non indicato'} · {COMPANY_LABEL[projCompany(proj)]}</span>
+                    </div>
+                    <button
+                      onClick={() => handleGenerateCantiereSalInvoice(cid, sal, proj)}
+                      className="shrink-0 inline-flex items-center gap-1.5 bg-[#161616] hover:bg-black text-white text-[11.5px] font-black py-2 px-3 rounded-xl cursor-pointer transition-all active:scale-95"
+                    >
+                      <Layers className="w-3.5 h-3.5" /> Emetti bozza fattura
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-6 mt-4">
             {projects.map(proj => {

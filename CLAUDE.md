@@ -72,7 +72,9 @@ studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`),
 **fissi** con impatto progettuale+scadenza vs **mobili** estetici — e lavagna
 moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio in
 `ProjectsView` tab "Arredi & Moodboard" e lato cliente in `ClientPortalView`),
-`AccessRequests`
+`CantiereBoard` (modulo "Cantiere", §15: dashboard studio + portale partner — rapportini,
+presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; include
+`DriveUploader` con fallback link), `AccessRequests`
 (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
 `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
 `InteractiveView`.
@@ -135,6 +137,13 @@ moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio i
 - `appointments/<id>` — agenda condivisa (vedi §8).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
+- **Modulo Cantiere** (vedi §15): `cantieri/<cid>` (record cantiere, `partnerUids:{uid:true}`) +
+  sotto-collezioni granulari per-elemento `cantiereRapportini|cantierePresenze|cantiereFoto|
+  cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog` (tutte
+  `<cid>/<id>`). **Indice inverso** `partnerCantieri/<uid>/<cid>=true` (scritto dallo studio
+  all'assegnazione) → permette al partner di **elencare** i cantieri assegnati (i partner non
+  hanno i cid nei loro `projectIds`). Foto/documenti salvano `{driveFileId,driveUrl}` (upload
+  reale Google Drive, vedi `src/drive.ts`) **oppure** `link` (fallback). Tipi in `src/types.ts`.
 
 ### Persistenza
 - In App, `syncState(key, val)` scrive l'intero nodo via `writeNode` (mappa
@@ -202,8 +211,11 @@ condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
 Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
 investitori, ROI/margine — `unicoDeals`); manca la pubblicazione automatica in
 vetrina (oggi la vetrina Unico usa dati demo) e SPV/quote.
+Fatto: modulo **Cantiere** (§15): record `cantieri` + sotto-collezioni, ruolo partner
+assegnato per cantiere, rapportini/presenze/foto/materiali/checklist/documenti, SAL→fattura,
+upload Google Drive con fallback link.
 Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
-reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
+reporting/redditività, integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
 
 ## 13. Cosa serve all'utente (setup Firebase, una tantum)
@@ -217,7 +229,39 @@ reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
   (write studio, read cliente collegato — quadro economico del portale). **Vanno
   ripubblicate**, altrimenti la registrazione e i moduli Unico / Arredi / la
   contabilità del portale falliscono con "permission denied".
+  ⚠️ Aggiunti anche i nodi del **modulo Cantiere** (`cantieri`, `cantiere*`, `partnerCantieri`):
+  **ripubblicare le regole** dopo il deploy, altrimenti i cantieri falliscono con
+  "permission denied" e — come per gli arredi — la write resta silenziosa lato client.
+- **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
+  `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
+  web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
+  incollarne l'ID in `src/drive.ts` (`DEFAULT_CLIENT_ID`) o impostare
+  `window.__ONIRICO_DRIVE_CLIENT_ID__`. Finché non è configurato, l'upload Drive non parte e la
+  UI usa il **fallback "incolla link"** (l'app resta pienamente funzionante).
 - Mettere i 13 GLB in `public/model/`.
+
+## 15. Modulo Cantiere (studio ↔ impresa partner)
+- **Dove**: tab **"Cantiere"** nel fascicolo progetto (`ProjectsView`, divisioni studio/materico/
+  unico) lato studio; tab **"Cantieri"** nel portale `materico_partner` (`ClientPortalView`) lato
+  partner. Componente unico `CantiereBoard` con prop `mode:'studio'|'partner'`.
+- **Modello**: vedi §6. Ogni progetto può avere 1+ cantieri (`cantieri/<cid>`, `projectId`).
+  Lo studio assegna imprese **partner** per-cantiere (`partnerUids` + indice inverso
+  `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni si scrivono **per-elemento** (handler
+  generici `handleSaveCantEntity`/`handleDeleteCantEntity` in `App.tsx`).
+- **Permessi** (`firebase-rules.json`): cantiere/sotto-collezioni leggibili da studio attivo
+  **o** partner assegnato; rapportini/presenze/foto/materiali/documenti scrivibili dal partner
+  assegnato solo per **propri** elementi (`by`/`partnerUid == auth.uid`); approvazioni
+  (`status:'approvato'`, `approvedBy`), checklist, SAL e log scrivibili **solo dallo studio**.
+- **Sottoscrizioni** (`App.tsx`): studio sottoscrive tutti i nodi `cantier*`; il partner
+  sottoscrive `partnerCantieri/<uid>` e poi, per ogni `cid`, il cantiere e le sotto-collezioni.
+- **SAL → finanza**: lo studio approva un `cantiereSal` (`handleApproveSal`); in `FinanzeView`
+  → tab **SAL** compaiono i SAL approvati non fatturati con "Emetti bozza fattura"
+  (`handleGenerateCantiereSalInvoice`, riusa la logica di `handleGenerateSalInvoice`); il
+  `linkedInvoiceId` collega cantiere↔fattura ed evita doppioni.
+- **File**: `DriveUploader` (in `CantiereBoard`) carica su Google Drive (vedi §13) e in mancanza
+  ricade su link incollato. In Firebase si salva solo `{driveFileId,driveUrl}` o `link`.
+- **Collegamento ai task del fascicolo**: solo riferimento in lettura (`taskRefs`), nessun
+  cambio di stato dei task.
 
 ## 14. Finanza holding (parcelle + libri per società)
 - **Motore**: `src/finance.ts` (vedi §6). Regole ricavo: **Studio 15%** su

@@ -281,6 +281,123 @@ export interface Furnishing {
   updatedAt?: number;
 }
 
+// ============================================================
+// Modulo Cantiere (multi-attore studio ↔ impresa partner)
+// Nodo `cantieri/<cid>` + sotto-collezioni granulari per-elemento.
+// ============================================================
+export type CantiereStatus = 'pianificazione' | 'in_corso' | 'sospeso' | 'concluso';
+
+export interface Cantiere {
+  id: string;
+  projectId: string;
+  name: string;
+  status: CantiereStatus;
+  division: 'studio' | 'materico' | 'unico';
+  partnerUids?: Record<string, boolean>;       // imprese partner assegnate
+  taskRefs?: Record<string, boolean>;          // '<phId>::<tId>' → riferimenti SOLO lettura ai task del fascicolo
+  progressPct?: number | null;                 // avanzamento 0-100 (gestito dallo studio)
+  startDate?: string | null;
+  dueDate?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  createdBy: string;
+  createdByName?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface Rapportino {
+  id: string;
+  date: string;                                // yyyy-mm-dd
+  partnerUid: string;
+  partnerName?: string;
+  meteo?: string | null;
+  ore?: number | null;                         // ore lavorate complessive
+  descrizione: string;
+  fotoIds?: string[];                          // riferimenti a cantiereFoto
+  status: 'inviato' | 'approvato' | 'rifiutato';
+  approvedBy?: string;                         // solo studio
+  at: number;
+}
+
+export interface Presenza {
+  id: string;
+  date: string;
+  partnerUid: string;
+  lavoratore: string;
+  ore: number;
+  mansione?: string | null;
+  at: number;
+}
+
+export interface CantiereFoto {
+  id: string;
+  driveFileId?: string | null;                 // upload reale su Google Drive
+  driveUrl?: string | null;
+  link?: string | null;                        // fallback: link incollato
+  caption?: string | null;
+  by: string;
+  role: string;
+  at: number;
+}
+
+export interface CantiereMateriale {
+  id: string;
+  desc: string;
+  qty: number;
+  unit: string;
+  tipo: 'consegna' | 'impiego';
+  date: string;
+  by: string;
+  note?: string | null;
+  at: number;
+}
+
+export interface ChecklistItem {
+  id: string;
+  title: string;
+  done: boolean;
+  doneBy?: string | null;
+  doneAt?: number | null;
+  category?: string | null;
+  order: number;
+}
+
+export interface CantiereDoc {
+  id: string;
+  name: string;
+  driveFileId?: string | null;
+  driveUrl?: string | null;
+  link?: string | null;
+  by: string;
+  role: string;
+  at: number;
+}
+
+export interface CantiereSal {
+  id: string;
+  number: number;
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  descrizione?: string | null;
+  importo?: number | null;
+  progressPct?: number | null;
+  status: 'bozza' | 'inviato' | 'approvato';
+  approvedBy?: string;
+  linkedInvoiceId?: string | null;             // collega cantiere ↔ fattura attiva (finanza)
+  at: number;
+}
+
+export interface CantiereLog {
+  id: string;
+  action: string;                              // es. 'rapportino.approvato'
+  entity: string;                              // es. 'rapportino'
+  by: string;
+  role: string;
+  at: number;
+  detail?: string | null;
+}
+
 export interface MatericoItem {
   id: string;
   desc: string;

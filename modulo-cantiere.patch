@@ -1,0 +1,1908 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 4ca8d0f..3e00d38 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -72,7 +72,9 @@ studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`),
+ **fissi** con impatto progettuale+scadenza vs **mobili** estetici — e lavagna
+ moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio in
+ `ProjectsView` tab "Arredi & Moodboard" e lato cliente in `ClientPortalView`),
+-`AccessRequests`
++`CantiereBoard` (modulo "Cantiere", §15: dashboard studio + portale partner — rapportini,
++presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; include
++`DriveUploader` con fallback link), `AccessRequests`
+ (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
+ `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
+ `InteractiveView`.
+@@ -135,6 +137,13 @@ moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio i
+ - `appointments/<id>` — agenda condivisa (vedi §8).
+ - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
+ - `matericoRequests/<id>` — flusso Materico (vedi §9).
++- **Modulo Cantiere** (vedi §15): `cantieri/<cid>` (record cantiere, `partnerUids:{uid:true}`) +
++  sotto-collezioni granulari per-elemento `cantiereRapportini|cantierePresenze|cantiereFoto|
++  cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog` (tutte
++  `<cid>/<id>`). **Indice inverso** `partnerCantieri/<uid>/<cid>=true` (scritto dallo studio
++  all'assegnazione) → permette al partner di **elencare** i cantieri assegnati (i partner non
++  hanno i cid nei loro `projectIds`). Foto/documenti salvano `{driveFileId,driveUrl}` (upload
++  reale Google Drive, vedi `src/drive.ts`) **oppure** `link` (fallback). Tipi in `src/types.ts`.
+ 
+ ### Persistenza
+ - In App, `syncState(key, val)` scrive l'intero nodo via `writeNode` (mappa
+@@ -202,8 +211,11 @@ condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
+ Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
+ investitori, ROI/margine — `unicoDeals`); manca la pubblicazione automatica in
+ vetrina (oggi la vetrina Unico usa dati demo) e SPV/quote.
++Fatto: modulo **Cantiere** (§15): record `cantieri` + sotto-collezioni, ruolo partner
++assegnato per cantiere, rapportini/presenze/foto/materiali/checklist/documenti, SAL→fattura,
++upload Google Drive con fallback link.
+ Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
+-reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
++reporting/redditività, integrazioni esterne
+ (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
+ 
+ ## 13. Cosa serve all'utente (setup Firebase, una tantum)
+@@ -217,8 +229,40 @@ reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
+   (write studio, read cliente collegato — quadro economico del portale). **Vanno
+   ripubblicate**, altrimenti la registrazione e i moduli Unico / Arredi / la
+   contabilità del portale falliscono con "permission denied".
++  ⚠️ Aggiunti anche i nodi del **modulo Cantiere** (`cantieri`, `cantiere*`, `partnerCantieri`):
++  **ripubblicare le regole** dopo il deploy, altrimenti i cantieri falliscono con
++  "permission denied" e — come per gli arredi — la write resta silenziosa lato client.
++- **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
++  `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
++  web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
++  incollarne l'ID in `src/drive.ts` (`DEFAULT_CLIENT_ID`) o impostare
++  `window.__ONIRICO_DRIVE_CLIENT_ID__`. Finché non è configurato, l'upload Drive non parte e la
++  UI usa il **fallback "incolla link"** (l'app resta pienamente funzionante).
+ - Mettere i 13 GLB in `public/model/`.
+ 
++## 15. Modulo Cantiere (studio ↔ impresa partner)
++- **Dove**: tab **"Cantiere"** nel fascicolo progetto (`ProjectsView`, divisioni studio/materico/
++  unico) lato studio; tab **"Cantieri"** nel portale `materico_partner` (`ClientPortalView`) lato
++  partner. Componente unico `CantiereBoard` con prop `mode:'studio'|'partner'`.
++- **Modello**: vedi §6. Ogni progetto può avere 1+ cantieri (`cantieri/<cid>`, `projectId`).
++  Lo studio assegna imprese **partner** per-cantiere (`partnerUids` + indice inverso
++  `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni si scrivono **per-elemento** (handler
++  generici `handleSaveCantEntity`/`handleDeleteCantEntity` in `App.tsx`).
++- **Permessi** (`firebase-rules.json`): cantiere/sotto-collezioni leggibili da studio attivo
++  **o** partner assegnato; rapportini/presenze/foto/materiali/documenti scrivibili dal partner
++  assegnato solo per **propri** elementi (`by`/`partnerUid == auth.uid`); approvazioni
++  (`status:'approvato'`, `approvedBy`), checklist, SAL e log scrivibili **solo dallo studio**.
++- **Sottoscrizioni** (`App.tsx`): studio sottoscrive tutti i nodi `cantier*`; il partner
++  sottoscrive `partnerCantieri/<uid>` e poi, per ogni `cid`, il cantiere e le sotto-collezioni.
++- **SAL → finanza**: lo studio approva un `cantiereSal` (`handleApproveSal`); in `FinanzeView`
++  → tab **SAL** compaiono i SAL approvati non fatturati con "Emetti bozza fattura"
++  (`handleGenerateCantiereSalInvoice`, riusa la logica di `handleGenerateSalInvoice`); il
++  `linkedInvoiceId` collega cantiere↔fattura ed evita doppioni.
++- **File**: `DriveUploader` (in `CantiereBoard`) carica su Google Drive (vedi §13) e in mancanza
++  ricade su link incollato. In Firebase si salva solo `{driveFileId,driveUrl}` o `link`.
++- **Collegamento ai task del fascicolo**: solo riferimento in lettura (`taskRefs`), nessun
++  cambio di stato dei task.
++
+ ## 14. Finanza holding (parcelle + libri per società)
+ - **Motore**: `src/finance.ts` (vedi §6). Regole ricavo: **Studio 15%** su
+   (computo + arredi fissi) **+ 20%** arredi mobili se `Project.studioManagesArrediMobili`;
+diff --git a/firebase-rules.json b/firebase-rules.json
+index 220158a..80d9b71 100644
+--- a/firebase-rules.json
++++ b/firebase-rules.json
+@@ -124,6 +124,93 @@
+         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('projects').child($pid).child('clientUid').val() == auth.uid)",
+         ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || root.child('projects').child($pid).child('clientUid').val() == auth.uid)"
+       }
++    },
++
++    "cantieri": {
++      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || data.child('partnerUids').child(auth.uid).val() == true)",
++        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++      }
++    },
++
++    "cantiereRapportini": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        "$id": {
++          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('partnerUid').val() == auth.uid || (!newData.exists() && data.child('partnerUid').val() == auth.uid))))",
++          "status": {
++            ".validate": "newData.val() == 'inviato' || newData.val() == 'rifiutato' || (newData.val() == 'approvato' && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente')"
++          },
++          "approvedBy": {
++            ".validate": "root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++          }
++        }
++      }
++    },
++
++    "cantierePresenze": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        "$id": {
++          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('partnerUid').val() == auth.uid || (!newData.exists() && data.child('partnerUid').val() == auth.uid))))"
++        }
++      }
++    },
++
++    "cantiereFoto": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        "$id": {
++          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('by').val() == auth.uid || (!newData.exists() && data.child('by').val() == auth.uid))))"
++        }
++      }
++    },
++
++    "cantiereMateriali": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        "$id": {
++          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('by').val() == auth.uid || (!newData.exists() && data.child('by').val() == auth.uid))))"
++        }
++      }
++    },
++
++    "cantiereDocumenti": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        "$id": {
++          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('by').val() == auth.uid || (!newData.exists() && data.child('by').val() == auth.uid))))"
++        }
++      }
++    },
++
++    "cantiereChecklist": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++      }
++    },
++
++    "cantiereSal": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++      }
++    },
++
++    "cantiereLog": {
++      "$cid": {
++        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
++        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++      }
++    },
++
++    "partnerCantieri": {
++      "$uid": {
++        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
++        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
++      }
+     }
+   }
+ }
+diff --git a/src/App.tsx b/src/App.tsx
+index 507482e..535e323 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -36,7 +36,16 @@ import {
+   Appointment,
+   MatericoRequest,
+   UnicoDeal,
+-  Furnishing
++  Furnishing,
++  Cantiere,
++  Rapportino,
++  Presenza,
++  CantiereFoto,
++  CantiereMateriale,
++  ChecklistItem,
++  CantiereDoc,
++  CantiereSal,
++  CantiereLog
+ } from './types';
+ 
+ import {
+@@ -161,6 +170,17 @@ export default function App() {
+   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
+   const [furnishings, setFurnishings] = useState<Record<string, Record<string, Furnishing>>>({});
+ 
++  // Modulo Cantiere (record + sotto-collezioni keyed per cantiereId)
++  const [cantieri, setCantieri] = useState<Record<string, Cantiere>>({});
++  const [cantRapportini, setCantRapportini] = useState<Record<string, Record<string, Rapportino>>>({});
++  const [cantPresenze, setCantPresenze] = useState<Record<string, Record<string, Presenza>>>({});
++  const [cantFoto, setCantFoto] = useState<Record<string, Record<string, CantiereFoto>>>({});
++  const [cantMateriali, setCantMateriali] = useState<Record<string, Record<string, CantiereMateriale>>>({});
++  const [cantChecklist, setCantChecklist] = useState<Record<string, Record<string, ChecklistItem>>>({});
++  const [cantDocumenti, setCantDocumenti] = useState<Record<string, Record<string, CantiereDoc>>>({});
++  const [cantSal, setCantSal] = useState<Record<string, Record<string, CantiereSal>>>({});
++  const [cantLog, setCantLog] = useState<Record<string, Record<string, CantiereLog>>>({});
++
+   // CRM (pipeline lead + fornitori)
+   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
+   const [crmSuppliers, setCrmSuppliers] = useState<Supplier[]>([]);
+@@ -614,6 +634,16 @@ export default function App() {
+       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
+       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
+       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
++      // Cantiere (studio vede tutto)
++      add('cantieri', setCantieri);
++      add('cantiereRapportini', setCantRapportini);
++      add('cantierePresenze', setCantPresenze);
++      add('cantiereFoto', setCantFoto);
++      add('cantiereMateriali', setCantMateriali);
++      add('cantiereChecklist', setCantChecklist);
++      add('cantiereDocumenti', setCantDocumenti);
++      add('cantiereSal', setCantSal);
++      add('cantiereLog', setCantLog);
+     } else {
+       // Cliente/Partner: solo i propri progetti (regole via clientUid)
+       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
+@@ -633,6 +663,26 @@ export default function App() {
+           setFurnishings((f) => ({ ...f, [pid]: v || {} }));
+         }, () => {}));
+       });
++      // Partner: elenca i cantieri assegnati via indice inverso, poi sottoscrive per-cid.
++      if (currentUser.role === 'partner') {
++        const watched = new Set<string>();
++        subs.push(watchNode(`partnerCantieri/${currentUser.uid}`, (v) => {
++          Object.keys(v || {}).forEach((cid) => {
++            if (watched.has(cid)) return;
++            watched.add(cid);
++            subs.push(watchNode(`cantieri/${cid}`, (cv) => {
++              setCantieri((m) => { const n = { ...m }; if (cv) n[cid] = cv; else delete n[cid]; return n; });
++            }, () => {}));
++            subs.push(watchNode(`cantiereRapportini/${cid}`, (cv) => setCantRapportini((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantierePresenze/${cid}`, (cv) => setCantPresenze((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantiereFoto/${cid}`, (cv) => setCantFoto((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantiereMateriali/${cid}`, (cv) => setCantMateriali((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantiereChecklist/${cid}`, (cv) => setCantChecklist((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantiereDocumenti/${cid}`, (cv) => setCantDocumenti((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++            subs.push(watchNode(`cantiereSal/${cid}`, (cv) => setCantSal((m) => ({ ...m, [cid]: cv || {} })), () => {}));
++          });
++        }, () => {}));
++      }
+     }
+ 
+     return () => subs.forEach((u) => u());
+@@ -1267,7 +1317,9 @@ export default function App() {
+       prj[item.id] = enriched;
+       return { ...prev, [projId]: prj };
+     });
+-    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch(() => {});
++    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch(() =>
++      showToast('Errore salvataggio arredo (controlla regole/permessi).', 'err')
++    );
+   };
+ 
+   const handleDeleteFurnishing = (projId: string, itemId: string) => {
+@@ -1276,7 +1328,9 @@ export default function App() {
+       delete prj[itemId];
+       return { ...prev, [projId]: prj };
+     });
+-    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() => {});
++    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() =>
++      showToast('Errore eliminazione arredo (controlla regole/permessi).', 'err')
++    );
+   };
+ 
+   // 3c. Flag "lo Studio gestisce gli arredi mobili" (→ fee 20%) sul progetto
+@@ -1290,6 +1344,88 @@ export default function App() {
+     });
+   };
+ 
++  // 3d. Modulo Cantiere
++  const cantSetters: Record<string, (updater: (m: any) => any) => void> = {
++    cantiereRapportini: setCantRapportini as any,
++    cantierePresenze: setCantPresenze as any,
++    cantiereFoto: setCantFoto as any,
++    cantiereMateriali: setCantMateriali as any,
++    cantiereChecklist: setCantChecklist as any,
++    cantiereDocumenti: setCantDocumenti as any,
++    cantiereSal: setCantSal as any
++  };
++  const cantErr = () => showToast('Errore cantiere (controlla regole/permessi).', 'err');
++  // Storico/audit (scrittura solo lato studio: le regole vietano la scrittura ai partner)
++  const logCantiere = (cid: string, action: string, entity: string, detail?: string) => {
++    if (!currentUser || currentUser.role === 'cliente' || currentUser.role === 'partner') return;
++    const id = `log-${Date.now()}-${Math.floor(Math.random() * 900)}`;
++    const entry: CantiereLog = { id, action, entity, by: currentUser.uid, role: currentUser.role, at: Date.now(), detail: detail || null };
++    setCantLog((m) => ({ ...m, [cid]: { ...(m[cid] || {}), [id]: entry } }));
++    writeNode(`cantiereLog/${cid}/${id}`, entry).catch(() => {});
++  };
++
++  const handleSaveCantiere = (c: Cantiere) => {
++    const enriched: Cantiere = { ...c, createdByName: c.createdByName || currentUser?.name, updatedAt: Date.now() };
++    setCantieri((prev) => ({ ...prev, [c.id]: enriched }));
++    writeNode(`cantieri/${c.id}`, enriched).catch(cantErr);
++    logCantiere(c.id, 'cantiere.salvato', 'cantiere', c.name);
++  };
++  const handleDeleteCantiere = (cid: string) => {
++    const c = cantieri[cid];
++    setCantieri((prev) => { const n = { ...prev }; delete n[cid]; return n; });
++    removeNode(`cantieri/${cid}`).catch(cantErr);
++    // ripulisce l'indice inverso dei partner assegnati
++    Object.keys(c?.partnerUids || {}).forEach((uid) => removeNode(`partnerCantieri/${uid}/${cid}`).catch(() => {}));
++  };
++  const handleAssignPartner = (cid: string, uid: string, name: string, on: boolean) => {
++    setCantieri((prev) => {
++      const c = prev[cid];
++      if (!c) return prev;
++      const partnerUids = { ...(c.partnerUids || {}) };
++      if (on) partnerUids[uid] = true; else delete partnerUids[uid];
++      return { ...prev, [cid]: { ...c, partnerUids } };
++    });
++    if (on) {
++      writeNode(`cantieri/${cid}/partnerUids/${uid}`, true).catch(cantErr);
++      writeNode(`partnerCantieri/${uid}/${cid}`, true).catch(cantErr);
++    } else {
++      removeNode(`cantieri/${cid}/partnerUids/${uid}`).catch(cantErr);
++      removeNode(`partnerCantieri/${uid}/${cid}`).catch(cantErr);
++    }
++    logCantiere(cid, on ? 'partner.assegnato' : 'partner.rimosso', 'partner', name);
++  };
++  const handleSaveCantEntity = (coll: string, cid: string, item: any) => {
++    cantSetters[coll]?.((m) => ({ ...m, [cid]: { ...(m[cid] || {}), [item.id]: item } }));
++    writeNode(`${coll}/${cid}/${item.id}`, item).catch(cantErr);
++  };
++  const handleDeleteCantEntity = (coll: string, cid: string, id: string) => {
++    cantSetters[coll]?.((m) => { const sub = { ...(m[cid] || {}) }; delete sub[id]; return { ...m, [cid]: sub }; });
++    removeNode(`${coll}/${cid}/${id}`).catch(cantErr);
++  };
++  const handleApproveRapportino = (cid: string, id: string, approve: boolean) => {
++    const r = cantRapportini[cid]?.[id];
++    if (!r) return;
++    const next: Rapportino = { ...r, status: approve ? 'approvato' : 'rifiutato', approvedBy: currentUser?.uid };
++    handleSaveCantEntity('cantiereRapportini', cid, next);
++    logCantiere(cid, approve ? 'rapportino.approvato' : 'rapportino.rifiutato', 'rapportino', r.partnerName || '');
++    showToast(approve ? 'Rapportino approvato.' : 'Rapportino rifiutato.', approve ? 'ok' : 'err');
++  };
++  const handleApproveSal = (cid: string, id: string) => {
++    const s = cantSal[cid]?.[id];
++    if (!s) return;
++    const next: CantiereSal = { ...s, status: 'approvato', approvedBy: currentUser?.uid };
++    handleSaveCantEntity('cantiereSal', cid, next);
++    logCantiere(cid, 'sal.approvato', 'sal', `SAL ${s.number}`);
++    showToast('SAL approvato. Emetti la bozza fattura da Finanze → SAL.', 'ok');
++  };
++  // Collega un SAL di cantiere alla fattura generata (chiamato da FinanzeView)
++  const handleLinkCantiereSalInvoice = (cid: string, salId: string, invoiceId: string) => {
++    const s = cantSal[cid]?.[salId];
++    if (!s) return;
++    handleSaveCantEntity('cantiereSal', cid, { ...s, linkedInvoiceId: invoiceId });
++    logCantiere(cid, 'sal.fatturato', 'sal', invoiceId);
++  };
++
+   // 4. Chat messages
+   const handleSendClientMessage = (projId: string, text: string) => {
+     const mId = `msg-${Date.now()}`;
+@@ -1628,6 +1764,16 @@ export default function App() {
+         estimates={Object.values(estimates)}
+         onSaveEstimate={handleSaveEstimate}
+         onDeleteEstimate={handleDeleteEstimate}
++        cantieri={cantieri}
++        cantRapportini={cantRapportini}
++        cantPresenze={cantPresenze}
++        cantFoto={cantFoto}
++        cantMateriali={cantMateriali}
++        cantChecklist={cantChecklist}
++        cantDocumenti={cantDocumenti}
++        cantSal={cantSal}
++        onSaveCantEntity={handleSaveCantEntity}
++        onDeleteCantEntity={handleDeleteCantEntity}
+       />
+     );
+   }
+@@ -1830,6 +1976,23 @@ export default function App() {
+             onDeleteMatericoRequest={handleDeleteMatericoRequest}
+             unicoDeals={unicoDeals}
+             onSaveUnicoDeals={saveUnicoDeals}
++            cantieri={cantieri}
++            cantRapportini={cantRapportini}
++            cantPresenze={cantPresenze}
++            cantFoto={cantFoto}
++            cantMateriali={cantMateriali}
++            cantChecklist={cantChecklist}
++            cantDocumenti={cantDocumenti}
++            cantSal={cantSal}
++            cantLog={cantLog}
++            partnerAccounts={Object.values(accounts).filter((a: any) => a?.role === 'partner' && a?.status === 'approved') as UserProfile[]}
++            onSaveCantiere={handleSaveCantiere}
++            onDeleteCantiere={handleDeleteCantiere}
++            onAssignPartner={handleAssignPartner}
++            onSaveCantEntity={handleSaveCantEntity}
++            onDeleteCantEntity={handleDeleteCantEntity}
++            onApproveRapportino={handleApproveRapportino}
++            onApproveSal={handleApproveSal}
+           />
+         );
+ 
+@@ -1852,6 +2015,9 @@ export default function App() {
+               setFinOpen(true);
+             }}
+             onDeleteMovement={handleDeleteMovement}
++            cantieri={cantieri}
++            cantSal={cantSal}
++            onLinkCantiereSal={handleLinkCantiereSalInvoice}
+           />
+         );
+ 
+diff --git a/src/components/CantiereBoard.tsx b/src/components/CantiereBoard.tsx
+new file mode 100644
+index 0000000..0808c3c
+--- /dev/null
++++ b/src/components/CantiereBoard.tsx
+@@ -0,0 +1,756 @@
++/**
++ * @license
++ * SPDX-License-Identifier: Apache-2.0
++ *
++ * Modulo "Cantiere" — gestione multi-attore studio ↔ impresa partner.
++ * Stesso componente per i due lati (`mode`):
++ *  - studio:  dashboard di controllo, approvazioni, checklist/SAL, assegna partner, storico.
++ *  - partner: solo i cantieri assegnati; carica dati operativi (rapportini/presenze/foto/
++ *             materiali/documenti); checklist/SAL/avanzamento in sola lettura.
++ * Le scritture sono granulari per-elemento (handler generici passati da App).
++ */
++
++import React, { useState } from 'react';
++import {
++  HardHat, Plus, X, Trash2, Check, Clock, Users, ImageIcon, Boxes, ListChecks,
++  FileText, TrendingUp, History, Upload, Link as LinkIcon, CloudUpload, AlertTriangle,
++  CheckCircle2, CircleSlash, MapPin, Calendar as CalIcon
++} from 'lucide-react';
++
++import {
++  Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale,
++  ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, UserProfile
++} from '../types';
++import { eur, todayISO, fmtDay } from '../utils';
++import { uploadToDrive, driveAvailable } from '../drive';
++
++type Mode = 'studio' | 'partner';
++type Tab = 'rapportini' | 'presenze' | 'foto' | 'materiali' | 'checklist' | 'documenti' | 'sal' | 'storico';
++
++export interface CantiereBoardProps {
++  mode: Mode;
++  myUid: string;
++  myName: string;
++  myRole: string;
++  project?: { id: string; name: string; division?: string }; // studio: progetto corrente (per creare)
++  cantieri: Cantiere[];                                       // già filtrati a monte
++  rapportini?: Record<string, Record<string, Rapportino>>;
++  presenze?: Record<string, Record<string, Presenza>>;
++  foto?: Record<string, Record<string, CantiereFoto>>;
++  materiali?: Record<string, Record<string, CantiereMateriale>>;
++  checklist?: Record<string, Record<string, ChecklistItem>>;
++  documenti?: Record<string, Record<string, CantiereDoc>>;
++  sal?: Record<string, Record<string, CantiereSal>>;
++  log?: Record<string, Record<string, CantiereLog>>;
++  partnerAccounts?: UserProfile[];                            // studio: elenco imprese partner per assegnazione
++  onSaveCantiere?: (c: Cantiere) => void;
++  onDeleteCantiere?: (cid: string) => void;
++  onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
++  onSaveEntity?: (coll: string, cid: string, item: any) => void;
++  onDeleteEntity?: (coll: string, cid: string, id: string) => void;
++  onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
++  onApproveSal?: (cid: string, id: string) => void;
++}
++
++const STATUS_LABEL: Record<Cantiere['status'], string> = {
++  pianificazione: 'Pianificazione',
++  in_corso: 'In corso',
++  sospeso: 'Sospeso',
++  concluso: 'Concluso'
++};
++const STATUS_STYLE: Record<Cantiere['status'], string> = {
++  pianificazione: 'bg-[#f1f1f1] text-[#6b6b6b]',
++  in_corso: 'bg-emerald-50 text-emerald-700',
++  sospeso: 'bg-amber-50 text-amber-700',
++  concluso: 'bg-indigo-50 text-indigo-700'
++};
++
++const newId = (p: string) => `${p}-${Date.now()}-${Math.floor(Math.random() * 900)}`;
++const vals = <T,>(m?: Record<string, T>): T[] => (m ? Object.values(m) : []);
++
++// ----------------------------------------------------------------
++// DriveUploader — upload reale su Drive con fallback "incolla link"
++// ----------------------------------------------------------------
++const DriveUploader: React.FC<{
++  folderName: string;
++  onUploaded: (f: { driveFileId?: string; driveUrl?: string; link?: string; name?: string }) => void;
++}> = ({ folderName, onUploaded }) => {
++  const [busy, setBusy] = useState(false);
++  const [linkMode, setLinkMode] = useState(!driveAvailable());
++  const [link, setLink] = useState('');
++  const [err, setErr] = useState<string | null>(null);
++
++  const handleFile = async (file?: File | null) => {
++    if (!file) return;
++    setBusy(true);
++    setErr(null);
++    try {
++      const res = await uploadToDrive(file, folderName);
++      onUploaded({ driveFileId: res.fileId, driveUrl: res.webViewLink, name: file.name });
++    } catch (e: any) {
++      // Fallback: Drive non configurato/negato → consenti link manuale
++      setLinkMode(true);
++      setErr('Upload Drive non disponibile: incolla un link al file.');
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  return (
++    <div className="flex flex-col gap-2">
++      {!linkMode && (
++        <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold cursor-pointer hover:bg-[#fafafa] ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
++          <CloudUpload className="w-4 h-4" /> {busy ? 'Caricamento…' : 'Carica su Drive'}
++          <input type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
++        </label>
++      )}
++      {linkMode && (
++        <div className="flex items-center gap-2">
++          <div className="flex items-center gap-1.5 flex-1 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white">
++            <LinkIcon className="w-4 h-4 text-[#9a9a9a]" />
++            <input
++              value={link}
++              onChange={(e) => setLink(e.target.value)}
++              placeholder="https://…  (Drive/Dropbox/…)"
++              className="flex-1 border-none outline-none text-[12.5px] bg-transparent"
++            />
++          </div>
++          <button
++            type="button"
++            disabled={!link.trim()}
++            onClick={() => { onUploaded({ link: link.trim() }); setLink(''); }}
++            className="px-3 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40"
++          >
++            Allega
++          </button>
++        </div>
++      )}
++      {err && <span className="inline-flex items-center gap-1 text-[11px] text-amber-700"><AlertTriangle className="w-3 h-3" /> {err}</span>}
++      {!linkMode && driveAvailable() && (
++        <button type="button" onClick={() => setLinkMode(true)} className="self-start text-[11px] text-[#9a9a9a] underline">
++          oppure incolla un link
++        </button>
++      )}
++    </div>
++  );
++};
++
++// ----------------------------------------------------------------
++// Componente principale
++// ----------------------------------------------------------------
++export const CantiereBoard: React.FC<CantiereBoardProps> = (props) => {
++  const { mode, myUid, myName, myRole, project, cantieri } = props;
++  const isStudio = mode === 'studio';
++  const [selId, setSelId] = useState<string | null>(cantieri[0]?.id || null);
++  const [tab, setTab] = useState<Tab>('rapportini');
++  const [creating, setCreating] = useState(false);
++  const [newName, setNewName] = useState('');
++
++  const sel = cantieri.find((c) => c.id === selId) || cantieri[0] || null;
++
++  const saveEntity = (coll: string, item: any) => sel && props.onSaveEntity?.(coll, sel.id, item);
++  const delEntity = (coll: string, id: string) => sel && props.onDeleteEntity?.(coll, sel.id, id);
++  const folderName = sel ? `Onirico Cantiere - ${sel.name}` : 'Onirico Cantiere';
++
++  const createCantiere = () => {
++    if (!newName.trim() || !project || !props.onSaveCantiere) return;
++    const div = (['studio', 'materico', 'unico'].includes(project.division || '') ? project.division : 'studio') as Cantiere['division'];
++    const c: Cantiere = {
++      id: newId('cant'),
++      projectId: project.id,
++      name: newName.trim(),
++      status: 'pianificazione',
++      division: div,
++      partnerUids: {},
++      progressPct: 0,
++      createdBy: myUid,
++      createdByName: myName,
++      createdAt: Date.now()
++    };
++    props.onSaveCantiere(c);
++    setSelId(c.id);
++    setNewName('');
++    setCreating(false);
++  };
++
++  // -------- empty state --------
++  if (cantieri.length === 0 && !isStudio) {
++    return (
++      <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-8 text-center">
++        <HardHat className="w-8 h-8 mx-auto text-[#c9c9c9] mb-2" />
++        <p className="text-[13px] font-medium text-[#6b6b6b]">Nessun cantiere assegnato al momento.</p>
++      </div>
++    );
++  }
++
++  return (
++    <div className="flex flex-col gap-3">
++      {/* Header + lista cantieri */}
++      <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4">
++        <div className="flex items-center justify-between mb-3">
++          <h3 className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#161616]">
++            <HardHat className="w-5 h-5" /> Cantieri
++          </h3>
++          {isStudio && project && (
++            <button
++              onClick={() => setCreating((v) => !v)}
++              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#161616] text-white text-[12.5px] font-bold"
++            >
++              <Plus className="w-4 h-4" /> Nuovo cantiere
++            </button>
++          )}
++        </div>
++
++        {creating && (
++          <div className="flex items-center gap-2 mb-3">
++            <input
++              value={newName}
++              onChange={(e) => setNewName(e.target.value)}
++              placeholder="Nome cantiere (es. Lotto A — Posa pavimenti)"
++              className="flex-1 px-3 py-2 rounded-xl border border-[#e2e2e2] text-[13px] outline-none"
++              onKeyDown={(e) => e.key === 'Enter' && createCantiere()}
++            />
++            <button onClick={createCantiere} disabled={!newName.trim()} className="px-3 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Crea</button>
++          </div>
++        )}
++
++        {cantieri.length === 0 ? (
++          <p className="text-[12.5px] italic text-[#9a9a9a] py-2">Nessun cantiere in questo progetto. Creane uno.</p>
++        ) : (
++          <div className="flex gap-2 overflow-x-auto pb-1">
++            {cantieri.map((c) => {
++              const active = sel?.id === c.id;
++              return (
++                <button
++                  key={c.id}
++                  onClick={() => setSelId(c.id)}
++                  className={`shrink-0 text-left px-3 py-2 rounded-2xl border min-w-[180px] ${active ? 'border-[#161616] bg-[#161616] text-white' : 'border-[#e2e2e2] bg-white text-[#161616]'}`}
++                >
++                  <div className="flex items-center justify-between gap-2">
++                    <span className="text-[13px] font-bold truncate">{c.name}</span>
++                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${active ? 'bg-white/20 text-white' : STATUS_STYLE[c.status]}`}>{STATUS_LABEL[c.status]}</span>
++                  </div>
++                  <div className={`text-[10.5px] mt-1 ${active ? 'text-white/70' : 'text-[#9a9a9a]'}`}>
++                    {Object.keys(c.partnerUids || {}).length} partner · {c.progressPct || 0}%
++                  </div>
++                </button>
++              );
++            })}
++          </div>
++        )}
++      </div>
++
++      {sel && (
++        <CantiereDetail
++          key={sel.id}
++          {...props}
++          isStudio={isStudio}
++          cantiere={sel}
++          tab={tab}
++          setTab={setTab}
++          folderName={folderName}
++          saveEntity={saveEntity}
++          delEntity={delEntity}
++        />
++      )}
++    </div>
++  );
++};
++
++// ----------------------------------------------------------------
++// Dettaglio cantiere selezionato
++// ----------------------------------------------------------------
++const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
++  { id: 'rapportini', label: 'Rapportini', icon: FileText },
++  { id: 'presenze', label: 'Presenze', icon: Users },
++  { id: 'foto', label: 'Foto', icon: ImageIcon },
++  { id: 'materiali', label: 'Materiali', icon: Boxes },
++  { id: 'checklist', label: 'Checklist', icon: ListChecks },
++  { id: 'documenti', label: 'Documenti', icon: FileText },
++  { id: 'sal', label: 'SAL & Avanzamento', icon: TrendingUp },
++  { id: 'storico', label: 'Storico', icon: History }
++];
++
++const CantiereDetail: React.FC<CantiereBoardProps & {
++  isStudio: boolean;
++  cantiere: Cantiere;
++  tab: Tab;
++  setTab: (t: Tab) => void;
++  folderName: string;
++  saveEntity: (coll: string, item: any) => void;
++  delEntity: (coll: string, id: string) => void;
++}> = (p) => {
++  const { cantiere: c, isStudio, tab, setTab, myUid, myName, myRole, folderName, saveEntity, delEntity } = p;
++  const cid = c.id;
++  const [assignOpen, setAssignOpen] = useState(false);
++
++  return (
++    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4">
++      {/* intestazione cantiere */}
++      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#f2f2f2] pb-3 mb-3">
++        <div>
++          <div className="flex items-center gap-2">
++            <h4 className="text-[16px] font-extrabold text-[#161616]">{c.name}</h4>
++            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${STATUS_STYLE[c.status]}`}>{STATUS_LABEL[c.status]}</span>
++          </div>
++          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11.5px] text-[#9a9a9a]">
++            {c.location && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {c.location}</span>}
++            {c.dueDate && <span className="inline-flex items-center gap-1"><CalIcon className="w-3 h-3" /> consegna {fmtDay(c.dueDate)}</span>}
++            <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> {Object.keys(c.partnerUids || {}).length} partner</span>
++          </div>
++        </div>
++        {isStudio && (
++          <div className="flex items-center gap-2">
++            <select
++              value={c.status}
++              onChange={(e) => p.onSaveCantiere?.({ ...c, status: e.target.value as Cantiere['status'], updatedAt: Date.now() })}
++              className="px-2.5 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold outline-none"
++            >
++              {(['pianificazione', 'in_corso', 'sospeso', 'concluso'] as Cantiere['status'][]).map((s) => (
++                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
++              ))}
++            </select>
++            <button onClick={() => setAssignOpen((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold">
++              <Users className="w-4 h-4" /> Partner
++            </button>
++            <button
++              onClick={() => { if (confirm('Eliminare il cantiere?')) p.onDeleteCantiere?.(cid); }}
++              className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-[#e2e2e2] text-rose-600"
++            >
++              <Trash2 className="w-4 h-4" />
++            </button>
++          </div>
++        )}
++      </div>
++
++      {/* assegnazione partner (studio) */}
++      {isStudio && assignOpen && (
++        <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#eee]">
++          <p className="text-[12px] font-bold text-[#161616] mb-2">Imprese partner assegnate</p>
++          {(p.partnerAccounts || []).length === 0 ? (
++            <p className="text-[12px] italic text-[#9a9a9a]">Nessuna impresa partner registrata. Registrane una da Team → Anagrafiche.</p>
++          ) : (
++            <div className="flex flex-col gap-1.5">
++              {(p.partnerAccounts || []).map((pa) => {
++                const on = !!c.partnerUids?.[pa.uid];
++                return (
++                  <label key={pa.uid} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-[#eee]">
++                    <span className="text-[12.5px] font-medium text-[#161616]">{pa.companyName || pa.name}</span>
++                    <input
++                      type="checkbox"
++                      checked={on}
++                      onChange={(e) => p.onAssignPartner?.(cid, pa.uid, pa.companyName || pa.name, e.target.checked)}
++                    />
++                  </label>
++                );
++              })}
++            </div>
++          )}
++        </div>
++      )}
++
++      {/* tabs */}
++      <div className="flex gap-1 overflow-x-auto mb-3">
++        {TABS.map((t) => {
++          const Icon = t.icon;
++          const active = tab === t.id;
++          return (
++            <button
++              key={t.id}
++              onClick={() => setTab(t.id)}
++              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${active ? 'bg-[#161616] text-white' : 'bg-[#f3f3f3] text-[#6b6b6b]'}`}
++            >
++              <Icon className="w-3.5 h-3.5" /> {t.label}
++            </button>
++          );
++        })}
++      </div>
++
++      {tab === 'rapportini' && <RapportiniTab {...p} />}
++      {tab === 'presenze' && <PresenzeTab {...p} />}
++      {tab === 'foto' && <FotoTab {...p} />}
++      {tab === 'materiali' && <MaterialiTab {...p} />}
++      {tab === 'checklist' && <ChecklistTab {...p} />}
++      {tab === 'documenti' && <DocumentiTab {...p} />}
++      {tab === 'sal' && <SalTab {...p} />}
++      {tab === 'storico' && <StoricoTab {...p} />}
++    </div>
++  );
++};
++
++type TabProps = CantiereBoardProps & {
++  isStudio: boolean;
++  cantiere: Cantiere;
++  folderName: string;
++  saveEntity: (coll: string, item: any) => void;
++  delEntity: (coll: string, id: string) => void;
++};
++
++const sectionEmpty = (txt: string) => <p className="text-[12.5px] italic text-[#9a9a9a] py-3">{txt}</p>;
++
++// -------------------- Rapportini --------------------
++const RapportiniTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, myName, myRole, folderName, saveEntity, delEntity } = p;
++  const list = vals(p.rapportini?.[c.id]).sort((a, b) => b.at - a.at);
++  const [desc, setDesc] = useState('');
++  const [meteo, setMeteo] = useState('');
++  const [ore, setOre] = useState('');
++  const [foto, setFoto] = useState<string[]>([]);
++
++  const add = () => {
++    if (!desc.trim()) return;
++    const r: Rapportino = {
++      id: newId('rap'), date: todayISO(), partnerUid: myUid, partnerName: myName,
++      meteo: meteo || null, ore: ore ? parseFloat(ore.replace(',', '.')) || null : null,
++      descrizione: desc.trim(), fotoIds: foto.length ? foto : undefined, status: 'inviato', at: Date.now()
++    };
++    saveEntity('cantiereRapportini', r);
++    setDesc(''); setMeteo(''); setOre(''); setFoto([]);
++  };
++
++  return (
++    <div className="flex flex-col gap-3">
++      {!isStudio && (
++        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-col gap-2">
++          <div className="flex flex-wrap gap-2">
++            <input value={meteo} onChange={(e) => setMeteo(e.target.value)} placeholder="Meteo (sereno…)" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-36" />
++            <input value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Ore" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-20" />
++          </div>
++          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descrizione lavorazioni della giornata…" rows={3} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none resize-none" />
++          <DriveUploader folderName={folderName} onUploaded={(f) => {
++            const photo: CantiereFoto = { id: newId('foto'), driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, caption: 'Rapportino', by: myUid, role: myRole, at: Date.now() };
++            saveEntity('cantiereFoto', photo);
++            setFoto((arr) => [...arr, photo.id]);
++          }} />
++          <button onClick={add} disabled={!desc.trim()} className="self-start px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Invia rapportino</button>
++        </div>
++      )}
++
++      {list.length === 0 ? sectionEmpty('Nessun rapportino.') : (
++        <div className="flex flex-col gap-2">
++          {list.map((r) => (
++            <div key={r.id} className="p-3 rounded-2xl border border-[#eee]">
++              <div className="flex items-center justify-between gap-2 mb-1">
++                <span className="text-[12.5px] font-bold text-[#161616]">{fmtDay(r.date)} · {r.partnerName || 'Partner'}</span>
++                <div className="flex items-center gap-2">
++                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${r.status === 'approvato' ? 'bg-emerald-50 text-emerald-700' : r.status === 'rifiutato' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{r.status}</span>
++                  {isStudio && r.status === 'inviato' && (
++                    <>
++                      <button onClick={() => p.onApproveRapportino?.(c.id, r.id, true)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700"><Check className="w-4 h-4" /></button>
++                      <button onClick={() => p.onApproveRapportino?.(c.id, r.id, false)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-rose-50 text-rose-700"><X className="w-4 h-4" /></button>
++                    </>
++                  )}
++                  {(isStudio || r.partnerUid === myUid) && (
++                    <button onClick={() => delEntity('cantiereRapportini', r.id)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
++                  )}
++                </div>
++              </div>
++              <p className="text-[12.5px] text-[#3a3a3a] whitespace-pre-wrap">{r.descrizione}</p>
++              <div className="flex gap-3 mt-1 text-[11px] text-[#9a9a9a]">
++                {r.meteo && <span>☀ {r.meteo}</span>}
++                {r.ore != null && <span>⏱ {r.ore}h</span>}
++                {r.fotoIds?.length ? <span>📷 {r.fotoIds.length}</span> : null}
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Presenze --------------------
++const PresenzeTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, myName, saveEntity, delEntity } = p;
++  const list = vals(p.presenze?.[c.id]).sort((a, b) => b.at - a.at);
++  const [lav, setLav] = useState('');
++  const [ore, setOre] = useState('');
++  const [mans, setMans] = useState('');
++
++  const add = () => {
++    if (!lav.trim() || !ore) return;
++    const r: Presenza = { id: newId('pres'), date: todayISO(), partnerUid: myUid, lavoratore: lav.trim(), ore: parseFloat(ore.replace(',', '.')) || 0, mansione: mans || null, at: Date.now() };
++    saveEntity('cantierePresenze', r);
++    setLav(''); setOre(''); setMans('');
++  };
++
++  return (
++    <div className="flex flex-col gap-3">
++      {!isStudio && (
++        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-wrap gap-2 items-center">
++          <input value={lav} onChange={(e) => setLav(e.target.value)} placeholder="Lavoratore" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
++          <input value={mans} onChange={(e) => setMans(e.target.value)} placeholder="Mansione" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-36" />
++          <input value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Ore" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-20" />
++          <button onClick={add} disabled={!lav.trim() || !ore} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Aggiungi</button>
++        </div>
++      )}
++      {list.length === 0 ? sectionEmpty('Nessuna presenza registrata.') : (
++        <div className="flex flex-col gap-1.5">
++          {list.map((r) => (
++            <div key={r.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
++              <div className="text-[12.5px]"><span className="font-bold text-[#161616]">{r.lavoratore}</span>{r.mansione ? <span className="text-[#9a9a9a]"> · {r.mansione}</span> : null}</div>
++              <div className="flex items-center gap-3">
++                <span className="text-[11.5px] text-[#9a9a9a]">{fmtDay(r.date)}</span>
++                <span className="text-[12px] font-bold text-[#161616]">{r.ore}h</span>
++                {(isStudio || r.partnerUid === myUid) && <button onClick={() => delEntity('cantierePresenze', r.id)} className="text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Foto --------------------
++const FotoTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, myRole, folderName, saveEntity, delEntity } = p;
++  const list = vals(p.foto?.[c.id]).sort((a, b) => b.at - a.at);
++  return (
++    <div className="flex flex-col gap-3">
++      {!isStudio && (
++        <DriveUploader folderName={folderName} onUploaded={(f) => {
++          const photo: CantiereFoto = { id: newId('foto'), driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, by: myUid, role: myRole, at: Date.now() };
++          saveEntity('cantiereFoto', photo);
++        }} />
++      )}
++      {list.length === 0 ? sectionEmpty('Nessuna foto.') : (
++        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
++          {list.map((f) => {
++            const url = f.driveUrl || f.link || '';
++            return (
++              <div key={f.id} className="relative group rounded-2xl border border-[#eee] overflow-hidden bg-[#fafafa] aspect-square flex items-center justify-center">
++                <a href={url} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 text-[11px] text-[#6b6b6b] p-2 text-center">
++                  <ImageIcon className="w-6 h-6 text-[#c9c9c9]" />
++                  <span className="truncate max-w-full">{f.caption || 'Foto'}</span>
++                  <span className="text-[10px] text-[#9a9a9a]">{fmtDay(new Date(f.at).toISOString().slice(0, 10))}</span>
++                </a>
++                {(isStudio || f.by === myUid) && (
++                  <button onClick={() => delEntity('cantiereFoto', f.id)} className="absolute top-1 right-1 w-6 h-6 rounded-lg bg-white/90 text-rose-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5 mx-auto" /></button>
++                )}
++              </div>
++            );
++          })}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Materiali --------------------
++const MaterialiTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, saveEntity, delEntity } = p;
++  const list = vals(p.materiali?.[c.id]).sort((a, b) => b.at - a.at);
++  const [desc, setDesc] = useState('');
++  const [qty, setQty] = useState('');
++  const [unit, setUnit] = useState('pz');
++  const [tipo, setTipo] = useState<'consegna' | 'impiego'>('consegna');
++
++  const add = () => {
++    if (!desc.trim() || !qty) return;
++    const m: CantiereMateriale = { id: newId('mat'), desc: desc.trim(), qty: parseFloat(qty.replace(',', '.')) || 0, unit, tipo, date: todayISO(), by: myUid, at: Date.now() };
++    saveEntity('cantiereMateriali', m);
++    setDesc(''); setQty('');
++  };
++
++  return (
++    <div className="flex flex-col gap-3">
++      {!isStudio && (
++        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-wrap gap-2 items-center">
++          <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Materiale" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
++          <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qtà" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-20" />
++          <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="Unità" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-20" />
++          <select value={tipo} onChange={(e) => setTipo(e.target.value as any)} className="px-2.5 py-2 rounded-xl border border-[#e2e2e2] text-[12px] outline-none">
++            <option value="consegna">Consegna</option>
++            <option value="impiego">Impiego</option>
++          </select>
++          <button onClick={add} disabled={!desc.trim() || !qty} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Aggiungi</button>
++        </div>
++      )}
++      {list.length === 0 ? sectionEmpty('Nessun movimento materiali.') : (
++        <div className="flex flex-col gap-1.5">
++          {list.map((m) => (
++            <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
++              <div className="text-[12.5px]"><span className="font-bold text-[#161616]">{m.desc}</span> <span className="text-[#9a9a9a]">· {m.qty} {m.unit}</span></div>
++              <div className="flex items-center gap-3">
++                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${m.tipo === 'consegna' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}>{m.tipo}</span>
++                <span className="text-[11.5px] text-[#9a9a9a]">{fmtDay(m.date)}</span>
++                {(isStudio || m.by === myUid) && <button onClick={() => delEntity('cantiereMateriali', m.id)} className="text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Checklist (write solo studio) --------------------
++const ChecklistTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, myName, saveEntity, delEntity } = p;
++  const list = vals(p.checklist?.[c.id]).sort((a, b) => a.order - b.order);
++  const [title, setTitle] = useState('');
++
++  const add = () => {
++    if (!title.trim()) return;
++    const item: ChecklistItem = { id: newId('chk'), title: title.trim(), done: false, order: list.length, category: null };
++    saveEntity('cantiereChecklist', item);
++    setTitle('');
++  };
++  const toggle = (it: ChecklistItem) => {
++    if (!isStudio) return;
++    saveEntity('cantiereChecklist', { ...it, done: !it.done, doneBy: !it.done ? myName : null, doneAt: !it.done ? Date.now() : null });
++  };
++
++  return (
++    <div className="flex flex-col gap-3">
++      {isStudio && (
++        <div className="flex items-center gap-2">
++          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Voce di checklist…" className="flex-1 px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" onKeyDown={(e) => e.key === 'Enter' && add()} />
++          <button onClick={add} disabled={!title.trim()} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Aggiungi</button>
++        </div>
++      )}
++      {list.length === 0 ? sectionEmpty('Nessuna voce di checklist.') : (
++        <div className="flex flex-col gap-1.5">
++          {list.map((it) => (
++            <div key={it.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
++              <button onClick={() => toggle(it)} className={`flex items-center gap-2 text-[12.5px] ${!isStudio ? 'cursor-default' : ''}`}>
++                {it.done ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <CircleSlash className="w-4 h-4 text-[#c9c9c9]" />}
++                <span className={it.done ? 'line-through text-[#9a9a9a]' : 'text-[#161616] font-medium'}>{it.title}</span>
++              </button>
++              {isStudio && <button onClick={() => delEntity('cantiereChecklist', it.id)} className="text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Documenti --------------------
++const DocumentiTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, myUid, myRole, folderName, saveEntity, delEntity } = p;
++  const list = vals(p.documenti?.[c.id]).sort((a, b) => b.at - a.at);
++  return (
++    <div className="flex flex-col gap-3">
++      <DriveUploader folderName={folderName} onUploaded={(f) => {
++        const d: CantiereDoc = { id: newId('doc'), name: f.name || 'Documento', driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, by: myUid, role: myRole, at: Date.now() };
++        saveEntity('cantiereDocumenti', d);
++      }} />
++      {list.length === 0 ? sectionEmpty('Nessun documento.') : (
++        <div className="flex flex-col gap-1.5">
++          {list.map((d) => (
++            <div key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
++              <a href={d.driveUrl || d.link || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[12.5px] font-medium text-[#161616]">
++                <FileText className="w-4 h-4 text-[#9a9a9a]" /> {d.name}
++              </a>
++              <div className="flex items-center gap-3">
++                <span className="text-[11px] text-[#9a9a9a]">{fmtDay(new Date(d.at).toISOString().slice(0, 10))}</span>
++                {(isStudio || d.by === myUid) && <button onClick={() => delEntity('cantiereDocumenti', d.id)} className="text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- SAL & Avanzamento (write solo studio) --------------------
++const SalTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c, isStudio, saveEntity, delEntity } = p;
++  const list = vals(p.sal?.[c.id]).sort((a, b) => a.number - b.number);
++  const [descr, setDescr] = useState('');
++  const [importo, setImporto] = useState('');
++  const [prog, setProg] = useState('');
++
++  const add = () => {
++    const s: CantiereSal = {
++      id: newId('sal'), number: list.length + 1, descrizione: descr || null,
++      importo: importo ? parseFloat(importo.replace(',', '.')) || null : null,
++      progressPct: prog ? parseFloat(prog) || null : c.progressPct ?? null,
++      status: 'bozza', at: Date.now()
++    };
++    saveEntity('cantiereSal', s);
++    setDescr(''); setImporto(''); setProg('');
++  };
++
++  return (
++    <div className="flex flex-col gap-3">
++      {/* avanzamento globale */}
++      <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee]">
++        <div className="flex items-center justify-between mb-1.5">
++          <span className="text-[12px] font-bold text-[#161616]">Avanzamento cantiere</span>
++          <span className="text-[13px] font-extrabold text-[#161616]">{c.progressPct || 0}%</span>
++        </div>
++        <div className="h-2 rounded-full bg-[#eaeaea] overflow-hidden">
++          <div className="h-full bg-[#161616]" style={{ width: `${Math.min(100, c.progressPct || 0)}%` }} />
++        </div>
++        {isStudio && (
++          <input
++            type="range" min={0} max={100} value={c.progressPct || 0}
++            onChange={(e) => p.onSaveCantiere?.({ ...c, progressPct: parseInt(e.target.value, 10), updatedAt: Date.now() })}
++            className="w-full mt-2"
++          />
++        )}
++      </div>
++
++      {isStudio && (
++        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-wrap gap-2 items-center">
++          <input value={descr} onChange={(e) => setDescr(e.target.value)} placeholder="Descrizione SAL" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
++          <input value={importo} onChange={(e) => setImporto(e.target.value)} placeholder="Importo €" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-28" />
++          <input value={prog} onChange={(e) => setProg(e.target.value)} placeholder="% avanz." className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-24" />
++          <button onClick={add} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold">Crea SAL</button>
++        </div>
++      )}
++
++      {list.length === 0 ? sectionEmpty('Nessun SAL.') : (
++        <div className="flex flex-col gap-2">
++          {list.map((s) => (
++            <div key={s.id} className="p-3 rounded-2xl border border-[#eee]">
++              <div className="flex items-center justify-between gap-2">
++                <span className="text-[13px] font-bold text-[#161616]">SAL {s.number}{s.descrizione ? ` — ${s.descrizione}` : ''}</span>
++                <div className="flex items-center gap-2">
++                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.status === 'approvato' ? 'bg-emerald-50 text-emerald-700' : s.status === 'inviato' ? 'bg-amber-50 text-amber-700' : 'bg-[#f1f1f1] text-[#6b6b6b]'}`}>{s.status}</span>
++                  {s.linkedInvoiceId && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700">fatturato</span>}
++                </div>
++              </div>
++              <div className="flex items-center gap-3 mt-1 text-[11.5px] text-[#9a9a9a]">
++                {s.importo != null && <span className="font-bold text-[#161616]">{eur(s.importo)}</span>}
++                {s.progressPct != null && <span>{s.progressPct}%</span>}
++              </div>
++              {isStudio && s.status !== 'approvato' && (
++                <div className="flex items-center gap-2 mt-2">
++                  <button onClick={() => p.onApproveSal?.(c.id, s.id)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11.5px] font-bold">Approva SAL</button>
++                  <button onClick={() => delEntity('cantiereSal', s.id)} className="px-3 py-1.5 rounded-lg border border-[#e2e2e2] text-[11.5px] font-bold text-rose-600">Elimina</button>
++                </div>
++              )}
++              {isStudio && s.status === 'approvato' && !s.linkedInvoiceId && (
++                <p className="mt-2 text-[11px] text-emerald-700 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Approvato — emetti la bozza fattura da Finanze → SAL.</p>
++              )}
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++};
++
++// -------------------- Storico (audit, lato studio) --------------------
++const StoricoTab: React.FC<TabProps> = (p) => {
++  const { cantiere: c } = p;
++  const list = vals(p.log?.[c.id]).sort((a, b) => b.at - a.at);
++  if (list.length === 0) return sectionEmpty('Nessuna azione registrata.');
++  return (
++    <div className="flex flex-col gap-1.5">
++      {list.map((l) => (
++        <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#eee] text-[12px]">
++          <Clock className="w-3.5 h-3.5 text-[#9a9a9a]" />
++          <span className="font-bold text-[#161616]">{l.action}</span>
++          <span className="text-[#9a9a9a]">{l.detail || ''}</span>
++          <span className="ml-auto text-[11px] text-[#bdbdbd]">{new Date(l.at).toLocaleString('it-IT')}</span>
++        </div>
++      ))}
++    </div>
++  );
++};
+diff --git a/src/components/ClientPortalView.tsx b/src/components/ClientPortalView.tsx
+index 70d7502..b3c9360 100644
+--- a/src/components/ClientPortalView.tsx
++++ b/src/components/ClientPortalView.tsx
+@@ -32,11 +32,13 @@ import {
+   DollarSign,
+   Smartphone,
+   Target,
+-  Sofa
++  Sofa,
++  HardHat
+ } from 'lucide-react';
+ import { motion, AnimatePresence } from 'motion/react';
+-import { Project, UserProfile, MatericoEstimate, Furnishing } from '../types';
++import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal } from '../types';
+ import { FurnishingsBoard } from './FurnishingsBoard';
++import { CantiereBoard } from './CantiereBoard';
+ import { eur, fmtDay, isoDate } from '../utils';
+ import { watchNode } from '../firebase';
+ import { ThreeDProgress } from './ThreeDProgress';
+@@ -294,6 +296,17 @@ interface ClientPortalViewProps {
+   estimates?: MatericoEstimate[];
+   onSaveEstimate?: (est: MatericoEstimate) => void;
+   onDeleteEstimate?: (id: string) => void;
++  // Modulo Cantiere (lato partner: solo cantieri assegnati)
++  cantieri?: Record<string, Cantiere>;
++  cantRapportini?: Record<string, Record<string, Rapportino>>;
++  cantPresenze?: Record<string, Record<string, Presenza>>;
++  cantFoto?: Record<string, Record<string, CantiereFoto>>;
++  cantMateriali?: Record<string, Record<string, CantiereMateriale>>;
++  cantChecklist?: Record<string, Record<string, ChecklistItem>>;
++  cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
++  cantSal?: Record<string, Record<string, CantiereSal>>;
++  onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
++  onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
+ }
+ 
+ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
+@@ -322,7 +335,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
+   onExitPreview,
+   estimates = [],
+   onSaveEstimate,
+-  onDeleteEstimate
++  onDeleteEstimate,
++  cantieri = {},
++  cantRapportini = {},
++  cantPresenze = {},
++  cantFoto = {},
++  cantMateriali = {},
++  cantChecklist = {},
++  cantDocumenti = {},
++  cantSal = {},
++  onSaveCantEntity,
++  onDeleteCantEntity
+ }) => {
+   const [msgInput, setMsgInput] = useState('');
+   const [apptReqOpen, setApptReqOpen] = useState(false);
+@@ -650,6 +673,44 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
+   }
+ 
+   const p = activeProject || projects[0];
++
++  // Fallback: partner assegnato solo a cantieri (nessun progetto collegato) → evita il crash
++  // della vista per-progetto e mostra direttamente i cantieri assegnati.
++  if (!p) {
++    const assignedCantieri = Object.values(cantieri);
++    return (
++      <div className="min-h-screen bg-[#F5F5F3] p-4 md:p-8">
++        <div className="max-w-4xl mx-auto">
++          <div className="flex items-center justify-between mb-5">
++            <div>
++              <h1 className="text-[20px] font-extrabold text-[#161616]">Cantieri</h1>
++              <p className="text-[12.5px] text-[#8a8a8a]">Impresa partner · {profile.name}</p>
++            </div>
++            <button onClick={onLogout} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold">
++              <LogOut className="w-4 h-4" /> Esci
++            </button>
++          </div>
++          <CantiereBoard
++            mode="partner"
++            myUid={profile.uid}
++            myName={profile.name}
++            myRole={profile.role}
++            cantieri={assignedCantieri}
++            rapportini={cantRapportini}
++            presenze={cantPresenze}
++            foto={cantFoto}
++            materiali={cantMateriali}
++            checklist={cantChecklist}
++            documenti={cantDocumenti}
++            sal={cantSal}
++            onSaveEntity={onSaveCantEntity}
++            onDeleteEntity={onDeleteCantEntity}
++          />
++        </div>
++      </div>
++    );
++  }
++
+   const { done, tot } = projTaskCounts(p);
+   const pc = pct(done, tot);
+ 
+@@ -694,6 +755,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
+       case 'materico_partner':
+         return [
+           { id: 'lavori', label: 'Posa in Cantiere', icon: ClipboardList },
++          { id: 'cantiere', label: 'Cantieri', icon: HardHat },
+           { id: 'b2b_preventivi', label: 'Offerte B2B', icon: ClipboardList },
+           { id: 'documenti', label: 'Tavole & Disegni', icon: FileText },
+           { id: 'b2b_chat', label: 'Coordinamento Cantiere', icon: MessageSquare }
+@@ -1908,6 +1970,27 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
+             );
+           })()}
+ 
++          {currentTab === 'cantiere' && (
++            <div className="animate-[riseIn_0.22s_ease_both]">
++              <CantiereBoard
++                mode="partner"
++                myUid={profile.uid}
++                myName={profile.name}
++                myRole={profile.role}
++                cantieri={Object.values(cantieri)}
++                rapportini={cantRapportini}
++                presenze={cantPresenze}
++                foto={cantFoto}
++                materiali={cantMateriali}
++                checklist={cantChecklist}
++                documenti={cantDocumenti}
++                sal={cantSal}
++                onSaveEntity={onSaveCantEntity}
++                onDeleteEntity={onDeleteCantEntity}
++              />
++            </div>
++          )}
++
+           {currentTab === 'arredi' && (
+             <div className="animate-[riseIn_0.22s_ease_both]">
+               <FurnishingsBoard
+diff --git a/src/components/FinanzeView.tsx b/src/components/FinanzeView.tsx
+index 498c7d4..b993343 100644
+--- a/src/components/FinanzeView.tsx
++++ b/src/components/FinanzeView.tsx
+@@ -11,7 +11,7 @@ import {
+   Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info,
+   Upload, Building2, Percent
+ } from 'lucide-react';
+-import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal } from '../types';
++import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal } from '../types';
+ import { eur, fmtDay, numIt, todayISO } from '../utils';
+ import { watchNode, writeNode } from '../firebase';
+ import {
+@@ -29,6 +29,10 @@ interface FinanzeViewProps {
+   unicoDeals: UnicoDeal[];
+   onNewMovement: () => void;
+   onDeleteMovement: (id: string) => void;
++  // Modulo Cantiere → SAL collegati alla fatturazione
++  cantieri?: Record<string, Cantiere>;
++  cantSal?: Record<string, Record<string, CantiereSal>>;
++  onLinkCantiereSal?: (cid: string, salId: string, invoiceId: string) => void;
+ }
+ 
+ interface BankMovementSim {
+@@ -47,7 +51,10 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
+   matericoRequests,
+   unicoDeals,
+   onNewMovement,
+-  onDeleteMovement
++  onDeleteMovement,
++  cantieri = {},
++  cantSal = {},
++  onLinkCantiereSal
+ }) => {
+   // --- SUB-TABS STATE ---
+   const [activeTab, setActiveTab] = useState<'panoramica' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico'>('panoramica');
+@@ -587,6 +594,57 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
+     setActiveTab('fatture');
+   };
+ 
++  // --- SAL DI CANTIERE APPROVATO → BOZZA FATTURA ATTIVA (riusa la logica SAL) ---
++  const handleGenerateCantiereSalInvoice = (cid: string, sal: CantiereSal, proj: Project) => {
++    const company = projCompany(proj);
++    const amount = sal.importo || 0;
++    const invId = `${COMPANY_INVOICE_PREFIX[company]}-SAL-${String(activeInvoices.filter(i => i.sector === company && i.isSal).length + 1).padStart(3, '0')}`;
++    const newInv: InvoiceActive = {
++      id: invId,
++      clientName: proj.client || 'Cliente Studio',
++      projectId: proj.id,
++      projectName: proj.name,
++      amount,
++      taxRate: 22,
++      status: 'bozza',
++      sdiCode: 'M5UXCR1',
++      date: todayISO(),
++      dueDate: todayISO(),
++      sector: company,
++      isSal: true,
++      salNumber: sal.number
++    };
++    saveActiveInvoices([...activeInvoices, newInv]);
++    saveScadenze([...scadenze, {
++      id: `sc-cant-${Date.now()}`,
++      kind: 'entrata',
++      desc: `SAL Cantiere ${sal.number} - ${proj.name}`,
++      clientOrSupplier: proj.client || 'Cliente Studio',
++      amount,
++      dueDate: todayISO(),
++      status: 'pago_attesa',
++      projectId: proj.id,
++      sector: company
++    }]);
++    onLinkCantiereSal?.(cid, sal.id, invId);
++    triggerToast(`⚡ Bozza fattura da SAL di cantiere creata per ${proj.name} (${eur(amount)}).`);
++    setActiveTab('fatture');
++  };
++
++  // SAL di cantiere approvati e NON ancora fatturati (pronti per la bozza fattura)
++  const cantiereSalToBill = useMemo(() => {
++    const out: { cid: string; sal: CantiereSal; proj: Project }[] = [];
++    Object.entries(cantSal).forEach(([cid, sals]) => {
++      const c = cantieri[cid];
++      const proj = c && projects.find(p => p.id === c.projectId);
++      if (!proj) return;
++      Object.values(sals || {}).forEach((s) => {
++        if (s.status === 'approvato' && !s.linkedInvoiceId) out.push({ cid, sal: s, proj });
++      });
++    });
++    return out;
++  }, [cantSal, cantieri, projects]);
++
+   // ============================================================
+   // DERIVAZIONI DAL MOTORE FINANZIARIO (finance.ts)
+   // ============================================================
+@@ -1859,6 +1917,33 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
+             </div>
+           </div>
+ 
++          {/* SAL di CANTIERE approvati dallo studio → bozza fattura (modulo Cantiere) */}
++          {cantiereSalToBill.length > 0 && (
++            <div className="mt-4 border border-emerald-200 bg-emerald-50/40 rounded-2xl p-4">
++              <div className="flex items-center gap-2 mb-3">
++                <Layers className="w-4 h-4 text-emerald-700" />
++                <h4 className="text-[13px] font-black text-emerald-800 uppercase tracking-wide">SAL di Cantiere approvati — pronti per la fattura</h4>
++              </div>
++              <div className="flex flex-col gap-2">
++                {cantiereSalToBill.map(({ cid, sal, proj }) => (
++                  <div key={`${cid}-${sal.id}`} className="flex items-center justify-between gap-3 bg-white border border-emerald-100 rounded-xl px-3 py-2.5">
++                    <div className="text-[12.5px]">
++                      <span className="font-black text-[#161616]">{proj.name}</span>
++                      <span className="text-stone-500"> · SAL {sal.number}{sal.descrizione ? ` — ${sal.descrizione}` : ''}</span>
++                      <span className="block text-[11px] text-stone-500">{sal.importo != null ? eur(sal.importo) : 'importo non indicato'} · {COMPANY_LABEL[projCompany(proj)]}</span>
++                    </div>
++                    <button
++                      onClick={() => handleGenerateCantiereSalInvoice(cid, sal, proj)}
++                      className="shrink-0 inline-flex items-center gap-1.5 bg-[#161616] hover:bg-black text-white text-[11.5px] font-black py-2 px-3 rounded-xl cursor-pointer transition-all active:scale-95"
++                    >
++                      <Layers className="w-3.5 h-3.5" /> Emetti bozza fattura
++                    </button>
++                  </div>
++                ))}
++              </div>
++            </div>
++          )}
++
+           <div className="flex flex-col gap-6 mt-4">
+             {projects.map(proj => {
+               // Filters
+diff --git a/src/components/ProjectsView.tsx b/src/components/ProjectsView.tsx
+index 5b31c68..00b76be 100644
+--- a/src/components/ProjectsView.tsx
++++ b/src/components/ProjectsView.tsx
+@@ -33,10 +33,12 @@ import {
+   Wallet,
+   SlidersHorizontal,
+   Clock,
+-  Sofa
++  Sofa,
++  HardHat
+ } from 'lucide-react';
+-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing } from '../types';
++import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog } from '../types';
+ import { FurnishingsBoard } from './FurnishingsBoard';
++import { CantiereBoard } from './CantiereBoard';
+ import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
+ import { ThreeDProgress } from './ThreeDProgress';
+ import { StatusCard } from './StatusCard';
+@@ -89,6 +91,24 @@ interface ProjectsViewProps {
+   onDeleteMatericoRequest?: (id: string) => void;
+   unicoDeals?: UnicoDeal[];
+   onSaveUnicoDeals?: (deals: UnicoDeal[]) => void;
++  // Modulo Cantiere (lato studio)
++  cantieri?: Record<string, Cantiere>;
++  cantRapportini?: Record<string, Record<string, Rapportino>>;
++  cantPresenze?: Record<string, Record<string, Presenza>>;
++  cantFoto?: Record<string, Record<string, CantiereFoto>>;
++  cantMateriali?: Record<string, Record<string, CantiereMateriale>>;
++  cantChecklist?: Record<string, Record<string, ChecklistItem>>;
++  cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
++  cantSal?: Record<string, Record<string, CantiereSal>>;
++  cantLog?: Record<string, Record<string, CantiereLog>>;
++  partnerAccounts?: UserProfile[];
++  onSaveCantiere?: (c: Cantiere) => void;
++  onDeleteCantiere?: (cid: string) => void;
++  onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
++  onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
++  onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
++  onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
++  onApproveSal?: (cid: string, id: string) => void;
+ }
+ 
+ export const ProjectsView: React.FC<ProjectsViewProps> = ({
+@@ -132,7 +152,24 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
+   onUpdateMatericoRequest,
+   onDeleteMatericoRequest,
+   unicoDeals = [],
+-  onSaveUnicoDeals
++  onSaveUnicoDeals,
++  cantieri = {},
++  cantRapportini = {},
++  cantPresenze = {},
++  cantFoto = {},
++  cantMateriali = {},
++  cantChecklist = {},
++  cantDocumenti = {},
++  cantSal = {},
++  cantLog = {},
++  partnerAccounts = [],
++  onSaveCantiere,
++  onDeleteCantiere,
++  onAssignPartner,
++  onSaveCantEntity,
++  onDeleteCantEntity,
++  onApproveRapportino,
++  onApproveSal
+ }) => {
+   const [search, setSearch] = useState('');
+   const [showSearchInput, setShowSearchInput] = useState(false);
+@@ -420,6 +457,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
+               ...(p.division === 'materico' ? [{ id: 'materico_prev', label: 'Preventivi & Fornitori', icon: SlidersHorizontal }] : []),
+               { id: 'tecnico', label: 'Fascicolo Tecnico', icon: Layers },
+               { id: 'arredi', label: 'Arredi & Moodboard', icon: Sofa },
++              ...((!p.division || p.division === 'studio' || p.division === 'materico' || p.division === 'unico')
++                ? [{ id: 'cantiere', label: 'Cantiere', icon: HardHat }] : []),
+               { id: 'finanziario', label: 'Contabilità & Bilancio', icon: Wallet }
+             ] as { id: string; label: string; icon: any }[]).map(tab => {
+               const Icon = tab.icon;
+@@ -1460,6 +1499,36 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
+           </div>
+         )}
+ 
++        {/* TAB: CANTIERE (studio/materico/unico) */}
++        {projTab === 'cantiere' && (
++          <div className="mt-2 animate-[riseIn_0.3s_ease_both]">
++            <CantiereBoard
++              mode="studio"
++              myUid={myUid}
++              myName={users[myUid]?.name || 'Studio'}
++              myRole={users[myUid]?.role || 'staff'}
++              project={{ id: p.id, name: p.name, division: p.division }}
++              cantieri={Object.values(cantieri).filter((c) => c.projectId === p.id)}
++              rapportini={cantRapportini}
++              presenze={cantPresenze}
++              foto={cantFoto}
++              materiali={cantMateriali}
++              checklist={cantChecklist}
++              documenti={cantDocumenti}
++              sal={cantSal}
++              log={cantLog}
++              partnerAccounts={partnerAccounts}
++              onSaveCantiere={onSaveCantiere}
++              onDeleteCantiere={onDeleteCantiere}
++              onAssignPartner={onAssignPartner}
++              onSaveEntity={onSaveCantEntity}
++              onDeleteEntity={onDeleteCantEntity}
++              onApproveRapportino={onApproveRapportino}
++              onApproveSal={onApproveSal}
++            />
++          </div>
++        )}
++
+         {/* TAB 3: CONTABILITÀ & BILANCIO (Partitioned Studio and Progetto) */}
+         {projTab === 'finanziario' && (
+           <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm mt-2 animate-[riseIn_0.3s_ease_both]">
+diff --git a/src/drive.ts b/src/drive.ts
+new file mode 100644
+index 0000000..128d73c
+--- /dev/null
++++ b/src/drive.ts
+@@ -0,0 +1,203 @@
++/**
++ * @license
++ * SPDX-License-Identifier: Apache-2.0
++ *
++ * Upload file reali su Google Drive (gratuito) per il modulo Cantiere.
++ * Usa Google Identity Services (GIS) token client con scope `drive.file`
++ * (autorizzazione incrementale, richiesta SOLO al primo upload — non tocca
++ * il login Firebase/Google esistente). I file restano nel Drive di chi carica
++ * con link-sharing (reader-con-link), così studio + partner possono vederli.
++ *
++ * Su Firebase si salva SOLO { fileId, webViewLink }. Se GIS/Drive non sono
++ * disponibili (script bloccato, API non abilitata, scope negato) le funzioni
++ * lanciano: la UI ricade sul fallback "incolla link".
++ */
++
++/**
++ * OAuth 2.0 **Web** Client ID del progetto Google Cloud `oniricoapp-48953`.
++ * ⚠️ Setup una tantum dell'utente: in Google Cloud Console → Credenziali creare
++ * (o riusare) un "ID client OAuth → Applicazione web", aggiungere agli
++ * "Authorized JavaScript origins" `http://localhost:3000` e
++ * `https://giorgiopascalistudio.github.io`, abilitare la **Google Drive API**,
++ * poi incollare qui l'ID (formato `<n>-<hash>.apps.googleusercontent.com`)
++ * — oppure impostarlo a runtime su `window.__ONIRICO_DRIVE_CLIENT_ID__`.
++ * Finché resta vuoto, l'upload Drive non parte e la UI usa il fallback "link".
++ */
++const DEFAULT_CLIENT_ID = '';
++const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
++
++function clientId(): string {
++  return (typeof window !== 'undefined' && (window as any).__ONIRICO_DRIVE_CLIENT_ID__) || DEFAULT_CLIENT_ID;
++}
++
++export interface DriveUploadResult {
++  fileId: string;
++  webViewLink: string;
++}
++
++declare global {
++  interface Window {
++    google?: any;
++  }
++}
++
++let gisLoaded: Promise<void> | null = null;
++let tokenClient: any = null;
++let cachedToken: { value: string; exp: number } | null = null;
++const folderCache: Record<string, string> = {};
++
++/** Carica lo script GIS una sola volta. */
++function loadGis(): Promise<void> {
++  if (gisLoaded) return gisLoaded;
++  gisLoaded = new Promise((resolve, reject) => {
++    if (window.google?.accounts?.oauth2) return resolve();
++    const s = document.createElement('script');
++    s.src = 'https://accounts.google.com/gsi/client';
++    s.async = true;
++    s.defer = true;
++    s.onload = () => resolve();
++    s.onerror = () => reject(new Error('Google Identity Services non disponibile.'));
++    document.head.appendChild(s);
++  });
++  return gisLoaded;
++}
++
++/** Ottiene (o riusa) un access token Drive. Richiede il consenso al primo uso. */
++async function getAccessToken(): Promise<string> {
++  if (cachedToken && cachedToken.exp > Date.now() + 60_000) return cachedToken.value;
++  await loadGis();
++  if (!window.google?.accounts?.oauth2) {
++    throw new Error('Google Identity Services non inizializzato.');
++  }
++  return new Promise<string>((resolve, reject) => {
++    try {
++      if (!tokenClient) {
++        tokenClient = window.google.accounts.oauth2.initTokenClient({
++          client_id: clientId(),
++          scope: DRIVE_SCOPE,
++          callback: (resp: any) => {
++            if (resp.error) {
++              reject(new Error(resp.error_description || resp.error));
++              return;
++            }
++            cachedToken = {
++              value: resp.access_token,
++              exp: Date.now() + (resp.expires_in ? resp.expires_in * 1000 : 3_600_000)
++            };
++            resolve(resp.access_token);
++          }
++        });
++      } else {
++        tokenClient.callback = (resp: any) => {
++          if (resp.error) {
++            reject(new Error(resp.error_description || resp.error));
++            return;
++          }
++          cachedToken = {
++            value: resp.access_token,
++            exp: Date.now() + (resp.expires_in ? resp.expires_in * 1000 : 3_600_000)
++          };
++          resolve(resp.access_token);
++        };
++      }
++      // prompt vuoto: riusa il consenso già concesso quando possibile
++      tokenClient.requestAccessToken({ prompt: cachedToken ? '' : 'consent' });
++    } catch (e) {
++      reject(e);
++    }
++  });
++}
++
++/** True se l'upload reale è configurato e tentabile (altrimenti → fallback link). */
++export function driveAvailable(): boolean {
++  return typeof window !== 'undefined' && typeof document !== 'undefined' && !!clientId();
++}
++
++/** Cerca/crea una cartella per il cantiere e ne ritorna l'id. */
++async function ensureFolder(token: string, folderName: string): Promise<string | null> {
++  if (folderCache[folderName]) return folderCache[folderName];
++  try {
++    const q = encodeURIComponent(
++      `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
++    );
++    const search = await fetch(
++      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&spaces=drive`,
++      { headers: { Authorization: `Bearer ${token}` } }
++    );
++    const data = await search.json();
++    if (data.files && data.files.length > 0) {
++      folderCache[folderName] = data.files[0].id;
++      return data.files[0].id;
++    }
++    const create = await fetch('https://www.googleapis.com/drive/v3/files', {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
++      body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
++    });
++    const folder = await create.json();
++    if (folder.id) {
++      folderCache[folderName] = folder.id;
++      return folder.id;
++    }
++  } catch (_) {
++    /* non bloccante: si carica nella root del Drive */
++  }
++  return null;
++}
++
++/** Imposta link-sharing (reader con link) sul file. */
++async function makeSharable(token: string, fileId: string): Promise<void> {
++  try {
++    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
++      body: JSON.stringify({ role: 'reader', type: 'anyone' })
++    });
++  } catch (_) {
++    /* non bloccante */
++  }
++}
++
++/**
++ * Carica un file su Drive (multipart) dentro la cartella del cantiere,
++ * lo rende leggibile con link e ritorna { fileId, webViewLink }.
++ * Lancia se l'upload reale non è possibile (→ fallback link nella UI).
++ */
++export async function uploadToDrive(file: File, folderName: string): Promise<DriveUploadResult> {
++  const token = await getAccessToken();
++  const folderId = await ensureFolder(token, folderName);
++
++  const metadata: Record<string, any> = { name: file.name };
++  if (folderId) metadata.parents = [folderId];
++
++  const boundary = `onirico-${Date.now()}`;
++  const head =
++    `--${boundary}\r\n` +
++    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
++    `${JSON.stringify(metadata)}\r\n` +
++    `--${boundary}\r\n` +
++    `Content-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`;
++  const tail = `\r\n--${boundary}--`;
++
++  const body = new Blob([head, file, tail], { type: `multipart/related; boundary=${boundary}` });
++
++  const res = await fetch(
++    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
++    {
++      method: 'POST',
++      headers: { Authorization: `Bearer ${token}` },
++      body
++    }
++  );
++  if (!res.ok) {
++    const msg = await res.text().catch(() => '');
++    throw new Error(`Upload Drive fallito (${res.status}). ${msg}`);
++  }
++  const data = await res.json();
++  if (!data.id) throw new Error('Upload Drive: risposta senza id file.');
++  await makeSharable(token, data.id);
++  return {
++    fileId: data.id,
++    webViewLink: data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`
++  };
++}
+diff --git a/src/types.ts b/src/types.ts
+index 77d2061..8b1daa1 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -281,6 +281,123 @@ export interface Furnishing {
+   updatedAt?: number;
+ }
+ 
++// ============================================================
++// Modulo Cantiere (multi-attore studio ↔ impresa partner)
++// Nodo `cantieri/<cid>` + sotto-collezioni granulari per-elemento.
++// ============================================================
++export type CantiereStatus = 'pianificazione' | 'in_corso' | 'sospeso' | 'concluso';
++
++export interface Cantiere {
++  id: string;
++  projectId: string;
++  name: string;
++  status: CantiereStatus;
++  division: 'studio' | 'materico' | 'unico';
++  partnerUids?: Record<string, boolean>;       // imprese partner assegnate
++  taskRefs?: Record<string, boolean>;          // '<phId>::<tId>' → riferimenti SOLO lettura ai task del fascicolo
++  progressPct?: number | null;                 // avanzamento 0-100 (gestito dallo studio)
++  startDate?: string | null;
++  dueDate?: string | null;
++  location?: string | null;
++  notes?: string | null;
++  createdBy: string;
++  createdByName?: string;
++  createdAt: number;
++  updatedAt?: number;
++}
++
++export interface Rapportino {
++  id: string;
++  date: string;                                // yyyy-mm-dd
++  partnerUid: string;
++  partnerName?: string;
++  meteo?: string | null;
++  ore?: number | null;                         // ore lavorate complessive
++  descrizione: string;
++  fotoIds?: string[];                          // riferimenti a cantiereFoto
++  status: 'inviato' | 'approvato' | 'rifiutato';
++  approvedBy?: string;                         // solo studio
++  at: number;
++}
++
++export interface Presenza {
++  id: string;
++  date: string;
++  partnerUid: string;
++  lavoratore: string;
++  ore: number;
++  mansione?: string | null;
++  at: number;
++}
++
++export interface CantiereFoto {
++  id: string;
++  driveFileId?: string | null;                 // upload reale su Google Drive
++  driveUrl?: string | null;
++  link?: string | null;                        // fallback: link incollato
++  caption?: string | null;
++  by: string;
++  role: string;
++  at: number;
++}
++
++export interface CantiereMateriale {
++  id: string;
++  desc: string;
++  qty: number;
++  unit: string;
++  tipo: 'consegna' | 'impiego';
++  date: string;
++  by: string;
++  note?: string | null;
++  at: number;
++}
++
++export interface ChecklistItem {
++  id: string;
++  title: string;
++  done: boolean;
++  doneBy?: string | null;
++  doneAt?: number | null;
++  category?: string | null;
++  order: number;
++}
++
++export interface CantiereDoc {
++  id: string;
++  name: string;
++  driveFileId?: string | null;
++  driveUrl?: string | null;
++  link?: string | null;
++  by: string;
++  role: string;
++  at: number;
++}
++
++export interface CantiereSal {
++  id: string;
++  number: number;
++  periodFrom?: string | null;
++  periodTo?: string | null;
++  descrizione?: string | null;
++  importo?: number | null;
++  progressPct?: number | null;
++  status: 'bozza' | 'inviato' | 'approvato';
++  approvedBy?: string;
++  linkedInvoiceId?: string | null;             // collega cantiere ↔ fattura attiva (finanza)
++  at: number;
++}
++
++export interface CantiereLog {
++  id: string;
++  action: string;                              // es. 'rapportino.approvato'
++  entity: string;                              // es. 'rapportino'
++  by: string;
++  role: string;
++  at: number;
++  detail?: string | null;
++}
++
+ export interface MatericoItem {
+   id: string;
+   desc: string;
