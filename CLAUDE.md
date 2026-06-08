@@ -67,7 +67,12 @@ npm run build      # output in dist/ (esbuild: NON fa type-check)
 Strategico/Unico accanto ai progetti; Unico ha la vetrina immobili-investimento
 con dati **fittizi** da `src/showcaseData.ts` — contenuti demo, non su Firebase),
 `AuthFlow` (onboarding pubblico, vedi §5), `UnicoStudioView` (modulo Unico lato
-studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`), `AccessRequests`
+studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`),
+`FurnishingsBoard` (modulo "Arredi & Moodboard": scelte materiali/arredi —
+**fissi** con impatto progettuale+scadenza vs **mobili** estetici — e lavagna
+moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio in
+`ProjectsView` tab "Arredi & Moodboard" e lato cliente in `ClientPortalView`),
+`AccessRequests`
 (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
 `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
 `InteractiveView`.
@@ -114,6 +119,11 @@ studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`), `AccessR
   `finInvoicesPassive`, `finScadenze`, `finBank` (array; admin/manager).
 - `documents/<pid>/<docId>`, `projectMessages/<pid>/<msgId>` — **scritture
   mirate per-elemento** (così anche i clienti possono creare i propri).
+- `projectFurnishings/<pid>/<itemId>` — modulo "Arredi & Moodboard" (tipo
+  `Furnishing`): arredi **fissi/mobili** + tile moodboard (campo `board`).
+  Scrittura **mirata per-elemento** come documents; a differenza di documents il
+  cliente può anche **aggiornare** i propri item (non solo crearli), quindi la
+  regola di write è a livello `$pid` senza vincolo `!data.exists()`.
 - `appointments/<id>` — agenda condivisa (vedi §8).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
@@ -194,6 +204,8 @@ reporting/redditività, cantiere (diario/foto/presenze), integrazioni esterne
 - Realtime Database → Regole → incollare `firebase-rules.json` → Pubblica.
   ⚠️ Le regole `users` ora permettono a cliente/azienda di auto-approvarsi
   (`role:'cliente'`) e al manager di approvare il Team; aggiunto anche il nodo
-  `unicoDeals` (admin/manager). **Vanno ripubblicate**, altrimenti la
-  registrazione e il modulo Unico falliscono con "permission denied".
+  `unicoDeals` (admin/manager) e il nodo `projectFurnishings` (studio + cliente
+  collegato via `clientUid`, in lettura e scrittura). **Vanno ripubblicate**,
+  altrimenti la registrazione e i moduli Unico / Arredi falliscono con
+  "permission denied".
 - Mettere i 13 GLB in `public/model/`.

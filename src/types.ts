@@ -256,6 +256,26 @@ export interface UnicoDeal {
   updatedAt?: number;
 }
 
+export interface Furnishing {
+  id: string;
+  projectId: string;
+  kind: 'fisso' | 'mobile';                 // fisso = impatto progettuale; mobile = estetico
+  category?: string | null;                  // es. 'Sanitari','Cucina','Armadi a incasso','Illuminazione','Tessili'
+  title: string;
+  status: 'da_scegliere' | 'proposto' | 'scelto' | 'confermato';
+  deadline?: string | null;                  // yyyy-mm-dd (per voce; rilevante per i fissi)
+  imageUrl?: string | null;                  // immagine di riferimento (URL incollato)
+  link?: string | null;                      // link prodotto/riferimento
+  color?: string | null;                     // swatch colore (campioni/moodboard)
+  note?: string | null;
+  board?: { x: number; y: number; w?: number; rot?: number } | null; // posizione sulla lavagna moodboard
+  createdBy: string;
+  createdByName?: string;
+  createdByRole?: string;
+  at: number;
+  updatedAt?: number;
+}
+
 export interface MatericoItem {
   id: string;
   desc: string;

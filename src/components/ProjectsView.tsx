@@ -32,9 +32,11 @@ import {
   Layers,
   Wallet,
   SlidersHorizontal,
-  Clock
+  Clock,
+  Sofa
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing } from '../types';
+import { FurnishingsBoard } from './FurnishingsBoard';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
@@ -68,6 +70,9 @@ interface ProjectsViewProps {
   onSendClientMessage: (projId: string, text: string) => void;
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
+  furnishings?: Record<string, Record<string, Furnishing>>;
+  onSaveFurnishing?: (pid: string, item: Furnishing) => void;
+  onDeleteFurnishing?: (pid: string, itemId: string) => void;
   isInternalBoss: boolean;
   myUid: string;
   finance?: FinanceMovement[];
@@ -109,6 +114,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onSendClientMessage,
   projectMessages,
   documents,
+  furnishings = {},
+  onSaveFurnishing,
+  onDeleteFurnishing,
   isInternalBoss,
   myUid,
   finance = [],
@@ -409,6 +417,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               ...(p.division === 'strategico' ? [{ id: 'marketing', label: 'Strumenti Marketing', icon: Briefcase }] : []),
               ...(p.division === 'materico' ? [{ id: 'materico_prev', label: 'Preventivi & Fornitori', icon: SlidersHorizontal }] : []),
               { id: 'tecnico', label: 'Fascicolo Tecnico', icon: Layers },
+              { id: 'arredi', label: 'Arredi & Moodboard', icon: Sofa },
               { id: 'finanziario', label: 'Contabilità & Bilancio', icon: Wallet }
             ] as { id: string; label: string; icon: any }[]).map(tab => {
               const Icon = tab.icon;
@@ -1430,6 +1439,21 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: ARREDI & MOODBOARD */}
+        {projTab === 'arredi' && (
+          <div className="mt-2 animate-[riseIn_0.3s_ease_both]">
+            <FurnishingsBoard
+              project={p}
+              items={Object.values(furnishings[p.id] || {})}
+              myUid={myUid}
+              myRole={users[myUid]?.role || 'staff'}
+              isStudio={true}
+              onSaveItem={onSaveFurnishing || (() => {})}
+              onDeleteItem={onDeleteFurnishing || (() => {})}
+            />
           </div>
         )}
 

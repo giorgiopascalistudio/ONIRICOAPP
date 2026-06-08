@@ -31,10 +31,12 @@ import {
   AlertCircle,
   DollarSign,
   Smartphone,
-  Target
+  Target,
+  Sofa
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing } from '../types';
+import { FurnishingsBoard } from './FurnishingsBoard';
 import { eur, fmtDay, isoDate } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
@@ -282,6 +284,9 @@ interface ClientPortalViewProps {
   onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
+  furnishings?: Record<string, Record<string, Furnishing>>;
+  onSaveFurnishing?: (pid: string, item: Furnishing) => void;
+  onDeleteFurnishing?: (pid: string, itemId: string) => void;
   onLogout: () => void;
   isPreview?: boolean;
   onExitPreview?: () => void;
@@ -308,6 +313,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onSubmitMatericoOffer,
   projectMessages,
   documents,
+  furnishings = {},
+  onSaveFurnishing,
+  onDeleteFurnishing,
   onLogout,
   isPreview = false,
   onExitPreview,
@@ -700,6 +708,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         return [
           { id: 'lavori', label: 'Avanzamento', icon: ClipboardList },
           { id: 'documenti', label: 'Documenti & Chat', icon: FileText },
+          { id: 'arredi', label: 'Arredi & Moodboard', icon: Sofa },
           { id: 'finanze', label: 'Contabilità & Fatture', icon: DollarSign },
           { id: 'blog', label: 'Onirico Blog', icon: BookOpen }
         ];
@@ -1903,6 +1912,20 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               </div>
             );
           })()}
+
+          {currentTab === 'arredi' && (
+            <div className="animate-[riseIn_0.22s_ease_both]">
+              <FurnishingsBoard
+                project={p}
+                items={Object.values(furnishings[p.id] || {})}
+                myUid={profile.uid}
+                myRole={profile.role}
+                isStudio={false}
+                onSaveItem={onSaveFurnishing || (() => {})}
+                onDeleteItem={onDeleteFurnishing || (() => {})}
+              />
+            </div>
+          )}
 
           {currentTab === 'finanze' && (() => {
             // Filter active invoices and scadenze for this project

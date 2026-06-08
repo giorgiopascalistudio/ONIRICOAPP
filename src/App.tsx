@@ -35,7 +35,8 @@ import {
   MatericoEstimate,
   Appointment,
   MatericoRequest,
-  UnicoDeal
+  UnicoDeal,
+  Furnishing
 } from './types';
 
 import {
@@ -158,6 +159,7 @@ export default function App() {
   const [projectsInternal, setProjectsInternal] = useState<Record<string, ProjectInternal>>({});
   const [projectMessages, setProjectMessages] = useState<Record<string, Record<string, ProjectMessage>>>({});
   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
+  const [furnishings, setFurnishings] = useState<Record<string, Record<string, Furnishing>>>({});
 
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
@@ -204,7 +206,7 @@ export default function App() {
   const [peopleTab, setPeopleTab] = useState<'team' | 'clienti' | 'partner'>('team');
 
   // Navigation calendar states
-  const [calView, setCalView] = useState<'month' | 'week' | 'day'>('month');
+  const [calView, setCalView] = useState<'month' | 'week' | 'day'>('day');
   const [calDate, setCalDate] = useState<Date>(new Date());
 
   // Toasts
@@ -601,6 +603,7 @@ export default function App() {
       add('projectsInternal', setProjectsInternal);
       add('projectMessages', setProjectMessages);
       add('documents', setDocuments);
+      add('projectFurnishings', setFurnishings);
       add('estimates', setEstimates);
       if (canFinance) add('studioFinance', setFinances);
       // CRM (array nodes)
@@ -625,6 +628,9 @@ export default function App() {
         }, () => {}));
         subs.push(watchNode(`projectMessages/${pid}`, (v) => {
           setProjectMessages((m) => ({ ...m, [pid]: v || {} }));
+        }, () => {}));
+        subs.push(watchNode(`projectFurnishings/${pid}`, (v) => {
+          setFurnishings((f) => ({ ...f, [pid]: v || {} }));
         }, () => {}));
       });
     }
@@ -1250,6 +1256,29 @@ export default function App() {
     showToast('Documento rimosso.', 'err');
   };
 
+  // 3b. Arredi & Moodboard (scrittura mirata per-elemento, come i documenti)
+  const handleSaveFurnishing = (projId: string, item: Furnishing) => {
+    const enriched: Furnishing = {
+      ...item,
+      createdByName: item.createdByName || currentUser?.name
+    };
+    setFurnishings((prev) => {
+      const prj = { ...(prev[projId] || {}) };
+      prj[item.id] = enriched;
+      return { ...prev, [projId]: prj };
+    });
+    writeNode(`projectFurnishings/${projId}/${item.id}`, enriched).catch(() => {});
+  };
+
+  const handleDeleteFurnishing = (projId: string, itemId: string) => {
+    setFurnishings((prev) => {
+      const prj = { ...(prev[projId] || {}) };
+      delete prj[itemId];
+      return { ...prev, [projId]: prj };
+    });
+    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() => {});
+  };
+
   // 4. Chat messages
   const handleSendClientMessage = (projId: string, text: string) => {
     const mId = `msg-${Date.now()}`;
@@ -1581,6 +1610,9 @@ export default function App() {
         onSubmitMatericoOffer={handleSubmitMatericoOffer}
         projectMessages={projectMessages}
         documents={documents}
+        furnishings={furnishings}
+        onSaveFurnishing={handleSaveFurnishing}
+        onDeleteFurnishing={handleDeleteFurnishing}
         onLogout={handleLogout}
         estimates={Object.values(estimates)}
         onSaveEstimate={handleSaveEstimate}
@@ -1771,6 +1803,9 @@ export default function App() {
             onSendClientMessage={handleSendClientMessage}
             projectMessages={projectMessages}
             documents={documents}
+            furnishings={furnishings}
+            onSaveFurnishing={handleSaveFurnishing}
+            onDeleteFurnishing={handleDeleteFurnishing}
             isInternalBoss={currentUser.role === 'admin' || currentUser.role === 'manager'}
             myUid={currentUser.uid}
             finance={Object.values(finances)}

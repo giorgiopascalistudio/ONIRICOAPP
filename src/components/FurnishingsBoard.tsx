@@ -1,0 +1,425 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useRef } from 'react';
+import { motion } from 'motion/react';
+import {
+  Plus,
+  X,
+  Trash2,
+  Calendar as CalendarIcon,
+  Link as LinkIcon,
+  ImageIcon,
+  Check,
+  Sofa,
+  LayoutGrid,
+  Palette,
+  Type as TypeIcon,
+  AlertTriangle
+} from 'lucide-react';
+
+import { Furnishing, Project } from '../types';
+import { todayISO } from '../utils';
+
+interface FurnishingsBoardProps {
+  project: Project;
+  items: Furnishing[];
+  myUid: string;
+  myRole: string;
+  isStudio: boolean;
+  onSaveItem: (pid: string, item: Furnishing) => void;
+  onDeleteItem: (pid: string, itemId: string) => void;
+}
+
+type Section = 'fissi' | 'mobili' | 'moodboard';
+
+const SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
+  { id: 'fissi', label: 'Arredi fissi', icon: Sofa },
+  { id: 'mobili', label: 'Arredi mobili', icon: LayoutGrid },
+  { id: 'moodboard', label: 'Moodboard', icon: Palette }
+];
+
+const CATEGORIES = ['Sanitari', 'Cucina', 'Armadi a incasso', 'Illuminazione', 'Tessili', 'Pavimenti', 'Rivestimenti', 'Altro'];
+
+const STATUS_FLOW: Furnishing['status'][] = ['da_scegliere', 'proposto', 'scelto', 'confermato'];
+const STATUS_LABEL: Record<Furnishing['status'], string> = {
+  da_scegliere: 'Da scegliere',
+  proposto: 'Proposto',
+  scelto: 'Scelto',
+  confermato: 'Confermato'
+};
+const STATUS_STYLE: Record<Furnishing['status'], string> = {
+  da_scegliere: 'bg-[#f1f1f1] text-[#6b6b6b]',
+  proposto: 'bg-amber-50 text-amber-700',
+  scelto: 'bg-indigo-50 text-indigo-700',
+  confermato: 'bg-emerald-50 text-emerald-700'
+};
+
+// Stato scadenza per badge (rosso scaduta, ambra vicina, neutro altrimenti)
+function deadlineState(deadline?: string | null): 'overdue' | 'soon' | 'ok' | null {
+  if (!deadline) return null;
+  const today = todayISO();
+  if (deadline < today) return 'overdue';
+  const d = new Date(deadline).getTime();
+  const t = new Date(today).getTime();
+  const days = Math.round((d - t) / 86400000);
+  if (days <= 7) return 'soon';
+  return 'ok';
+}
+
+export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
+  project,
+  items,
+  myUid,
+  myRole,
+  isStudio,
+  onSaveItem,
+  onDeleteItem
+}) => {
+  const [section, setSection] = useState<Section>('fissi');
+  const [modalKind, setModalKind] = useState<Furnishing['kind'] | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // Form (modale nuovo arredo)
+  const [fTitle, setFTitle] = useState('');
+  const [fCategory, setFCategory] = useState('');
+  const [fDeadline, setFDeadline] = useState('');
+  const [fImageUrl, setFImageUrl] = useState('');
+  const [fLink, setFLink] = useState('');
+  const [fColor, setFColor] = useState('');
+  const [fNote, setFNote] = useState('');
+
+  const pid = project.id;
+  const fissi = items.filter((i) => i.kind === 'fisso');
+  const mobili = items.filter((i) => i.kind === 'mobile');
+  const boardItems = items.filter((i) => i.board);
+
+  const resetForm = () => {
+    setFTitle('');
+    setFCategory('');
+    setFDeadline('');
+    setFImageUrl('');
+    setFLink('');
+    setFColor('');
+    setFNote('');
+  };
+
+  const openModal = (kind: Furnishing['kind']) => {
+    resetForm();
+    setModalKind(kind);
+  };
+
+  const saveNew = () => {
+    if (!fTitle.trim() || !modalKind) return;
+    const item: Furnishing = {
+      id: `fur-${Date.now()}-${Math.floor(Math.random() * 900)}`,
+      projectId: pid,
+      kind: modalKind,
+      category: fCategory || null,
+      title: fTitle.trim(),
+      status: 'da_scegliere',
+      deadline: fDeadline || null,
+      imageUrl: fImageUrl.trim() || null,
+      link: fLink.trim() || null,
+      color: fColor.trim() || null,
+      note: fNote.trim() || null,
+      board: null,
+      createdBy: myUid,
+      createdByName: undefined,
+      createdByRole: myRole,
+      at: Date.now()
+    };
+    onSaveItem(pid, item);
+    setModalKind(null);
+  };
+
+  const cycleStatus = (item: Furnishing) => {
+    const idx = STATUS_FLOW.indexOf(item.status);
+    // Il cliente può arrivare fino a 'scelto'; solo lo studio conferma.
+    const maxIdx = isStudio ? STATUS_FLOW.length - 1 : STATUS_FLOW.length - 2;
+    const next = STATUS_FLOW[Math.min(idx + 1, maxIdx)];
+    onSaveItem(pid, { ...item, status: next, updatedAt: Date.now() });
+  };
+
+  const toggleBoard = (item: Furnishing) => {
+    if (item.board) {
+      onSaveItem(pid, { ...item, board: null, updatedAt: Date.now() });
+    } else {
+      onSaveItem(pid, { ...item, board: { x: 24, y: 24, rot: 0 }, updatedAt: Date.now() });
+    }
+  };
+
+  // Aggiunge una tile diretta sulla lavagna (immagine/colore/nota)
+  const addBoardTile = (data: Partial<Furnishing>) => {
+    const item: Furnishing = {
+      id: `fur-${Date.now()}-${Math.floor(Math.random() * 900)}`,
+      projectId: pid,
+      kind: 'mobile',
+      category: null,
+      title: data.title || 'Riferimento',
+      status: 'da_scegliere',
+      deadline: null,
+      imageUrl: data.imageUrl || null,
+      link: null,
+      color: data.color || null,
+      note: data.note || null,
+      board: { x: 24 + Math.floor(Math.random() * 80), y: 24 + Math.floor(Math.random() * 80), rot: 0 },
+      createdBy: myUid,
+      createdByRole: myRole,
+      at: Date.now()
+    };
+    onSaveItem(pid, item);
+  };
+
+  const onTileDragEnd = (item: Furnishing, offsetX: number, offsetY: number) => {
+    const base = item.board || { x: 0, y: 0 };
+    onSaveItem(pid, {
+      ...item,
+      board: { ...base, x: Math.max(0, base.x + offsetX), y: Math.max(0, base.y + offsetY) },
+      updatedAt: Date.now()
+    });
+  };
+
+  const renderCard = (item: Furnishing, showDeadline: boolean) => {
+    const dState = showDeadline ? deadlineState(item.deadline) : null;
+    return (
+      <div key={item.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-4 shadow-sm flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt={item.title} className="w-16 h-16 rounded-[14px] object-cover border border-[#ececec] flex-shrink-0" />
+          ) : item.color ? (
+            <div className="w-16 h-16 rounded-[14px] border border-[#ececec] flex-shrink-0" style={{ background: item.color }} />
+          ) : (
+            <div className="w-16 h-16 rounded-[14px] border border-[#ececec] bg-[#fafafa] flex items-center justify-center flex-shrink-0">
+              <ImageIcon className="w-5 h-5 text-gray-300" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <b className="text-[13.5px] text-[#161616] truncate" title={item.title}>{item.title}</b>
+              <button onClick={() => onDeleteItem(pid, item.id)} className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0" title="Rimuovi">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{item.category}</div>}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <button
+                onClick={() => cycleStatus(item)}
+                className={`text-[10px] font-bold px-2 py-1 rounded-full transition-opacity hover:opacity-80 ${STATUS_STYLE[item.status]}`}
+                title="Avanza stato"
+              >
+                {STATUS_LABEL[item.status]}
+              </button>
+              {showDeadline && item.deadline && (
+                <span
+                  className={`text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 ${
+                    dState === 'overdue'
+                      ? 'bg-red-50 text-red-700'
+                      : dState === 'soon'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-[#f1f1f1] text-[#6b6b6b]'
+                  }`}
+                >
+                  {dState === 'overdue' && <AlertTriangle className="w-3 h-3" />}
+                  <CalendarIcon className="w-3 h-3" /> {item.deadline}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {item.note && <p className="text-[11.5px] text-[#5b5b5b] leading-snug">{item.note}</p>}
+        <div className="flex items-center gap-3 text-[11px] font-semibold">
+          {item.link && (
+            <a href={item.link} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-1">
+              <LinkIcon className="w-3 h-3" /> Riferimento
+            </a>
+          )}
+          <button onClick={() => toggleBoard(item)} className="text-[#6b6b6b] hover:text-[#161616] inline-flex items-center gap-1 ml-auto">
+            <Palette className="w-3 h-3" /> {item.board ? 'Rimuovi dalla lavagna' : 'Aggiungi al moodboard'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm text-left">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4 border-b border-[#f5f5f5] pb-3">
+        <div>
+          <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">Arredi & Moodboard</h3>
+          <p className="text-[10.5px] text-[#8a8a8a] mt-0.5 font-medium">Scelte materiali, capitolato e lavagna riferimenti</p>
+        </div>
+        {/* Barra a pillole sezioni */}
+        <div className="inline-flex items-center gap-1 bg-[#f1f1f1] rounded-full p-1">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const active = section === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                className={`inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-[11.5px] font-bold transition-colors ${
+                  active ? 'bg-[#1b1b1b] text-white' : 'text-[#6b6b6b] hover:text-[#161616]'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {s.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ARREDI FISSI / MOBILI */}
+      {(section === 'fissi' || section === 'mobili') && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11.5px] text-[#8a8a8a] font-medium">
+              {section === 'fissi'
+                ? 'Scelte con impatto progettuale (impianti, dimensioni): vanno definite entro la scadenza.'
+                : 'Scelte estetiche, senza impatto sulla progettazione.'}
+            </p>
+            <button
+              onClick={() => openModal(section === 'fissi' ? 'fisso' : 'mobile')}
+              className="bg-[#1b1b1b] hover:bg-black text-white text-[11.5px] font-bold py-1.5 px-3.5 rounded-full inline-flex items-center gap-1 transition-colors flex-shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" /> Aggiungi
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(section === 'fissi' ? fissi : mobili).map((it) => renderCard(it, section === 'fissi'))}
+          </div>
+          {(section === 'fissi' ? fissi : mobili).length === 0 && (
+            <div className="text-center text-[12px] text-[#9a9a9a] py-8 border border-dashed border-[#e2e2e2] rounded-[18px]">
+              Nessun arredo {section === 'fissi' ? 'fisso' : 'mobile'} ancora.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MOODBOARD */}
+      {section === 'moodboard' && (
+        <div className="flex flex-col gap-4">
+          <MoodboardToolbar onAddTile={addBoardTile} />
+          <div
+            ref={boardRef}
+            className="relative w-full h-[460px] rounded-[18px] border border-[#e2e2e2] bg-[#F5F5F3] overflow-hidden"
+            style={{ backgroundImage: 'radial-gradient(#e2e2e2 1px, transparent 1px)', backgroundSize: '22px 22px' }}
+          >
+            {boardItems.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center text-[12px] text-[#9a9a9a] pointer-events-none">
+                Aggiungi riferimenti dalla toolbar o dalle schede arredo, poi trascinali sulla lavagna.
+              </div>
+            )}
+            {boardItems.map((item) => (
+              <motion.div
+                key={item.id}
+                drag
+                dragConstraints={boardRef}
+                dragMomentum={false}
+                onDragEnd={(_e, info) => onTileDragEnd(item, info.offset.x, info.offset.y)}
+                initial={false}
+                style={{ position: 'absolute', left: 0, top: 0, x: item.board!.x, y: item.board!.y, rotate: item.board!.rot || 0, width: item.board!.w || 150 }}
+                className="cursor-grab active:cursor-grabbing select-none group"
+              >
+                <div className="bg-white rounded-[14px] border border-[#e2e2e2] shadow-md overflow-hidden">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover pointer-events-none" draggable={false} />
+                  ) : item.color ? (
+                    <div className="w-full h-20" style={{ background: item.color }} />
+                  ) : null}
+                  <div className="px-2.5 py-2 flex items-start justify-between gap-1">
+                    <span className="text-[11px] font-semibold text-[#161616] leading-tight">{item.note || item.title}</span>
+                    <button
+                      onClick={() => toggleBoard(item)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition flex-shrink-0"
+                      title="Rimuovi dalla lavagna"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODALE NUOVO ARREDO */}
+      {modalKind && (
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModalKind(null)}>
+          <div className="bg-white rounded-[24px] w-full max-w-md p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-[15px] font-extrabold text-[#161616]">
+                Nuovo arredo {modalKind === 'fisso' ? 'fisso' : 'mobile'}
+              </h4>
+              <button onClick={() => setModalKind(null)} className="text-gray-400 hover:text-[#161616]"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Titolo (es. Lavabo sospeso 60cm)" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] bg-white">
+                <option value="">Categoria…</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {modalKind === 'fisso' && (
+                <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
+                  Scadenza scelta
+                  <input type="date" value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                </label>
+              )}
+              <input value={fImageUrl} onChange={(e) => setFImageUrl(e.target.value)} placeholder="URL immagine di riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              <input value={fLink} onChange={(e) => setFLink(e.target.value)} placeholder="Link prodotto/riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              <div className="flex items-center gap-2">
+                <input type="color" value={fColor || '#cccccc'} onChange={(e) => setFColor(e.target.value)} className="w-10 h-10 rounded-[10px] border border-[#e2e2e2] cursor-pointer" />
+                <span className="text-[11.5px] text-[#8a8a8a]">Campione colore (opzionale)</span>
+                {fColor && <button onClick={() => setFColor('')} className="text-[11px] text-gray-400 hover:text-red-500 ml-auto">Rimuovi colore</button>}
+              </div>
+              <textarea value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Note" rows={2} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] resize-none" />
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setModalKind(null)} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">Annulla</button>
+              <button onClick={saveNew} disabled={!fTitle.trim()} className="flex-1 bg-[#1b1b1b] hover:bg-black disabled:opacity-40 text-white rounded-full py-2.5 text-[12.5px] font-bold inline-flex items-center justify-center gap-1">
+                <Check className="w-4 h-4" /> Salva
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Toolbar per aggiungere tile direttamente sulla lavagna
+const MoodboardToolbar: React.FC<{ onAddTile: (data: Partial<Furnishing>) => void }> = ({ onAddTile }) => {
+  const [open, setOpen] = useState<'image' | 'color' | 'note' | null>(null);
+  const [val, setVal] = useState('');
+  const [color, setColor] = useState('#cccccc');
+
+  const confirm = () => {
+    if (open === 'image' && val.trim()) onAddTile({ imageUrl: val.trim(), title: 'Immagine' });
+    if (open === 'color') onAddTile({ color, title: 'Colore' });
+    if (open === 'note' && val.trim()) onAddTile({ note: val.trim(), title: 'Nota' });
+    setVal('');
+    setOpen(null);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-bold text-[#8a8a8a] mr-1">Aggiungi alla lavagna:</span>
+      <button onClick={() => { setOpen('image'); setVal(''); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-[#e2e2e2] rounded-full px-3 py-1.5 hover:bg-[#f5f5f5]"><ImageIcon className="w-3.5 h-3.5" /> Immagine</button>
+      <button onClick={() => setOpen('color')} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-[#e2e2e2] rounded-full px-3 py-1.5 hover:bg-[#f5f5f5]"><Palette className="w-3.5 h-3.5" /> Colore</button>
+      <button onClick={() => { setOpen('note'); setVal(''); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-[#e2e2e2] rounded-full px-3 py-1.5 hover:bg-[#f5f5f5]"><TypeIcon className="w-3.5 h-3.5" /> Nota</button>
+
+      {open && (
+        <div className="flex items-center gap-2 w-full mt-1">
+          {open === 'image' && <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} placeholder="URL immagine" className="flex-1 border border-[#e2e2e2] rounded-full px-3 py-1.5 text-[12px] outline-none focus:border-[#1b1b1b]" />}
+          {open === 'note' && <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} placeholder="Testo nota" className="flex-1 border border-[#e2e2e2] rounded-full px-3 py-1.5 text-[12px] outline-none focus:border-[#1b1b1b]" />}
+          {open === 'color' && <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-10 h-9 rounded-[10px] border border-[#e2e2e2] cursor-pointer" />}
+          <button onClick={confirm} className="bg-[#1b1b1b] hover:bg-black text-white rounded-full px-4 py-1.5 text-[12px] font-bold">Aggiungi</button>
+          <button onClick={() => setOpen(null)} className="text-gray-400 hover:text-[#161616]"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+    </div>
+  );
+};
