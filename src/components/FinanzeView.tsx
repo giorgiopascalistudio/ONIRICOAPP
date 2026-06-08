@@ -716,7 +716,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
         scadenze: scadenze.filter((s) => s.projectId === p.id),
         updatedAt: Date.now()
       };
-      writeNode(`projectEconomics/${p.id}`, snap).catch(() => {});
+      writeNode(`projectEconomics/${p.id}`, snap).catch(() =>
+        console.warn('projectEconomics: scrittura negata (ripubblicare le regole Firebase?)', p.id)
+      );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects, computoByProject, parcellaByProject, activeInvoices, scadenze]);
