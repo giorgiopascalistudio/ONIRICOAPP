@@ -102,6 +102,7 @@
     },
 
     "documents": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$pid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('projects').child($pid).child('clientUid').val() == auth.uid)",
         "$doc": {
@@ -111,6 +112,7 @@
     },
 
     "projectMessages": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$pid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('projects').child($pid).child('clientUid').val() == auth.uid)",
         "$msg": {
@@ -120,6 +122,7 @@
     },
 
     "projectFurnishings": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$pid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('projects').child($pid).child('clientUid').val() == auth.uid)",
         ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || root.child('projects').child($pid).child('clientUid').val() == auth.uid)"
@@ -142,6 +145,7 @@
     },
 
     "cantiereRapportini": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         "$id": {
@@ -157,6 +161,7 @@
     },
 
     "cantierePresenze": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         "$id": {
@@ -166,6 +171,7 @@
     },
 
     "cantiereFoto": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         "$id": {
@@ -175,6 +181,7 @@
     },
 
     "cantiereMateriali": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         "$id": {
@@ -184,6 +191,7 @@
     },
 
     "cantiereDocumenti": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         "$id": {
@@ -193,6 +201,7 @@
     },
 
     "cantiereChecklist": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
@@ -200,6 +209,7 @@
     },
 
     "cantiereSal": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
@@ -207,6 +217,7 @@
     },
 
     "cantiereLog": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$cid": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
         ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
