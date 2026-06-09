@@ -154,6 +154,48 @@ export interface Notification {
   byName?: string | null;
 }
 
+// ---- Preventivi studio (nodo quotes/<id>) ----
+export type QuoteMacro = 'progettazione' | 'consulenza' | 'opere_edili' | 'impiantistica' | 'materiali' | 'altro';
+
+export interface QuoteLine {
+  id: string;
+  macro: QuoteMacro;
+  desc: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;            // qty * unitPrice
+}
+
+export interface PaymentMilestone {
+  id: string;
+  label: string;             // es. 'Acconto', 'SAL 1', 'Saldo'
+  percent?: number | null;   // % del totale (opzionale)
+  amount: number;            // importo della rata
+  dueDate?: string | null;   // yyyy-mm-dd
+  status: 'da_emettere' | 'fatturato' | 'incassato';
+  invoiceId?: string | null; // fattura attiva collegata (finInvoicesActive)
+}
+
+export type QuoteStatus = 'elaborato' | 'in_attesa' | 'accettato' | 'rifiutato';
+
+export interface Quote {
+  id: string;
+  number: string;            // numero preventivo (es. PRV-2026-001)
+  clientRecordId?: string | null;
+  clientName: string;
+  projectId?: string | null;
+  division: 'studio' | 'strategico' | 'materico' | 'unico';
+  status: QuoteStatus;
+  lines: QuoteLine[];
+  total: number;
+  paymentPlan?: PaymentMilestone[];
+  validUntil?: string | null;
+  notes?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+  createdBy?: string;
+}
+
 /** Ferie/assenze del team (nodo teamLeave/<id>). */
 export interface TeamLeave {
   id: string;

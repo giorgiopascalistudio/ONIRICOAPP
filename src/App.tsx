@@ -52,7 +52,9 @@ import {
   ImpresaRecord,
   ClientRecord,
   Notification,
-  TeamLeave
+  TeamLeave,
+  Quote,
+  PaymentMilestone
 } from './types';
 
 import {
@@ -106,6 +108,7 @@ import { AuthFlow } from './components/AuthFlow';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
 import { CrmView, type Lead, type Supplier } from './components/CrmView';
+import { QuotesView } from './components/QuotesView';
 import {
   watchAuth,
   logoutGoogle,
@@ -209,6 +212,8 @@ export default function App() {
 
   // Rubrica clienti (anagrafica riutilizzabile)
   const [clients, setClients] = useState<Record<string, ClientRecord>>({});
+  // Preventivi studio
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({});
 
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
@@ -672,6 +677,7 @@ export default function App() {
         subs.push(watchNode('finInvoicesActive', (v) => setFinInvoicesActive(toArr(v)), () => {}));
         subs.push(watchNode('finInvoicesPassive', (v) => setFinInvoicesPassive(toArr(v)), () => {}));
         subs.push(watchNode('finScadenze', (v) => setFinScadenze(toArr(v)), () => {}));
+        add('quotes', setQuotes);
       }
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
@@ -1798,6 +1804,49 @@ export default function App() {
   };
 
   // ----------------------------------------------------
+  // Preventivi studio (quotes/<id>)
+  // ----------------------------------------------------
+  const handleSaveQuote = (q: Quote) => {
+    const enriched: Quote = { ...q, createdBy: q.createdBy || currentUser?.uid, updatedAt: Date.now() };
+    setQuotes((prev) => ({ ...prev, [q.id]: enriched }));
+    writeNode(`quotes/${q.id}`, enriched).catch(() => showToast('Errore preventivi (controlla regole).', 'err'));
+  };
+  const handleDeleteQuote = (id: string) => {
+    setQuotes((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    removeNode(`quotes/${id}`).catch(() => showToast('Errore preventivi (controlla regole).', 'err'));
+  };
+  const handleSetQuoteStatus = (id: string, status: Quote['status']) => {
+    const q = quotes[id];
+    if (!q) return;
+    handleSaveQuote({ ...q, status });
+    if (status === 'accettato') {
+      notifyStudio({ type: 'preventivo', title: `Preventivo accettato: ${q.number}`, body: `${q.clientName} · ${eur(q.total)}`, link: '#preventivi' });
+      showToast('Preventivo accettato. Emetti le rate dal piano pagamenti.', 'ok');
+    }
+  };
+  // Genera fattura attiva + scadenza da una rata del piano pagamenti (collegamento a finanza)
+  const handleEmitMilestone = (quoteId: string, milestoneId: string) => {
+    const q = quotes[quoteId];
+    if (!q) return;
+    const m = (q.paymentPlan || []).find((x) => x.id === milestoneId);
+    if (!m || m.status !== 'da_emettere') return;
+    const invId = `inv-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    const inv: InvoiceActive = {
+      id: invId, clientName: q.clientName, projectId: q.projectId || '', projectName: q.projectId ? (projects[q.projectId]?.name || '') : '',
+      amount: m.amount, taxRate: 22, status: 'bozza', sdiCode: '', date: todayISO(), dueDate: m.dueDate || todayISO(), sector: q.division as any
+    };
+    handleSaveFinanceItem('finInvoicesActive', inv);
+    const sca: ScadenzaItem = {
+      id: `sca-${Date.now()}-${Math.floor(Math.random() * 900)}`, kind: 'entrata', desc: `${q.number} · ${m.label}`,
+      clientOrSupplier: q.clientName, amount: m.amount, dueDate: m.dueDate || todayISO(), status: 'pago_attesa', projectId: q.projectId || undefined, sector: q.division as any
+    };
+    handleSaveFinanceItem('finScadenze', sca);
+    const nextPlan: PaymentMilestone[] = (q.paymentPlan || []).map((x) => (x.id === milestoneId ? { ...x, status: 'fatturato', invoiceId: invId } : x));
+    handleSaveQuote({ ...q, paymentPlan: nextPlan });
+    showToast('Rata emessa: bozza fattura + scadenza create in Finanze.', 'ok');
+  };
+
+  // ----------------------------------------------------
   // ADDITIONAL OVERRIDES & PHASE ACTIONS
   // ----------------------------------------------------
   const handleAddPhase = (projId: string) => {
@@ -2263,6 +2312,20 @@ export default function App() {
             onDeleteImpresaEntity={handleDeleteImpresaEntity}
             onApproveRapportino={handleApproveRapportino}
             onApproveSal={handleApproveSal}
+          />
+        );
+
+      case 'preventivi':
+        return (
+          <QuotesView
+            quotes={quotes}
+            clients={clients}
+            projects={Object.values(projects)}
+            myUid={currentUser.uid}
+            onSaveQuote={handleSaveQuote}
+            onDeleteQuote={handleDeleteQuote}
+            onSetStatus={handleSetQuoteStatus}
+            onEmitMilestone={handleEmitMilestone}
           />
         );
 
