@@ -60,22 +60,26 @@ function CustomModelRenderer({
 }
 
 // Helper component to load textures safely with PBR normal mapping
-function SafeMaterial({ 
-  textureUrl, 
-  color, 
-  roughness, 
-  metalness, 
+function SafeMaterial({
+  textureUrl,
+  normalUrl,
+  roughnessUrl,
+  color,
+  roughness,
+  metalness,
   opacity,
   pbrProfile,
   pbrBumpiness,
   pbrRepeat,
   emissiveColor,
   emissiveIntensity
-}: { 
-  textureUrl?: string; 
-  color: string; 
-  roughness: number; 
-  metalness: number; 
+}: {
+  textureUrl?: string;
+  normalUrl?: string;
+  roughnessUrl?: string;
+  color: string;
+  roughness: number;
+  metalness: number;
   opacity: number;
   pbrProfile?: 'none' | 'plaster' | 'wood' | 'stone' | 'fabric' | 'tile' | 'metal';
   pbrBumpiness?: number;
@@ -85,6 +89,20 @@ function SafeMaterial({
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const [normalMap, setNormalMap] = useState<THREE.Texture | null>(null);
+  const [pbrNormal, setPbrNormal] = useState<THREE.Texture | null>(null);
+  const [roughnessMap, setRoughnessMap] = useState<THREE.Texture | null>(null);
+
+  // Mappe PBR reali (da file): normal + roughness, con tiling coerente al color map
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    let alive = true;
+    const setup = (t: THREE.Texture) => { t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping; t.repeat.set(1.5, 1.5); return t; };
+    if (normalUrl) loader.load(normalUrl, (t) => { if (alive) setPbrNormal(setup(t)); }, undefined, () => { if (alive) setPbrNormal(null); });
+    else setPbrNormal(null);
+    if (roughnessUrl) loader.load(roughnessUrl, (t) => { if (alive) setRoughnessMap(setup(t)); }, undefined, () => { if (alive) setRoughnessMap(null); });
+    else setRoughnessMap(null);
+    return () => { alive = false; };
+  }, [normalUrl, roughnessUrl]);
 
   useEffect(() => {
     if (!textureUrl) {
@@ -133,16 +151,20 @@ function SafeMaterial({
     });
   }, [pbrProfile, pbrBumpiness, pbrRepeat]);
 
+  // La normal reale (da file PBR) ha la precedenza su quella procedurale
+  const effectiveNormal = pbrNormal || normalMap;
+  const normalStrength = pbrNormal ? 1.0 : (pbrBumpiness ?? 0.5);
   return (
     <meshStandardMaterial
       map={texture}
       color={color}
       roughness={roughness}
       metalness={metalness}
+      roughnessMap={roughnessMap || undefined}
       transparent={opacity < 1}
       opacity={opacity}
-      normalMap={normalMap || undefined}
-      normalScale={normalMap ? new THREE.Vector2(pbrBumpiness ?? 0.5, pbrBumpiness ?? 0.5) : undefined}
+      normalMap={effectiveNormal || undefined}
+      normalScale={effectiveNormal ? new THREE.Vector2(normalStrength, normalStrength) : undefined}
       emissive={emissiveIntensity && emissiveIntensity > 0 ? new THREE.Color(emissiveColor || color) : new THREE.Color('#000000')}
       emissiveIntensity={emissiveIntensity ?? 0}
     />
@@ -321,6 +343,8 @@ function ShapeRenderer({
 
       <SafeMaterial
         textureUrl={element.textureUrl}
+        normalUrl={element.normalUrl}
+        roughnessUrl={element.roughnessUrl}
         color={element.color}
         roughness={element.roughness}
         metalness={element.metalness}
@@ -445,6 +469,8 @@ export default function MoodboardCanvas({
   const orbitControlsRef = useRef<any>(null);
   const transformControlsRef = useRef<any>(null);
   const [selectedMesh, setSelectedMesh] = useState<THREE.Object3D | null>(null);
+  // Oggetto a cui agganciare il gizmo (così gli assi stanno SUL modello, non all'origine)
+  const [gizmoTarget, setGizmoTarget] = useState<THREE.Object3D | null>(null);
 
   // Sync the raw mesh target node for TransformControls when selection shifts
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -569,20 +595,25 @@ export default function MoodboardCanvas({
             const isPositionLocked = element.lockedPosition === true;
             return (
               <React.Fragment key={element.id}>
-                {/* Wrap current selection inside TransformControls if requested and not locked */}
+                {/* Gizmo agganciato DIRETTAMENTE all'oggetto (object=...): gli assi seguono il modello */}
                 {isSelected && !isPositionLocked ? (
-                  <TransformControls
-                    ref={transformControlsRef}
-                    mode={transformMode}
-                    size={0.6}
-                    showY={transformMode === 'translate' || transformMode === 'scale'}
-                  >
+                  <>
                     <ElementMeshWrapper
                       element={element}
                       isSelected={true}
                       onSelect={(id) => onSelectElement(id)}
+                      onGroupRef={setGizmoTarget}
                     />
-                  </TransformControls>
+                    {gizmoTarget && (
+                      <TransformControls
+                        ref={transformControlsRef}
+                        object={gizmoTarget}
+                        mode={transformMode}
+                        size={0.75}
+                        showY={transformMode === 'translate' || transformMode === 'scale'}
+                      />
+                    )}
+                  </>
                 ) : (
                   <BoardElementMesh
                     element={element}
@@ -620,15 +651,18 @@ function ElementMeshWrapper({
   element,
   isSelected,
   onSelect,
+  onGroupRef,
 }: {
   element: BoardElement;
   isSelected: boolean;
   onSelect: (id: string, e: any) => void;
+  onGroupRef?: (g: THREE.Object3D | null) => void;
 }) {
   const spotTargetRef = useRef<THREE.Object3D | null>(null);
 
   return (
     <group
+      ref={onGroupRef as any}
       position={element.position}
       rotation={[
         element.rotation[0] * (Math.PI / 180),

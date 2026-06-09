@@ -5,7 +5,9 @@ export interface BoardElement {
   name: string;
   shape: ShapeType;
   color: string;
-  textureUrl?: string;
+  textureUrl?: string;     // albedo / color map
+  normalUrl?: string;      // normal map (PBR)
+  roughnessUrl?: string;   // roughness map (PBR)
   textureName?: string;
   modelUrl?: string; // URL blob or base64 for custom GLTF/GLB file
   modelName?: string;
@@ -38,7 +40,9 @@ export interface MaterialTemplate {
   name: string;
   category: 'wood' | 'stone' | 'fabric' | 'metal' | 'glass' | 'organic';
   color: string;
-  textureUrl?: string;
+  textureUrl?: string;     // albedo / color map
+  normalUrl?: string;      // normal map (PBR)
+  roughnessUrl?: string;   // roughness map (PBR)
   roughness: number;
   metalness: number;
   opacity?: number;

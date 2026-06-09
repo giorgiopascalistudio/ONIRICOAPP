@@ -1,138 +1,41 @@
 import { MaterialTemplate, ColorPalette, ScenePreset, BoardElement } from './types';
 
+// Texture PBR ottimizzate (public/mb-textures/<id>/{color,normal,rough}.jpg) — vedi scripts/optimize-mb-textures.mjs
+const MB = import.meta.env.BASE_URL + 'mb-textures/';
+const pbr = (id: string) => ({
+  textureUrl: `${MB}${id}/color.jpg`,
+  normalUrl: `${MB}${id}/normal.jpg`,
+  roughnessUrl: `${MB}${id}/rough.jpg`
+});
+
 export const EXQUISITE_MATERIALS: MaterialTemplate[] = [
-  // WOODS
-  {
-    id: 'mat-oak',
-    name: 'Rovere Naturale',
-    category: 'wood',
-    color: '#deb887',
-    textureUrl: 'https://images.unsplash.com/photo-1541123437800-1bb1317badc2?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.5,
-    metalness: 0.05
-  },
-  {
-    id: 'mat-walnut',
-    name: 'Noce Canaletto',
-    category: 'wood',
-    color: '#5c4033',
-    textureUrl: 'https://images.unsplash.com/photo-1601056639398-3f139d48fc5b?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.45,
-    metalness: 0.05
-  },
-  {
-    id: 'mat-slats',
-    name: 'Cannettato Acustico',
-    category: 'wood',
-    color: '#b08d57',
-    textureUrl: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.6,
-    metalness: 0.1
-  },
+  // LEGNI
+  { id: 'leg-rovere', name: 'Rovere Naturale', category: 'wood', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('leg-rovere') },
+  { id: 'leg-parquet', name: 'Parquet Rovere', category: 'wood', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('leg-parquet') },
+  { id: 'leg-doghe', name: 'Doghe in Legno', category: 'wood', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('leg-doghe') },
 
-  // STONES
-  {
-    id: 'mat-carrara',
-    name: 'Marmo Statuario',
-    category: 'stone',
-    color: '#fafafa',
-    textureUrl: 'https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.12,
-    metalness: 0.25
-  },
-  {
-    id: 'mat-travertine',
-    name: 'Travertino Navona',
-    category: 'stone',
-    color: '#eedcb3',
-    textureUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.75,
-    metalness: 0.0
-  },
-  {
-    id: 'mat-granite',
-    name: 'Ardesia Scuro',
-    category: 'stone',
-    color: '#2e2e2e',
-    textureUrl: 'https://images.unsplash.com/photo-1517260911058-0fcfd7331021?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.8,
-    metalness: 0.15
-  },
+  // PIETRE & PAVIMENTI
+  { id: 'pie-marmo', name: 'Marmo', category: 'stone', color: '#ffffff', roughness: 1, metalness: 0.1, ...pbr('pie-marmo') },
+  { id: 'pie-onice', name: 'Onice', category: 'stone', color: '#ffffff', roughness: 1, metalness: 0.1, ...pbr('pie-onice') },
+  { id: 'pie-cemento', name: 'Cemento', category: 'stone', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('pie-cemento') },
 
-  // FABRICS
-  {
-    id: 'mat-boucle',
-    name: 'Bouclé Panna',
-    category: 'fabric',
-    color: '#fbf9f4',
-    textureUrl: 'https://images.unsplash.com/photo-1571242318041-38fb2a60b947?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.95,
-    metalness: 0.0
-  },
-  {
-    id: 'mat-velvet',
-    name: 'Velluto Salvia',
-    category: 'fabric',
-    color: '#4f5d50',
-    textureUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.7,
-    metalness: 0.1
-  },
-  {
-    id: 'mat-terracotta-fabric',
-    name: 'Lino Terracotta',
-    category: 'fabric',
-    color: '#c27d38',
-    textureUrl: 'https://images.unsplash.com/photo-1505673542670-a5e3ff5b14a3?auto=format&fit=crop&q=80&w=600',
-    roughness: 0.9,
-    metalness: 0.0
-  },
+  // TESSUTI
+  { id: 'tes-lino', name: 'Lino', category: 'fabric', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('tes-lino') },
+  { id: 'tes-boucle', name: 'Bouclé', category: 'fabric', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('tes-boucle') },
+  { id: 'tes-velluto', name: 'Velluto', category: 'fabric', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('tes-velluto') },
 
-  // METALS
-  {
-    id: 'mat-brass',
-    name: 'Ottone Spazzolato',
-    category: 'metal',
-    color: '#dfb76c',
-    roughness: 0.25,
-    metalness: 0.95
-  },
-  {
-    id: 'mat-copper',
-    name: 'Rame Grezzo',
-    category: 'metal',
-    color: '#b87333',
-    roughness: 0.35,
-    metalness: 0.9
-  },
-  {
-    id: 'mat-steel',
-    name: 'Acciaio Brunito',
-    category: 'metal',
-    color: '#444444',
-    roughness: 0.15,
-    metalness: 0.98
-  },
+  // PELLE
+  { id: 'pel-cuoio', name: 'Cuoio', category: 'fabric', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('pel-cuoio') },
+  { id: 'pel-nabuk', name: 'Pelle Nabuk', category: 'fabric', color: '#ffffff', roughness: 1, metalness: 0, ...pbr('pel-nabuk') },
 
-  // GLASS
-  {
-    id: 'mat-fluted',
-    name: 'Vetro Cannettato',
-    category: 'glass',
-    color: '#e0f0f0',
-    roughness: 0.15,
-    metalness: 0.9,
-    opacity: 0.65
-  },
-  {
-    id: 'mat-smoked',
-    name: 'Vetro Fumè',
-    category: 'glass',
-    color: '#322d28',
-    roughness: 0.1,
-    metalness: 0.85,
-    opacity: 0.75
-  }
+  // METALLI
+  { id: 'met-acciaio', name: 'Acciaio', category: 'metal', color: '#ffffff', roughness: 1, metalness: 0.9, ...pbr('met-acciaio') },
+  { id: 'met-spazzolato', name: 'Metallo Spazzolato', category: 'metal', color: '#ffffff', roughness: 1, metalness: 0.9, ...pbr('met-spazzolato') },
+  { id: 'met-grezzo', name: 'Metallo Grezzo', category: 'metal', color: '#ffffff', roughness: 1, metalness: 0.85, ...pbr('met-grezzo') },
+
+  // VETRI (senza texture: resa fisica)
+  { id: 'mat-fluted', name: 'Vetro Cannettato', category: 'glass', color: '#e0f0f0', roughness: 0.15, metalness: 0.9, opacity: 0.65 },
+  { id: 'mat-smoked', name: 'Vetro Fumè', category: 'glass', color: '#322d28', roughness: 0.1, metalness: 0.85, opacity: 0.75 }
 ];
 
 export const PRESET_PALETTES: ColorPalette[] = [
@@ -200,13 +103,13 @@ export const SCENE_PRESETS: ScenePreset[] = [
 export const DEFAULT_BOARD_ELEMENTS: BoardElement[] = [
   {
     id: 'default-marmo',
-    name: 'Marmo Statuario (Campione)',
+    name: 'Marmo (Campione)',
     shape: 'tile',
-    color: '#fafafa',
-    textureUrl: 'https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&q=80&w=600',
-    textureName: 'Marmo Statuario',
-    roughness: 0.15,
-    metalness: 0.25,
+    color: '#ffffff',
+    ...pbr('pie-marmo'),
+    textureName: 'Marmo',
+    roughness: 1,
+    metalness: 0.1,
     opacity: 1,
     position: [-1.2, 0.02, -0.6],
     rotation: [0, -15, 0],
@@ -216,11 +119,11 @@ export const DEFAULT_BOARD_ELEMENTS: BoardElement[] = [
     id: 'default-oak',
     name: 'Listello Rovere',
     shape: 'tile',
-    color: '#deb887',
-    textureUrl: 'https://images.unsplash.com/photo-1541123437800-1bb1317badc2?auto=format&fit=crop&q=80&w=600',
+    color: '#ffffff',
+    ...pbr('leg-rovere'),
     textureName: 'Rovere Naturale',
-    roughness: 0.5,
-    metalness: 0.05,
+    roughness: 1,
+    metalness: 0,
     opacity: 1,
     position: [0.3, 0.03, -0.8],
     rotation: [0, 8, 0],
@@ -228,13 +131,13 @@ export const DEFAULT_BOARD_ELEMENTS: BoardElement[] = [
   },
   {
     id: 'default-velvet',
-    name: 'Cerchio Velluto Salvia',
+    name: 'Cerchio Velluto',
     shape: 'circle',
-    color: '#4f5d50',
-    textureUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=600',
-    textureName: 'Velluto Salvia',
-    roughness: 0.7,
-    metalness: 0.1,
+    color: '#ffffff',
+    ...pbr('tes-velluto'),
+    textureName: 'Velluto',
+    roughness: 1,
+    metalness: 0,
     opacity: 1,
     position: [-0.1, 0.04, 0.6],
     rotation: [0, 45, 0],
