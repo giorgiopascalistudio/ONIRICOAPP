@@ -12,6 +12,7 @@
  *  - chrome (header/overlay) in stile Onirico.
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { UploadCloud, X, Save, Maximize2 } from 'lucide-react';
 import Sidebar from './Sidebar';
 import PropertiesPanel from './PropertiesPanel';
@@ -213,7 +214,9 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
 
   if (!open) return null;
 
-  return (
+  // Render via portal su document.body: evita che un antenato con `transform`/`filter`
+  // (animazioni riseIn, motion, backdrop-blur) ancori il `fixed` e lo rinchiuda in un box.
+  return createPortal(
     <div className="mb3d fixed inset-0 z-[120] bg-[#F5F5F3] flex flex-col animate-[fadeIn_0.18s_ease_both]">
       {/* Header in stile Onirico */}
       <div className="h-14 shrink-0 bg-white border-b border-[#e2e2e2] flex items-center justify-between px-4 gap-3">
@@ -336,7 +339,8 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 
