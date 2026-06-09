@@ -206,7 +206,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
       {/* EDITOR */}
       {editorOpen && (
         <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setEditorOpen(false)}>
-          <div className="bg-white rounded-[24px] w-full max-w-[640px] max-h-[88vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-[24px] w-full max-w-[680px] max-h-[88vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[17px] font-black text-[#161616]">{quotes[draft.id] ? 'Modifica preventivo' : 'Nuovo preventivo'}</h3>
               <button onClick={() => setEditorOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><X className="w-4 h-4" /></button>
@@ -246,22 +246,26 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#9a9a9a]">Voci per macro-categoria</span>
                   <button onClick={addLine} className="inline-flex items-center gap-1 text-[12px] font-bold text-[#161616]"><Plus className="w-3.5 h-3.5" /> Riga</button>
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   {(draft.lines || []).map((l) => (
-                    <div key={l.id} className="flex items-center gap-1.5">
-                      <select value={l.macro} onChange={(e) => updLine(l.id, { macro: e.target.value as QuoteMacro })} className="qi w-[120px] text-[11.5px]">
-                        {(Object.keys(MACRO_LABEL) as QuoteMacro[]).map((m) => <option key={m} value={m}>{MACRO_LABEL[m]}</option>)}
-                      </select>
-                      <input value={l.desc} onChange={(e) => updLine(l.id, { desc: e.target.value })} placeholder="Descrizione" className="qi flex-1" />
-                      <input value={l.qty} onChange={(e) => updLine(l.id, { qty: num(e.target.value) })} title="Qtà" className="qi w-14 text-center" />
-                      <input value={l.unitPrice} onChange={(e) => updLine(l.id, { unitPrice: num(e.target.value) })} title="Prezzo unit." className="qi w-20 text-right" />
-                      <span className="w-20 text-right text-[12px] font-bold shrink-0">{eur(l.amount)}</span>
-                      <button onClick={() => delLine(l.id)} className="text-rose-600 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <div key={l.id} className="rounded-xl border border-[#e2e2e2] bg-white p-2.5 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <select value={l.macro} onChange={(e) => updLine(l.id, { macro: e.target.value as QuoteMacro })} className="qi w-[150px] shrink-0">
+                          {(Object.keys(MACRO_LABEL) as QuoteMacro[]).map((m) => <option key={m} value={m}>{MACRO_LABEL[m]}</option>)}
+                        </select>
+                        <input value={l.desc} onChange={(e) => updLine(l.id, { desc: e.target.value })} placeholder="Descrizione voce" className="qi flex-1 min-w-0" />
+                        <button onClick={() => delLine(l.id)} className="text-rose-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="flex flex-col gap-0.5"><span className="qlbl">Qtà</span><input value={l.qty} onChange={(e) => updLine(l.id, { qty: num(e.target.value) })} inputMode="decimal" className="qi" /></label>
+                        <label className="flex flex-col gap-0.5"><span className="qlbl">Prezzo unit. €</span><input value={l.unitPrice} onChange={(e) => updLine(l.id, { unitPrice: num(e.target.value) })} inputMode="decimal" className="qi" /></label>
+                        <div className="flex flex-col gap-0.5"><span className="qlbl">Importo</span><div className="h-9 flex items-center font-black text-[13px] text-[#161616]">{eur(l.amount)}</div></div>
+                      </div>
                     </div>
                   ))}
-                  {(draft.lines || []).length === 0 && <p className="text-[12px] italic text-[#9a9a9a]">Nessuna voce.</p>}
+                  {(draft.lines || []).length === 0 && <p className="text-[12px] italic text-[#9a9a9a]">Nessuna voce. Aggiungi una riga.</p>}
                 </div>
-                <div className="flex justify-end mt-2 pt-2 border-t border-[#eee] text-[13px] font-black text-[#161616]">Totale: {eur(draftTotal)}</div>
+                <div className="flex justify-end items-center gap-2 mt-2.5 pt-2.5 border-t border-[#e2e2e2] text-[13px] font-black text-[#161616]"><span className="text-[11px] font-bold uppercase tracking-wider text-[#9a9a9a]">Totale</span> {eur(draftTotal)}</div>
               </div>
 
               {/* piano pagamenti */}
@@ -270,14 +274,18 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#9a9a9a]">Piano pagamenti (acconto / rate / saldo)</span>
                   <button onClick={addMilestone} className="inline-flex items-center gap-1 text-[12px] font-bold text-[#161616]"><Plus className="w-3.5 h-3.5" /> Rata</button>
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   {(draft.paymentPlan || []).map((m) => (
-                    <div key={m.id} className="flex items-center gap-1.5">
-                      <input value={m.label} onChange={(e) => updMilestone(m.id, { label: e.target.value })} placeholder="Acconto / Saldo…" className="qi flex-1" />
-                      <input value={m.percent ?? ''} onChange={(e) => updMilestone(m.id, { percent: e.target.value ? num(e.target.value) : null })} placeholder="%" title="% del totale" className="qi w-14 text-center" />
-                      <input value={m.amount} onChange={(e) => updMilestone(m.id, { amount: num(e.target.value) })} title="Importo" className="qi w-24 text-right" />
-                      <input type="date" value={m.dueDate || ''} onChange={(e) => updMilestone(m.id, { dueDate: e.target.value || null })} className="qi w-[140px]" />
-                      <button onClick={() => delMilestone(m.id)} className="text-rose-600 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <div key={m.id} className="rounded-xl border border-[#e2e2e2] bg-white p-2.5 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input value={m.label} onChange={(e) => updMilestone(m.id, { label: e.target.value })} placeholder="Acconto / SAL / Saldo…" className="qi flex-1 min-w-0" />
+                        <button onClick={() => delMilestone(m.id)} className="text-rose-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="flex flex-col gap-0.5"><span className="qlbl">% del totale</span><input value={m.percent ?? ''} onChange={(e) => updMilestone(m.id, { percent: e.target.value ? num(e.target.value) : null })} placeholder="%" inputMode="decimal" className="qi" /></label>
+                        <label className="flex flex-col gap-0.5"><span className="qlbl">Importo €</span><input value={m.amount} onChange={(e) => updMilestone(m.id, { amount: num(e.target.value) })} inputMode="decimal" className="qi" /></label>
+                        <label className="flex flex-col gap-0.5"><span className="qlbl">Scadenza</span><input type="date" value={m.dueDate || ''} onChange={(e) => updMilestone(m.id, { dueDate: e.target.value || null })} className="qi" /></label>
+                      </div>
                     </div>
                   ))}
                   {(draft.paymentPlan || []).length === 0 && <p className="text-[12px] italic text-[#9a9a9a]">Nessuna rata. Aggiungi acconto/rate/saldo.</p>}
@@ -292,7 +300,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
         </div>
       )}
 
-      <style>{`.qi{height:36px;border:1px solid #e2e2e2;border-radius:10px;padding:0 10px;font-size:12.5px;background:#fff;outline:none}.qi:focus{border-color:#161616}textarea.qi{height:auto;padding:8px 10px}`}</style>
+      <style>{`.qi{height:36px;border:1px solid #e2e2e2;border-radius:10px;padding:0 10px;font-size:12.5px;background:#fff;outline:none}.qi:focus{border-color:#161616}textarea.qi{height:auto;padding:8px 10px}.qlbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9a9a9a}`}</style>
     </div>
   );
 };
