@@ -108,8 +108,9 @@ export const CrmView: React.FC<CrmViewProps> = ({
   // Rubrica clienti
   const [openClient, setOpenClient] = useState<string | null>(null);
   const [clientFormOpen, setClientFormOpen] = useState(false);
-  const [clDraft, setClDraft] = useState<Partial<ClientRecord>>({ type: 'privato' });
+  const [clDraft, setClDraft] = useState<Partial<ClientRecord>>({ type: 'privato', category: 'cliente' });
   const [clientTierFilter, setClientTierFilter] = useState<'all' | '1' | '2' | '3'>('all');
+  const [clientCat, setClientCat] = useState<'cliente' | 'partner'>('cliente');
 
   // form state
   const [fName, setFName] = useState('');
@@ -208,8 +209,13 @@ export const CrmView: React.FC<CrmViewProps> = ({
 
   // ---- Rubrica clienti ops ----
   const clientList = useMemo(() => Object.values(clients)
+    .filter((c) => (c.category || 'cliente') === clientCat)
     .filter((c) => clientTierFilter === 'all' || String(c.tier || '') === clientTierFilter)
-    .sort((a, b) => a.name.localeCompare(b.name)), [clients, clientTierFilter]);
+    .sort((a, b) => a.name.localeCompare(b.name)), [clients, clientTierFilter, clientCat]);
+  const clientCounts = useMemo(() => {
+    const all = Object.values(clients);
+    return { cliente: all.filter((c) => (c.category || 'cliente') === 'cliente').length, partner: all.filter((c) => c.category === 'partner').length };
+  }, [clients]);
   // Progetti collegati a un cliente (via rubrica o account portale)
   const projectsOfClient = (rec: ClientRecord) => projects.filter((p) => p.clientRecordId === rec.id || (rec.accountUid && p.clientUid === rec.accountUid));
   // Quadro pagamenti: fatture/scadenze dei progetti del cliente
@@ -224,7 +230,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
     return { inv, fatturato, incassato, daIncassare, scadOpen };
   };
   const memberName = (uid: string) => members.find((m) => m.uid === uid)?.name || uid;
-  const openNewClient = () => { setClDraft({ type: 'privato' }); setClientFormOpen(true); };
+  const openNewClient = () => { setClDraft({ type: clientCat === 'partner' ? 'azienda' : 'privato', category: clientCat }); setClientFormOpen(true); };
   const openEditClient = (id: string) => { const c = clients[id]; if (c) { setClDraft({ ...c }); setClientFormOpen(true); } };
   const saveClientDraft = () => {
     const d = clDraft;
@@ -232,6 +238,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
     if (!name.trim() || !onSaveClient) return;
     const rec: ClientRecord = {
       id: d.id || `cli-${Date.now()}-${Math.floor(Math.random() * 900)}`,
+      category: d.category || 'cliente',
       type: (d.type as any) || 'privato',
       name: name.trim(),
       firstName: d.firstName || null, lastName: d.lastName || null,
@@ -245,7 +252,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
     };
     onSaveClient(rec);
     setClientFormOpen(false);
-    setClDraft({ type: 'privato' });
+    setClDraft({ type: 'privato', category: 'cliente' });
   };
 
   const activeLead = openLead ? leads.find((l) => l.id === openLead) : null;
@@ -268,7 +275,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
           onClick={() => { resetForm(); tab === 'pipeline' ? setNewLeadOpen(true) : tab === 'fornitori' ? setNewSupplierOpen(true) : openNewClient(); }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer border-none hover:shadow-md active:scale-[0.98] transition-all"
         >
-          <Plus className="w-4 h-4" /> {tab === 'pipeline' ? 'Nuovo lead' : tab === 'fornitori' ? 'Nuovo fornitore' : 'Nuovo cliente'}
+          <Plus className="w-4 h-4" /> {tab === 'pipeline' ? 'Nuovo lead' : tab === 'fornitori' ? 'Nuovo fornitore' : clientCat === 'partner' ? 'Nuovo partner' : 'Nuovo cliente'}
         </button>
       </div>
 
@@ -377,22 +384,37 @@ export const CrmView: React.FC<CrmViewProps> = ({
         )
       )}
 
-      {/* CLIENTI (rubrica) */}
+      {/* CLIENTI / PARTNER (rubrica) */}
       {tab === 'clienti' && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-[#8a8a8a] mr-1">Fascia:</span>
-            {([['all', 'Tutte'], ['1', 'Fascia 1'], ['2', 'Fascia 2'], ['3', 'Fascia 3']] as const).map(([id, lbl]) => (
-              <button key={id} onClick={() => setClientTierFilter(id as any)}
-                className={`text-[11.5px] font-bold px-3 py-1 rounded-full border ${clientTierFilter === id ? 'bg-[#161616] text-white border-[#161616]' : 'bg-white text-[#6b6b6b] border-[#e2e2e2]'}`}>
-                {lbl}
+          {/* sotto-toggle Clienti | Partner */}
+          <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start">
+            {([['cliente', 'Clienti', clientCounts.cliente], ['partner', 'Partner / Imprese', clientCounts.partner]] as const).map(([id, lbl, n]) => (
+              <button key={id} onClick={() => setClientCat(id as any)}
+                className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full transition-colors ${clientCat === id ? 'bg-[#161616] text-white shadow-xs' : 'text-[#8a8a8a] hover:text-[#161616]'}`}>
+                {lbl} <span className={`ml-1 ${clientCat === id ? 'text-white/60' : 'text-[#b0b0b0]'}`}>{n}</span>
               </button>
             ))}
           </div>
+          {clientCat === 'cliente' && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-[#8a8a8a] mr-1">Fascia:</span>
+              {([['all', 'Tutte'], ['1', 'Fascia 1'], ['2', 'Fascia 2'], ['3', 'Fascia 3']] as const).map(([id, lbl]) => (
+                <button key={id} onClick={() => setClientTierFilter(id as any)}
+                  className={`text-[11.5px] font-bold px-3 py-1 rounded-full border ${clientTierFilter === id ? 'bg-[#161616] text-white border-[#161616]' : 'bg-white text-[#6b6b6b] border-[#e2e2e2]'}`}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
           {clientList.length === 0 ? (
             <div className="bg-white border border-dashed border-[#e2e2e2] rounded-[24px] p-10 text-center">
               <Building2 className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-[13.5px] text-[#8a8a8a] font-semibold">Nessun cliente {clientTierFilter !== 'all' ? 'in questa fascia' : 'in rubrica'}. {clientTierFilter === 'all' && 'Aggiungine uno: sarà riutilizzabile in ogni nuovo progetto.'}</p>
+              <p className="text-[13.5px] text-[#8a8a8a] font-semibold">
+                {clientCat === 'partner'
+                  ? 'Nessuna impresa partner in rubrica. Le imprese partner registrate compaiono qui in automatico.'
+                  : `Nessun cliente ${clientTierFilter !== 'all' ? 'in questa fascia' : 'in rubrica'}. I clienti registrati vengono salvati qui in automatico.`}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -403,10 +425,16 @@ export const CrmView: React.FC<CrmViewProps> = ({
                   className="group bg-white border border-[#e2e2e2] rounded-[24px] p-5 hover:border-black hover:shadow-md transition-all cursor-pointer flex flex-col gap-3"
                 >
                   <div className="flex items-start justify-between">
-                    <span className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center"><Building2 className="w-5 h-5 text-gray-500" /></span>
+                    <span className={`w-11 h-11 rounded-2xl flex items-center justify-center ${c.category === 'partner' ? 'bg-purple-50' : 'bg-gray-100'}`}><Building2 className={`w-5 h-5 ${c.category === 'partner' ? 'text-purple-500' : 'text-gray-500'}`} /></span>
                     <div className="flex items-center gap-1">
-                      {c.tier && <span className={`text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full ${tierBadge(c.tier)}`}>Fascia {c.tier}</span>}
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-700 border-zinc-200">{c.type === 'azienda' ? 'Azienda' : 'Privato'}</span>
+                      {c.category === 'partner' ? (
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border-purple-200">Partner</span>
+                      ) : (
+                        <>
+                          {c.tier && <span className={`text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full ${tierBadge(c.tier)}`}>Fascia {c.tier}</span>}
+                          <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-700 border-zinc-200">{c.type === 'azienda' ? 'Azienda' : 'Privato'}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -439,8 +467,9 @@ export const CrmView: React.FC<CrmViewProps> = ({
             <div>
               <h3 className="text-[18px] font-black text-[#161616] leading-tight">{activeClient.name}</h3>
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {activeClient.category === 'partner' && <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border-purple-200">Partner / Impresa</span>}
                 <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-700 border-zinc-200">{activeClient.type === 'azienda' ? 'Azienda' : 'Privato'}</span>
-                {activeClient.tier && <span className={`text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full ${tierBadge(activeClient.tier)}`}>Fascia {activeClient.tier}</span>}
+                {activeClient.category !== 'partner' && activeClient.tier && <span className={`text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full ${tierBadge(activeClient.tier)}`}>Fascia {activeClient.tier}</span>}
               </div>
             </div>
             <button onClick={() => setOpenClient(null)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><X className="w-4 h-4" /></button>

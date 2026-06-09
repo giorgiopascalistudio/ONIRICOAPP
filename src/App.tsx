@@ -754,6 +754,44 @@ export default function App() {
     return () => subs.forEach((u) => u());
   }, [currentUser?.uid, currentUser?.role]);
 
+  // Riconciliazione rubrica: ogni cliente/partner registrato viene salvato in automatico
+  // in `clients` (diviso per categoria). Gira lato studio (admin/manager hanno write su clients).
+  // Idempotente: crea solo i record mancanti (id deterministico `cli-<uid>`).
+  useEffect(() => {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) return;
+    const existingUids = new Set(Object.values(clients).map((c) => c.accountUid).filter(Boolean));
+    Object.values(users).forEach((u: any) => {
+      if (!u || (u.role !== 'cliente' && u.role !== 'partner')) return;
+      const recId = `cli-${u.uid}`;
+      if (existingUids.has(u.uid) || clients[recId]) return;
+      const isAzienda = u.accountType === 'azienda' || u.role === 'partner';
+      const rec: ClientRecord = {
+        id: recId,
+        category: u.role === 'partner' ? 'partner' : 'cliente',
+        type: isAzienda ? 'azienda' : 'privato',
+        name: (u.role === 'partner' || isAzienda) ? (u.companyName || u.name) : u.name,
+        firstName: u.firstName || null,
+        lastName: u.lastName || null,
+        email: u.email || null,
+        phone: u.telefono || null,
+        whatsapp: null,
+        address: u.companyAddress || u.residenza || null,
+        codiceFiscale: u.codiceFiscale || null,
+        companyName: u.companyName || null,
+        partitaIva: u.partitaIva || null,
+        pec: u.pec || null,
+        sdi: u.sdi || null,
+        tier: null,
+        accountUid: u.uid,
+        notes: null,
+        createdBy: 'system',
+        createdAt: u.createdAt || Date.now()
+      };
+      setClients((prev) => ({ ...prev, [recId]: rec }));
+      writeNode(`clients/${recId}`, rec).catch(() => {});
+    });
+  }, [users, clients, currentUser?.uid, currentUser?.role]);
+
   const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
     const id = Math.random().toString();
     setToasts(prev => [...prev, { id, msg, type }]);
@@ -1620,6 +1658,7 @@ export default function App() {
     const id = `cli-${Date.now()}-${Math.floor(Math.random() * 900)}`;
     const rec: ClientRecord = {
       id,
+      category: 'cliente',
       type: (d.type as any) || 'privato',
       name: name.trim(),
       firstName: d.firstName || null,
