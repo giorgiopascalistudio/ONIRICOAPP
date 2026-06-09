@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, Suspense } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -492,6 +492,8 @@ export default function MoodboardCanvas({
   const [selectedMesh, setSelectedMesh] = useState<THREE.Object3D | null>(null);
   // Oggetto a cui agganciare il gizmo (così gli assi stanno SUL modello, non all'origine)
   const [gizmoTarget, setGizmoTarget] = useState<THREE.Object3D | null>(null);
+  // true mentre si trascina il gizmo: durante il drag NON sincronizziamo la transform dallo stato
+  const draggingRef = useRef(false);
 
   // Sync the raw mesh target node for TransformControls when selection shifts
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -513,15 +515,13 @@ export default function MoodboardCanvas({
 
     // Aggiorna lo stato SOLO durante un trascinamento reale: così deselezione/aggancio del
     // gizmo non possono "spostare" l'oggetto (es. una luce sospesa che cadeva sul tavolo).
-    let dragging = false;
-
     const handleDraggingChanged = (event: any) => {
-      dragging = !!event.value;
+      draggingRef.current = !!event.value;
       if (orbitControlsRef.current) orbitControlsRef.current.enabled = !event.value;
     };
 
     const handleObjectChanged = () => {
-      if (!dragging || !selectedId || !transformControls.object) return;
+      if (!draggingRef.current || !selectedId || !transformControls.object) return;
       const obj = transformControls.object;
       const rx = Math.round(obj.rotation.x * (180 / Math.PI));
       const ry = Math.round(obj.rotation.y * (180 / Math.PI));
@@ -618,14 +618,15 @@ export default function MoodboardCanvas({
             const isPositionLocked = element.lockedPosition === true;
             return (
               <React.Fragment key={element.id}>
-                {/* Gizmo agganciato DIRETTAMENTE all'oggetto (object=...): gli assi seguono il modello */}
+                {/* Gizmo agganciato a un gruppo NON controllato (EditableElement): React non
+                    sovrascrive la transform → il trascinamento si ancora; gli assi sono sull'oggetto */}
                 {isSelected && !isPositionLocked ? (
                   <>
-                    <ElementMeshWrapper
+                    <EditableElement
                       element={element}
-                      isSelected={true}
+                      draggingRef={draggingRef}
                       onSelect={(id) => onSelectElement(id)}
-                      onGroupRef={setGizmoTarget}
+                      onReady={setGizmoTarget}
                     />
                     {gizmoTarget && (
                       <TransformControls
@@ -666,6 +667,44 @@ export default function MoodboardCanvas({
         [Tasto sinistro] Ruota Camera • [Shift + Tasto sinistro] Trascina Workspace • [Rotella] Zoom • [Click elemento] Sposta
       </div>
     </div>
+  );
+}
+
+// Elemento SELEZIONATO: gruppo NON controllato da React (transform impostata in modo imperativo).
+// Così TransformControls può "possedere" la transform senza che React la sovrascriva ad ogni render
+// (era la causa per cui lo spostamento non si ancorava). Sincronizza dallo stato solo quando NON
+// si sta trascinando (es. modifiche dal pannello Proprietà / cambio elemento).
+const deg2rad = (d: number) => d * (Math.PI / 180);
+function EditableElement({
+  element,
+  draggingRef,
+  onSelect,
+  onReady
+}: {
+  element: BoardElement;
+  draggingRef: React.MutableRefObject<boolean>;
+  onSelect: (id: string, e: any) => void;
+  onReady: (g: THREE.Object3D | null) => void;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const spotTargetRef = useRef<THREE.Object3D | null>(null);
+
+  // espone il gruppo al gizmo al montaggio
+  useLayoutEffect(() => { onReady(ref.current); return () => onReady(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // sincronizza la transform dallo stato quando non si trascina (slider Altezza, ecc.)
+  useLayoutEffect(() => {
+    const g = ref.current;
+    if (!g || draggingRef.current) return;
+    g.position.set(element.position[0], element.position[1], element.position[2]);
+    g.rotation.set(deg2rad(element.rotation[0]), deg2rad(element.rotation[1]), deg2rad(element.rotation[2]));
+    g.scale.set(element.scale[0], element.scale[1], element.scale[2]);
+  });
+
+  return (
+    <group ref={ref} onClick={(e: any) => { e.stopPropagation(); onSelect(element.id, e); }}>
+      <ShapeRenderer element={element} isSelected={true} spotTargetRef={spotTargetRef} />
+    </group>
   );
 }
 
