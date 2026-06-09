@@ -507,6 +507,7 @@ export interface ImpresaRecord {
 // ---- Rubrica clienti (anagrafica riutilizzabile, anche senza login) ----
 export interface ClientRecord {
   id: string;
+  category?: 'cliente' | 'partner';   // rubrica divisa tra clienti e imprese partner
   type: 'privato' | 'azienda';
   name: string;                // nome completo o ragione sociale (display)
   firstName?: string | null;

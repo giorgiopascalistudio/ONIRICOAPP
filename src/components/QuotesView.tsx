@@ -140,7 +140,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
             const plan = q.paymentPlan || [];
             const fatturato = plan.filter((m) => m.status !== 'da_emettere').reduce((s, m) => s + m.amount, 0);
             return (
-              <div key={q.id} className="bg-white border border-[#e2e2e2] rounded-[20px] p-4">
+              <div key={q.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
