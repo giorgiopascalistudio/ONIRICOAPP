@@ -6,6 +6,25 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BoardElement, TransformMode, ScenePreset } from './types';
 import { getProceduralNormalMap } from './utils';
 
+// Error boundary per-modello: se un .glb/.gltf non carica (es. blob: scaduto, file corrotto)
+// mostra un placeholder al posto di far fallire l'intera scena 3D.
+class ModelBoundary extends React.Component<{ color?: string; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err: any) { console.warn('Modello 3D non caricato:', err?.message || err); }
+  render() {
+    if (this.state.failed) {
+      return (
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[0.6, 0.6, 0.6]} />
+          <meshStandardMaterial color={this.props.color || '#cccccc'} roughness={0.9} wireframe />
+        </mesh>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Auxiliary helper to safely render loaded .gltf/.glb models and transfer physical material properties on them
 function CustomModelRenderer({ 
   modelUrl, 
@@ -306,22 +325,24 @@ function ShapeRenderer({
     return (
       <group>
         {element.modelUrl ? (
-          <Suspense fallback={
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[0.5, 0.5, 0.5]} />
-              <meshStandardMaterial color={element.color} roughness={0.9} wireframe />
-            </mesh>
-          }>
-            <CustomModelRenderer
-              modelUrl={element.modelUrl}
-              color={element.color}
-              roughness={element.roughness}
-              metalness={element.metalness}
-              opacity={element.opacity}
-              emissiveColor={element.emissiveColor}
-              emissiveIntensity={element.emissiveIntensity}
-            />
-          </Suspense>
+          <ModelBoundary color={element.color}>
+            <Suspense fallback={
+              <mesh castShadow receiveShadow>
+                <boxGeometry args={[0.5, 0.5, 0.5]} />
+                <meshStandardMaterial color={element.color} roughness={0.9} wireframe />
+              </mesh>
+            }>
+              <CustomModelRenderer
+                modelUrl={element.modelUrl}
+                color={element.color}
+                roughness={element.roughness}
+                metalness={element.metalness}
+                opacity={element.opacity}
+                emissiveColor={element.emissiveColor}
+                emissiveIntensity={element.emissiveIntensity}
+              />
+            </Suspense>
+          </ModelBoundary>
         ) : (
           <mesh castShadow receiveShadow>
             <boxGeometry args={[1, 1, 1]} />

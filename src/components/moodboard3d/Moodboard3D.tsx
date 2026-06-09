@@ -29,8 +29,23 @@ export interface Moodboard3DProps {
   onSave: (elements: BoardElement[]) => void;
 }
 
+// I `blob:` URL (modelli .glb / immagini caricati) valgono SOLO nella sessione che li crea:
+// dopo un reload puntano a risorse inesistenti → il loader va in errore. Quindi vanno scartati
+// sia in caricamento (scena salvata) sia in salvataggio (non vanno mai persistiti su Firebase).
+const isBlob = (u?: string) => !!u && u.startsWith('blob:');
+const sanitizeElements = (els: BoardElement[] = []): BoardElement[] =>
+  els
+    .filter((el) => !isBlob(el.modelUrl))
+    .map((el) => {
+      const c: BoardElement = { ...el };
+      if (isBlob(c.textureUrl)) c.textureUrl = undefined;
+      if (isBlob(c.normalUrl)) c.normalUrl = undefined;
+      if (isBlob(c.roughnessUrl)) c.roughnessUrl = undefined;
+      return c;
+    });
+
 export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, projectName, elements: savedElements, onSave }) => {
-  const [elements, setElements] = useState<BoardElement[]>(savedElements?.length ? savedElements : DEFAULT_BOARD_ELEMENTS);
+  const [elements, setElements] = useState<BoardElement[]>(savedElements?.length ? sanitizeElements(savedElements) : DEFAULT_BOARD_ELEMENTS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transformMode, setTransformMode] = useState<TransformMode>('translate');
   const [activePreset, setActivePreset] = useState<ScenePreset>(SCENE_PRESETS[0]);
@@ -57,23 +72,23 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
   // (Ri)carica la scena salvata ad ogni apertura
   useEffect(() => {
     if (open) {
-      setElements(savedElements?.length ? savedElements : DEFAULT_BOARD_ELEMENTS);
+      setElements(savedElements?.length ? sanitizeElements(savedElements) : DEFAULT_BOARD_ELEMENTS);
       setSelectedId(null);
       hydratedRef.current = false;
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Autosave (debounce) dopo l'idratazione iniziale
+  // Autosave (debounce) dopo l'idratazione iniziale — mai persistere blob:
   useEffect(() => {
     if (!open) return;
     if (!hydratedRef.current) { hydratedRef.current = true; return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => onSave(elements), 1500);
+    saveTimer.current = setTimeout(() => onSave(sanitizeElements(elements)), 1500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [elements]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClose = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    onSave(elements);
+    onSave(sanitizeElements(elements));
     onClose();
   };
 
@@ -233,7 +248,7 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => onSave(elements)} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold cursor-pointer">
+          <button onClick={() => onSave(sanitizeElements(elements))} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold cursor-pointer">
             <Save className="w-4 h-4" /> Salva
           </button>
           <button onClick={handleClose} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold text-[#161616] hover:bg-[#fafafa] cursor-pointer">
