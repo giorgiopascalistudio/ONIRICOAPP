@@ -320,6 +320,15 @@ textarea:focus {
   to { opacity: 1; }
 }
 
+/* Moodboard 3D: allinea i colori "cablati" del prototipo ai token Onirico (solo chrome pannelli,
+   non la scena 3D). Scoped a .mb3d (overlay) → specificità maggiore delle utility Tailwind. */
+.mb3d .border-\[\#E0E0DB\], .mb3d .border-\[\#D1D1C7\] { border-color: #e2e2e2; }
+.mb3d .bg-\[\#FAF9F6\] { background-color: #fafafa; }
+.mb3d .bg-\[\#F4F4F2\] { background-color: #F5F5F3; }
+.mb3d .bg-\[\#E0E0DB\] { background-color: #ececec; }
+.mb3d .text-\[\#8C8C80\] { color: #8a8a8a; }
+.mb3d .text-\[\#1A1A1A\], .mb3d .text-\[\#101010\] { color: #161616; }
+
 /* ============================================================
    DARK MODE (segue il tema di sistema) — v1
    Rimappa le superfici/testi/bordi/input "cablati" usati in tutta l'app.
@@ -364,4 +373,11 @@ textarea:focus {
   /* scrollbar su fondo scuro */
   *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; background-clip: content-box; }
   *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3) !important; background-clip: content-box; }
+
+  /* moodboard 3D: colori cablati del prototipo → tema scuro */
+  .bg-\[\#FAF9F6\], .bg-\[\#F4F4F2\] { background-color: #1d1f23 !important; }
+  .bg-\[\#E0E0DB\] { background-color: #2a2d31 !important; }
+  .text-\[\#1A1A1A\], .text-\[\#101010\] { color: #e8e8ea !important; }
+  .text-\[\#8C8C80\] { color: #9aa0a6 !important; }
+  .border-\[\#E0E0DB\], .border-\[\#D1D1C7\] { border-color: #2a2d31 !important; }
 }

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import {
   Plus,
@@ -23,6 +23,9 @@ import {
 import { Furnishing, Project } from '../types';
 import { todayISO, eur } from '../utils';
 import { arrediTotals, STUDIO_FEE_PCT, ARREDI_MOBILI_FEE_PCT } from '../finance';
+import { Box, Maximize2, Loader2 } from 'lucide-react';
+// Caricamento lazy: three/fiber/drei finiscono in un chunk separato, scaricato solo all'apertura
+const Moodboard3D = lazy(() => import('./moodboard3d/Moodboard3D'));
 
 interface FurnishingsBoardProps {
   project: Project;
@@ -33,6 +36,8 @@ interface FurnishingsBoardProps {
   onSaveItem: (pid: string, item: Furnishing) => void;
   onDeleteItem: (pid: string, itemId: string) => void;
   onToggleStudioManagesMobili?: (pid: string, value: boolean) => void;
+  moodboard3dElements?: any[];
+  onSaveMoodboard3d?: (pid: string, elements: any[]) => void;
 }
 
 type Section = 'fissi' | 'mobili' | 'moodboard';
@@ -79,10 +84,13 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
   isStudio,
   onSaveItem,
   onDeleteItem,
-  onToggleStudioManagesMobili
+  onToggleStudioManagesMobili,
+  moodboard3dElements,
+  onSaveMoodboard3d
 }) => {
   const [section, setSection] = useState<Section>('fissi');
   const [modalKind, setModalKind] = useState<Furnishing['kind'] | null>(null);
+  const [mb3dOpen, setMb3dOpen] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
   // Form (modale nuovo arredo)
@@ -381,52 +389,53 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
         </div>
       )}
 
-      {/* MOODBOARD */}
-      {section === 'moodboard' && (
-        <div className="flex flex-col gap-4">
-          <MoodboardToolbar onAddTile={addBoardTile} />
-          <div
-            ref={boardRef}
-            className="relative w-full h-[460px] rounded-[18px] border border-[#e2e2e2] bg-[#F5F5F3] overflow-hidden"
-            style={{ backgroundImage: 'radial-gradient(#e2e2e2 1px, transparent 1px)', backgroundSize: '22px 22px' }}
-          >
-            {boardItems.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-[12px] text-[#9a9a9a] pointer-events-none">
-                Aggiungi riferimenti dalla toolbar o dalle schede arredo, poi trascinali sulla lavagna.
-              </div>
-            )}
-            {boardItems.map((item) => (
-              <motion.div
-                key={item.id}
-                drag
-                dragConstraints={boardRef}
-                dragMomentum={false}
-                onDragEnd={(_e, info) => onTileDragEnd(item, info.offset.x, info.offset.y)}
-                initial={false}
-                style={{ position: 'absolute', left: 0, top: 0, x: item.board!.x, y: item.board!.y, rotate: item.board!.rot || 0, width: item.board!.w || 150 }}
-                className="cursor-grab active:cursor-grabbing select-none group"
-              >
-                <div className="bg-white rounded-[14px] border border-[#e2e2e2] shadow-md overflow-hidden">
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.title} className="w-full h-28 object-cover pointer-events-none" draggable={false} />
-                  ) : item.color ? (
-                    <div className="w-full h-20" style={{ background: item.color }} />
-                  ) : null}
-                  <div className="px-2.5 py-2 flex items-start justify-between gap-1">
-                    <span className="text-[11px] font-semibold text-[#161616] leading-tight">{item.note || item.title}</span>
-                    <button
-                      onClick={() => toggleBoard(item)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition flex-shrink-0"
-                      title="Rimuovi dalla lavagna"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+      {/* MOODBOARD 3D */}
+      {section === 'moodboard' && (() => {
+        const count = (moodboard3dElements || []).length;
+        return (
+          <div className="flex flex-col gap-4">
+            <div className="relative w-full rounded-[22px] border border-[#e2e2e2] bg-white overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.5] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#ececec 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+              <div className="relative p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-[#161616] text-white flex items-center justify-center shrink-0">
+                  <Box className="w-6 h-6" />
                 </div>
-              </motion.div>
-            ))}
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[16px] font-extrabold text-[#161616] tracking-tight">Moodboard 3D</h3>
+                  <p className="text-[12.5px] text-[#8a8a8a] mt-1 max-w-xl">
+                    Componi la scena materica del progetto in 3D: campioni di materiali, forme, luci e modelli, su un tavolo virtuale.
+                    {count > 0 ? <> Scena salvata con <b className="text-[#161616]">{count}</b> element{count === 1 ? 'o' : 'i'}.</> : ' Nessuna scena ancora: aprila per iniziare.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMb3dOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer shrink-0"
+                >
+                  <Maximize2 className="w-4 h-4" /> Apri moodboard 3D
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-[#9a9a9a]">L'editor si apre a schermo intero. Le modifiche vengono salvate sul progetto (anche dal portale cliente).</p>
           </div>
-        </div>
+        );
+      })()}
+
+      {/* Editor moodboard 3D (overlay fullscreen, caricato on-demand) */}
+      {mb3dOpen && (
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[120] bg-[#F5F5F3] flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-7 h-7 text-[#161616] animate-spin" />
+            <span className="text-[12.5px] font-bold text-[#8a8a8a]">Caricamento moodboard 3D…</span>
+          </div>
+        }>
+          <Moodboard3D
+            open={mb3dOpen}
+            onClose={() => setMb3dOpen(false)}
+            projectName={project.name}
+            elements={moodboard3dElements || []}
+            onSave={(els) => onSaveMoodboard3d?.(pid, els)}
+          />
+        </Suspense>
       )}
 
       {/* MODALE NUOVO ARREDO */}

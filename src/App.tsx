@@ -192,6 +192,8 @@ export default function App() {
   const [projectMessages, setProjectMessages] = useState<Record<string, Record<string, ProjectMessage>>>({});
   const [documents, setDocuments] = useState<Record<string, Record<string, any>>>({});
   const [furnishings, setFurnishings] = useState<Record<string, Record<string, Furnishing>>>({});
+  // Moodboard 3D per progetto: projectMoodboard3d/<pid> = { elements: BoardElement[], updatedAt, by }
+  const [moodboard3d, setMoodboard3d] = useState<Record<string, any>>({});
 
   // Modulo Cantiere (record + sotto-collezioni keyed per cantiereId)
   const [cantieri, setCantieri] = useState<Record<string, Cantiere>>({});
@@ -666,6 +668,7 @@ export default function App() {
       add('projectMessages', setProjectMessages);
       add('documents', setDocuments);
       add('projectFurnishings', setFurnishings);
+      add('projectMoodboard3d', setMoodboard3d);
       add('estimates', setEstimates);
       // CRM (array nodes)
       const toArr = (v: any) => (Array.isArray(v) ? v : v ? Object.values(v) : []);
@@ -721,6 +724,9 @@ export default function App() {
         }, () => {}));
         subs.push(watchNode(`projectFurnishings/${pid}`, (v) => {
           setFurnishings((f) => ({ ...f, [pid]: v || {} }));
+        }, () => {}));
+        subs.push(watchNode(`projectMoodboard3d/${pid}`, (v) => {
+          setMoodboard3d((m) => ({ ...m, [pid]: v || {} }));
         }, () => {}));
       });
       // Partner: elenca i cantieri assegnati via indice inverso, poi sottoscrive per-cid.
@@ -1460,6 +1466,15 @@ export default function App() {
     );
   };
 
+  // 3b-bis. Moodboard 3D: salva la scena per-progetto (nodo intero)
+  const handleSaveMoodboard3d = (projId: string, elements: any[]) => {
+    const payload = { elements: elements || [], updatedAt: Date.now(), by: currentUser?.uid || null };
+    setMoodboard3d((prev) => ({ ...prev, [projId]: payload }));
+    writeNode(`projectMoodboard3d/${projId}`, payload).catch((e: any) =>
+      showToast('Errore salvataggio moodboard 3D: ' + (e?.message || e?.code || 'controlla regole/permessi'), 'err')
+    );
+  };
+
   // 3c. Flag "lo Studio gestisce gli arredi mobili" (→ fee 20%) sul progetto
   const handleToggleStudioManagesMobili = (projId: string, value: boolean) => {
     setProjects((prev) => {
@@ -2090,6 +2105,8 @@ export default function App() {
         furnishings={furnishings}
         onSaveFurnishing={handleSaveFurnishing}
         onDeleteFurnishing={handleDeleteFurnishing}
+        moodboard3d={moodboard3d}
+        onSaveMoodboard3d={handleSaveMoodboard3d}
         onLogout={handleLogout}
         estimates={Object.values(estimates)}
         onSaveEstimate={handleSaveEstimate}
@@ -2307,6 +2324,8 @@ export default function App() {
             furnishings={furnishings}
             onSaveFurnishing={handleSaveFurnishing}
             onDeleteFurnishing={handleDeleteFurnishing}
+            moodboard3d={moodboard3d}
+            onSaveMoodboard3d={handleSaveMoodboard3d}
             onToggleStudioManagesMobili={handleToggleStudioManagesMobili}
             isInternalBoss={currentUser.role === 'admin' || currentUser.role === 'manager'}
             myUid={currentUser.uid}

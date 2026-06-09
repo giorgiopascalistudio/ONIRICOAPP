@@ -131,9 +131,13 @@ presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; inclu
   mirate per-elemento** (così anche i clienti possono creare i propri).
 - `projectFurnishings/<pid>/<itemId>` — modulo "Arredi & Moodboard" (tipo
   `Furnishing`): arredi **fissi/mobili** (ora con `price`/`quantity` → base parcella) +
-  tile moodboard (campo `board`). Scrittura **mirata per-elemento** come documents; a
+  tile moodboard 2D (campo `board`, **deprecato**: la lavagna 2D è stata sostituita dal
+  moodboard 3D, vedi §19). Scrittura **mirata per-elemento** come documents; a
   differenza di documents il cliente può anche **aggiornare** i propri item (non solo
   crearli), quindi la regola di write è a livello `$pid` senza vincolo `!data.exists()`.
+- `projectMoodboard3d/<pid>` — **Moodboard 3D per progetto** (vedi §19): `{ elements: BoardElement[],
+  updatedAt, by }`. Scrittura del **nodo intero** (non per-elemento). Regole come `projectFurnishings`
+  (studio attivo non-cliente **o** cliente collegato `clientUid`, read+write).
 - `appointments/<id>` — agenda condivisa (vedi §8).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `clients/<id>` — **Rubrica clienti** (anagrafica riutilizzabile, anche clienti **senza login**:
@@ -271,8 +275,8 @@ reporting/redditività, integrazioni esterne
   **ripubblicare le regole**, altrimenti rubrica, registri/chat di cantiere e Area Impresa danno
   "permission denied" con write silenziosa lato client.
   ⚠️ Aggiunti infine `notifications/$uid` (read/write proprio uid; write da studio attivo),
-  `teamLeave` (read studio; write proprio o admin/manager) e `quotes` (admin/manager):
-  **ripubblicare le regole** dopo il deploy.
+  `teamLeave` (read studio; write proprio o admin/manager), `quotes` (admin/manager) e
+  `projectMoodboard3d` (come `projectFurnishings`): **ripubblicare le regole** dopo il deploy.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -374,3 +378,24 @@ reporting/redditività, integrazioni esterne
 - **Deploy a carico utente** (vedi `functions/README.md`): `firebase login`, piano **Blaze**,
   `firebase functions:secrets:set SENDGRID_KEY`, `firebase deploy --only functions`. Non verificabile
   da Claude (serve auth/Blaze/API key). WhatsApp automatico = futuro (oggi link `wa.me` in app).
+
+## 19. Moodboard 3D (R3F)
+- **Dove**: tab **"Arredi & Moodboard"** (`FurnishingsBoard`) → sezione **Moodboard**: anteprima +
+  pulsante **"Apri moodboard 3D"** che apre l'editor in **overlay a tutto schermo**. Sostituisce la
+  vecchia lavagna 2D (drag tile su `Furnishing.board`, ora deprecata). Disponibile lato studio
+  (`ProjectsView`) e portale cliente (`ClientPortalView`).
+- **Origine**: prototipo esterno (`moodboard-3d/`, **gitignorato** assieme alla libreria texture PBR
+  ~3,6 GB non usata dal codice/non deployabile) integrato in **`src/components/moodboard3d/`**
+  (`Moodboard3D` overlay + `MoodboardCanvas`/`Sidebar`/`Toolbar`/`PropertiesPanel` + `data/types/utils`).
+- **Stack**: `@react-three/fiber` + `@react-three/drei` + `three` (già presente). I materiali della
+  libreria caricano texture da **URL Unsplash** (le PBR locali NON sono collegate — fase futura:
+  ottimizzare un subset e ospitarlo in `public/` o Firebase Storage). Il modulo è **lazy-loaded**
+  (`React.lazy` in `FurnishingsBoard`) → chunk separato `Moodboard3D-*.js`, scaricato solo all'apertura.
+- **Persistenza**: nodo `projectMoodboard3d/<pid>` (vedi §6). `Moodboard3D` riceve `elements`+`onSave`;
+  salva su click **Salva**, alla **chiusura** e in **autosave** (debounce ~1,5s). App: stato
+  `moodboard3d`, sub (studio: nodo intero; cliente: per-pid), handler `handleSaveMoodboard3d`.
+- **Adeguamento grafico**: chrome (header/overlay/gizmo/tooltip) in stile Onirico; i colori "cablati"
+  dei pannelli del prototipo sono rimappati ai token via CSS scoped `.mb3d` in `src/index.css`
+  (chiaro + dark). Funzionalità del prototipo **invariate** (rimosso solo lo share-link `#board=`
+  che confliggeva col router a hash).
+- ⚠️ Regole: aggiunto `projectMoodboard3d` in `firebase-rules.json` → **ripubblicare**.
