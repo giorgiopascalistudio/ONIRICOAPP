@@ -75,6 +75,7 @@ export interface Project {
   templateId?: string | null;
   templateName?: string | null;
   clientUid?: string | null;
+  clientRecordId?: string | null;   // anagrafica nella Rubrica clienti (nodo `clients`)
   committente?: string | null;
   indirizzoImmobile?: string | null;
   foglio?: string | null;
@@ -369,9 +370,92 @@ export interface CantiereDoc {
   driveFileId?: string | null;
   driveUrl?: string | null;
   link?: string | null;
+  section?: string | null;     // sezione di destinazione (es. 'documenti','sicurezza','verbali','permessi'…)
+  category?: string | null;    // sotto-categoria libera (es. 'Disegni','Contratti','POS','DURC'…)
+  expiry?: string | null;      // yyyy-mm-dd: scadenza documento (DURC/polizze/permessi…)
   by: string;
   role: string;
   at: number;
+}
+
+/**
+ * Registro voci generico per-cantiere (sezioni "lista" della struttura PDF:
+ * non conformità, ordini di servizio, verifica lavorazioni, varianti, collaudi,
+ * test, scadenze, cronoprogramma…). Discriminato da `section`.
+ */
+export interface CantiereRecord {
+  id: string;
+  section: string;             // es. 'nonconformita','ordini_servizio','cronoprogramma','scadenze'…
+  title: string;
+  date?: string | null;        // yyyy-mm-dd (data evento/scadenza/inizio)
+  dateEnd?: string | null;     // yyyy-mm-dd (fine, per cronoprogramma)
+  status?: string | null;      // stato libero per sezione (es. 'aperta','chiusa','in_corso')
+  fields?: Record<string, string>; // campi extra specifici della sezione
+  note?: string | null;
+  by: string;
+  byName?: string | null;
+  role?: string | null;
+  at: number;
+}
+
+/** Chat di cantiere (mirror del pattern projectMessages, per-cantiere). */
+export interface CantiereMessage {
+  id: string;
+  from: string;
+  role: UserRole;
+  name: string;
+  text: string;
+  at: number;
+}
+
+// ---- Area Impresa: profilo dell'impresa partner (riusabile su tutti i suoi cantieri) ----
+/** Documentazione impresa: DURC, Visure, Polizze, Certificazioni SOA, Documenti dipendenti. */
+export interface ImpresaDoc {
+  id: string;
+  docType: string;             // es. 'DURC','visura','polizza','SOA','dipendente'
+  name: string;
+  expiry?: string | null;      // yyyy-mm-dd: scadenza (DURC/polizze…)
+  driveFileId?: string | null;
+  driveUrl?: string | null;
+  link?: string | null;
+  note?: string | null;
+  by: string;
+  at: number;
+}
+
+/** Registro voci dell'impresa: squadre, operai, mezzi, attrezzature, DPI, formazione… */
+export interface ImpresaRecord {
+  id: string;
+  section: string;             // es. 'squadre','operai','mezzi','attrezzature','dpi','formazione','incidenti'…
+  title: string;
+  date?: string | null;
+  status?: string | null;
+  fields?: Record<string, string>;
+  note?: string | null;
+  by: string;
+  at: number;
+}
+
+// ---- Rubrica clienti (anagrafica riutilizzabile, anche senza login) ----
+export interface ClientRecord {
+  id: string;
+  type: 'privato' | 'azienda';
+  name: string;                // nome completo o ragione sociale (display)
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;     // residenza / sede legale
+  codiceFiscale?: string | null;
+  companyName?: string | null; // (azienda)
+  partitaIva?: string | null;  // (azienda)
+  pec?: string | null;         // (azienda)
+  sdi?: string | null;         // (azienda) codice destinatario FE
+  accountUid?: string | null;  // opz.: account portale collegato (users/<uid>)
+  notes?: string | null;
+  createdBy: string;
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface CantiereSal {

@@ -15,6 +15,7 @@ import {
   MessageSquarePlus, Trash2, Briefcase, ArrowRightCircle, Euro
 } from 'lucide-react';
 import { initials, eur } from '../utils';
+import { ClientRecord } from '../types';
 
 export interface CrmNote {
   at: number;
@@ -48,9 +49,13 @@ interface CrmViewProps {
   leads: Lead[];
   suppliers: Supplier[];
   myName: string;
+  myUid?: string;
   onSaveLeads: (arr: Lead[]) => void;
   onSaveSuppliers: (arr: Supplier[]) => void;
   onConvertLead: (lead: Lead) => void;
+  clients?: Record<string, ClientRecord>;
+  onSaveClient?: (rec: ClientRecord) => void;
+  onDeleteClient?: (id: string) => void;
 }
 
 const STAGES: { id: string; label: string }[] = [
@@ -76,16 +81,24 @@ export const CrmView: React.FC<CrmViewProps> = ({
   leads,
   suppliers,
   myName,
+  myUid,
   onSaveLeads,
   onSaveSuppliers,
-  onConvertLead
+  onConvertLead,
+  clients = {},
+  onSaveClient,
+  onDeleteClient
 }) => {
-  const [tab, setTab] = useState<'pipeline' | 'fornitori'>('pipeline');
+  const [tab, setTab] = useState<'pipeline' | 'fornitori' | 'clienti'>('pipeline');
   const [openLead, setOpenLead] = useState<string | null>(null);
   const [openSupplier, setOpenSupplier] = useState<string | null>(null);
   const [newLeadOpen, setNewLeadOpen] = useState(false);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  // Rubrica clienti
+  const [openClient, setOpenClient] = useState<string | null>(null);
+  const [clientFormOpen, setClientFormOpen] = useState(false);
+  const [clDraft, setClDraft] = useState<Partial<ClientRecord>>({ type: 'privato' });
 
   // form state
   const [fName, setFName] = useState('');
@@ -182,8 +195,34 @@ export const CrmView: React.FC<CrmViewProps> = ({
     setNoteDraft('');
   };
 
+  // ---- Rubrica clienti ops ----
+  const clientList = useMemo(() => Object.values(clients).sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const openNewClient = () => { setClDraft({ type: 'privato' }); setClientFormOpen(true); };
+  const openEditClient = (id: string) => { const c = clients[id]; if (c) { setClDraft({ ...c }); setClientFormOpen(true); } };
+  const saveClientDraft = () => {
+    const d = clDraft;
+    const name = (d.type === 'azienda' ? (d.companyName || d.name) : (d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim())) || '';
+    if (!name.trim() || !onSaveClient) return;
+    const rec: ClientRecord = {
+      id: d.id || `cli-${Date.now()}-${Math.floor(Math.random() * 900)}`,
+      type: (d.type as any) || 'privato',
+      name: name.trim(),
+      firstName: d.firstName || null, lastName: d.lastName || null,
+      email: d.email || null, phone: d.phone || null, address: d.address || null,
+      codiceFiscale: d.codiceFiscale || null, companyName: d.companyName || null,
+      partitaIva: d.partitaIva || null, pec: d.pec || null, sdi: d.sdi || null,
+      accountUid: d.accountUid || null, notes: d.notes || null,
+      createdBy: d.createdBy || myUid || 'admin',
+      createdAt: d.createdAt || Date.now()
+    };
+    onSaveClient(rec);
+    setClientFormOpen(false);
+    setClDraft({ type: 'privato' });
+  };
+
   const activeLead = openLead ? leads.find((l) => l.id === openLead) : null;
   const activeSupplier = openSupplier ? suppliers.find((s) => s.id === openSupplier) : null;
+  const activeClient = openClient ? clients[openClient] : null;
 
   return (
     <div className="flex flex-col gap-6 text-left">
@@ -198,10 +237,10 @@ export const CrmView: React.FC<CrmViewProps> = ({
           </p>
         </div>
         <button
-          onClick={() => { resetForm(); tab === 'pipeline' ? setNewLeadOpen(true) : setNewSupplierOpen(true); }}
+          onClick={() => { resetForm(); tab === 'pipeline' ? setNewLeadOpen(true) : tab === 'fornitori' ? setNewSupplierOpen(true) : openNewClient(); }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer border-none hover:shadow-md active:scale-[0.98] transition-all"
         >
-          <Plus className="w-4 h-4" /> {tab === 'pipeline' ? 'Nuovo lead' : 'Nuovo fornitore'}
+          <Plus className="w-4 h-4" /> {tab === 'pipeline' ? 'Nuovo lead' : tab === 'fornitori' ? 'Nuovo fornitore' : 'Nuovo cliente'}
         </button>
       </div>
 
@@ -210,6 +249,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
         <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
           {([
             { id: 'pipeline', label: 'Pipeline commerciale' },
+            { id: 'clienti', label: 'Rubrica clienti' },
             { id: 'fornitori', label: 'Fornitori & Subappaltatori' }
           ] as const).map((t) => {
             const active = tab === t.id;
@@ -307,6 +347,104 @@ export const CrmView: React.FC<CrmViewProps> = ({
             ))}
           </div>
         )
+      )}
+
+      {/* CLIENTI (rubrica) */}
+      {tab === 'clienti' && (
+        clientList.length === 0 ? (
+          <div className="bg-white border border-dashed border-[#e2e2e2] rounded-[24px] p-10 text-center">
+            <Building2 className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-[13.5px] text-[#8a8a8a] font-semibold">Nessun cliente in rubrica. Aggiungine uno: sarà riutilizzabile in ogni nuovo progetto.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {clientList.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => setOpenClient(c.id)}
+                className="group bg-white border border-[#e2e2e2] rounded-[24px] p-5 hover:border-black hover:shadow-md transition-all cursor-pointer flex flex-col gap-3"
+              >
+                <div className="flex items-start justify-between">
+                  <span className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center"><Building2 className="w-5 h-5 text-gray-500" /></span>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider border px-2 py-0.5 rounded-full bg-zinc-50 text-zinc-700 border-zinc-200">{c.type === 'azienda' ? 'Azienda' : 'Privato'}</span>
+                </div>
+                <div>
+                  <h4 className="text-[14.5px] font-extrabold text-[#161616] tracking-tight truncate">{c.name}</h4>
+                  {c.type === 'azienda' && c.partitaIva && <span className="text-[11.5px] text-[#8a8a8a]">P.IVA {c.partitaIva}</span>}
+                  {c.type !== 'azienda' && c.codiceFiscale && <span className="text-[11.5px] text-[#8a8a8a] font-mono">{c.codiceFiscale}</span>}
+                </div>
+                {(c.email || c.phone) && (
+                  <div className="pt-2 border-t border-dashed border-[#ececec] flex flex-col gap-1">
+                    {c.email && <span className="flex items-center gap-1.5 text-[11.5px] text-gray-500 truncate"><Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" /><span className="truncate">{c.email}</span></span>}
+                    {c.phone && <span className="flex items-center gap-1.5 text-[11.5px] text-gray-500"><Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />{c.phone}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* DETTAGLIO CLIENTE */}
+      {activeClient && (
+        <Overlay onClose={() => setOpenClient(null)}>
+          <FormHeader title={activeClient.name} onClose={() => setOpenClient(null)} />
+          <div className="flex flex-col gap-2.5 text-[13px]">
+            <ClientRow label="Tipologia" value={activeClient.type === 'azienda' ? 'Azienda' : 'Privato'} />
+            {activeClient.email && <ClientRow label="Email" value={activeClient.email} />}
+            {activeClient.phone && <ClientRow label="Telefono" value={activeClient.phone} />}
+            {activeClient.address && <ClientRow label={activeClient.type === 'azienda' ? 'Sede legale' : 'Residenza'} value={activeClient.address} />}
+            {activeClient.codiceFiscale && <ClientRow label="Codice Fiscale" value={activeClient.codiceFiscale} />}
+            {activeClient.partitaIva && <ClientRow label="P. IVA" value={activeClient.partitaIva} />}
+            {activeClient.pec && <ClientRow label="PEC" value={activeClient.pec} />}
+            {activeClient.sdi && <ClientRow label="Codice SDI" value={activeClient.sdi} />}
+          </div>
+          <div className="flex items-center gap-2 mt-5">
+            <button onClick={() => { openEditClient(activeClient.id); setOpenClient(null); }} className="flex-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">Modifica</button>
+            <button onClick={() => { if (confirm('Eliminare il cliente dalla rubrica?')) { onDeleteClient?.(activeClient.id); setOpenClient(null); } }} className="py-2.5 px-3 rounded-xl border border-[#e2e2e2] text-rose-600 font-bold text-[13px] cursor-pointer bg-white"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        </Overlay>
+      )}
+
+      {/* FORM CLIENTE (nuovo/modifica) */}
+      {clientFormOpen && (
+        <Overlay onClose={() => setClientFormOpen(false)}>
+          <FormHeader title={clDraft.id ? 'Modifica cliente' : 'Nuovo cliente'} onClose={() => setClientFormOpen(false)} />
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-2">
+              {(['privato', 'azienda'] as const).map((t) => (
+                <button key={t} type="button" onClick={() => setClDraft((d) => ({ ...d, type: t }))}
+                  className={`flex-1 py-2 rounded-xl text-[13px] font-bold border ${(clDraft.type || 'privato') === t ? 'bg-[#1b1b1b] text-white border-[#1b1b1b]' : 'bg-white text-[#333] border-[#e2e2e2]'}`}>
+                  {t === 'privato' ? 'Privato' : 'Azienda'}
+                </button>
+              ))}
+            </div>
+            {clDraft.type === 'azienda' ? (
+              <Field label="Ragione sociale *"><input value={clDraft.companyName || ''} onChange={(e) => setClDraft((d) => ({ ...d, companyName: e.target.value }))} className="crm-input" /></Field>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nome"><input value={clDraft.firstName || ''} onChange={(e) => setClDraft((d) => ({ ...d, firstName: e.target.value }))} className="crm-input" /></Field>
+                <Field label="Cognome"><input value={clDraft.lastName || ''} onChange={(e) => setClDraft((d) => ({ ...d, lastName: e.target.value }))} className="crm-input" /></Field>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Email"><input value={clDraft.email || ''} onChange={(e) => setClDraft((d) => ({ ...d, email: e.target.value }))} className="crm-input" /></Field>
+              <Field label="Telefono"><input value={clDraft.phone || ''} onChange={(e) => setClDraft((d) => ({ ...d, phone: e.target.value }))} className="crm-input" /></Field>
+            </div>
+            <Field label={clDraft.type === 'azienda' ? 'Sede legale' : 'Residenza'}><input value={clDraft.address || ''} onChange={(e) => setClDraft((d) => ({ ...d, address: e.target.value }))} className="crm-input" /></Field>
+            {clDraft.type === 'azienda' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="P. IVA"><input value={clDraft.partitaIva || ''} onChange={(e) => setClDraft((d) => ({ ...d, partitaIva: e.target.value }))} className="crm-input" /></Field>
+                <Field label="Codice Fiscale"><input value={clDraft.codiceFiscale || ''} onChange={(e) => setClDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="crm-input" /></Field>
+                <Field label="PEC"><input value={clDraft.pec || ''} onChange={(e) => setClDraft((d) => ({ ...d, pec: e.target.value }))} className="crm-input" /></Field>
+                <Field label="Codice SDI"><input value={clDraft.sdi || ''} onChange={(e) => setClDraft((d) => ({ ...d, sdi: e.target.value }))} className="crm-input" /></Field>
+              </div>
+            ) : (
+              <Field label="Codice Fiscale"><input value={clDraft.codiceFiscale || ''} onChange={(e) => setClDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="crm-input" /></Field>
+            )}
+            <button onClick={saveClientDraft} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">{clDraft.id ? 'Salva modifiche' : 'Aggiungi cliente'}</button>
+          </div>
+        </Overlay>
       )}
 
       {/* DETTAGLIO LEAD */}
@@ -437,6 +575,12 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
     <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{label}</span>
     {children}
   </label>
+);
+const ClientRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-gray-50 border border-[#f0f0f0]">
+    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{label}</span>
+    <span className="text-[12.5px] font-medium text-[#161616] text-right">{value}</span>
+  </div>
 );
 const SectorSelect: React.FC<{ value: string; onChange: (v: any) => void }> = ({ value, onChange }) => (
   <select value={value} onChange={(e) => onChange(e.target.value)} className="crm-input">

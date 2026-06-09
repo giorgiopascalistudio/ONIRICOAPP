@@ -36,7 +36,7 @@ import {
   Sofa,
   HardHat
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord } from '../types';
 import { computoTotal, arrediTotals, studioParcella, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
@@ -109,12 +109,20 @@ interface ProjectsViewProps {
   cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
   cantSal?: Record<string, Record<string, CantiereSal>>;
   cantLog?: Record<string, Record<string, CantiereLog>>;
+  cantRecords?: Record<string, Record<string, CantiereRecord>>;
+  cantMessages?: Record<string, Record<string, CantiereMessage>>;
+  impresaDocs?: Record<string, Record<string, ImpresaDoc>>;
+  impresaRecords?: Record<string, Record<string, ImpresaRecord>>;
+  clients?: Record<string, ClientRecord>;
   partnerAccounts?: UserProfile[];
   onSaveCantiere?: (c: Cantiere) => void;
   onDeleteCantiere?: (cid: string) => void;
   onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
   onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
+  onSendCantiereMessage?: (cid: string, text: string) => void;
+  onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
+  onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
   onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
   onApproveSal?: (cid: string, id: string) => void;
 }
@@ -176,12 +184,20 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   cantDocumenti = {},
   cantSal = {},
   cantLog = {},
+  cantRecords = {},
+  cantMessages = {},
+  impresaDocs = {},
+  impresaRecords = {},
+  clients = {},
   partnerAccounts = [],
   onSaveCantiere,
   onDeleteCantiere,
   onAssignPartner,
   onSaveCantEntity,
   onDeleteCantEntity,
+  onSendCantiereMessage,
+  onSaveImpresaEntity,
+  onDeleteImpresaEntity,
   onApproveRapportino,
   onApproveSal
 }) => {
@@ -1508,7 +1524,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               myUid={myUid}
               myName={users[myUid]?.name || 'Studio'}
               myRole={users[myUid]?.role || 'staff'}
-              project={{ id: p.id, name: p.name, division: p.division }}
+              project={{ id: p.id, name: p.name, division: p.division, client: (p.clientRecordId && clients[p.clientRecordId]?.name) || p.client, committente: p.committente, location: p.location }}
               cantieri={Object.values(cantieri).filter((c) => c.projectId === p.id)}
               rapportini={cantRapportini}
               presenze={cantPresenze}
@@ -1518,12 +1534,19 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               documenti={cantDocumenti}
               sal={cantSal}
               log={cantLog}
+              records={cantRecords}
+              messages={cantMessages}
+              impresaDocs={impresaDocs}
+              impresaRecords={impresaRecords}
               partnerAccounts={partnerAccounts}
               onSaveCantiere={onSaveCantiere}
               onDeleteCantiere={onDeleteCantiere}
               onAssignPartner={onAssignPartner}
               onSaveEntity={onSaveCantEntity}
               onDeleteEntity={onDeleteCantEntity}
+              onSendMessage={onSendCantiereMessage}
+              onSaveImpresaEntity={onSaveImpresaEntity}
+              onDeleteImpresaEntity={onDeleteImpresaEntity}
               onApproveRapportino={onApproveRapportino}
               onApproveSal={onApproveSal}
             />

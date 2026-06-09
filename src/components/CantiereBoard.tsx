@@ -13,26 +13,30 @@
 import React, { useState } from 'react';
 import {
   HardHat, Plus, X, Trash2, Check, Clock, Users, ImageIcon, Boxes, ListChecks,
-  FileText, TrendingUp, History, Upload, Link as LinkIcon, CloudUpload, AlertTriangle,
-  CheckCircle2, CircleSlash, MapPin, Calendar as CalIcon
+  FileText, TrendingUp, History, MapPin, Calendar as CalIcon,
+  CheckCircle2, CircleSlash, MessageSquare, Info, ShieldCheck, HardDrive, Truck,
+  ClipboardList, BadgeAlert, FolderOpen, Send, Layers
 } from 'lucide-react';
 
 import {
   Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale,
-  ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, UserProfile
+  ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, UserProfile,
+  CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord
 } from '../types';
 import { eur, todayISO, fmtDay } from '../utils';
-import { uploadToDrive, driveAvailable } from '../drive';
+import { DriveUploader } from './cantiere/DriveUploader';
+import { DocRegistry, DocItem } from './cantiere/DocRegistry';
+import { RecordRegistry, GenericRecord, RecordColumn } from './cantiere/RecordRegistry';
+import { SectionPlaceholder } from './cantiere/SectionPlaceholder';
 
 type Mode = 'studio' | 'partner';
-type Tab = 'rapportini' | 'presenze' | 'foto' | 'materiali' | 'checklist' | 'documenti' | 'sal' | 'storico';
 
 export interface CantiereBoardProps {
   mode: Mode;
   myUid: string;
   myName: string;
   myRole: string;
-  project?: { id: string; name: string; division?: string }; // studio: progetto corrente (per creare)
+  project?: { id: string; name: string; division?: string; client?: string | null; committente?: string | null; location?: string | null }; // studio: progetto corrente
   cantieri: Cantiere[];                                       // già filtrati a monte
   rapportini?: Record<string, Record<string, Rapportino>>;
   presenze?: Record<string, Record<string, Presenza>>;
@@ -42,12 +46,19 @@ export interface CantiereBoardProps {
   documenti?: Record<string, Record<string, CantiereDoc>>;
   sal?: Record<string, Record<string, CantiereSal>>;
   log?: Record<string, Record<string, CantiereLog>>;
+  records?: Record<string, Record<string, CantiereRecord>>;   // registro voci per-cantiere (generico)
+  messages?: Record<string, Record<string, CantiereMessage>>; // chat di cantiere
+  impresaDocs?: Record<string, Record<string, ImpresaDoc>>;   // Area Impresa: keyed per uid partner
+  impresaRecords?: Record<string, Record<string, ImpresaRecord>>;
   partnerAccounts?: UserProfile[];                            // studio: elenco imprese partner per assegnazione
   onSaveCantiere?: (c: Cantiere) => void;
   onDeleteCantiere?: (cid: string) => void;
   onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
   onSaveEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteEntity?: (coll: string, cid: string, id: string) => void;
+  onSendMessage?: (cid: string, text: string) => void;
+  onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
+  onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
   onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
   onApproveSal?: (cid: string, id: string) => void;
 }
@@ -69,80 +80,12 @@ const newId = (p: string) => `${p}-${Date.now()}-${Math.floor(Math.random() * 90
 const vals = <T,>(m?: Record<string, T>): T[] => (m ? Object.values(m) : []);
 
 // ----------------------------------------------------------------
-// DriveUploader — upload reale su Drive con fallback "incolla link"
-// ----------------------------------------------------------------
-const DriveUploader: React.FC<{
-  folderName: string;
-  onUploaded: (f: { driveFileId?: string; driveUrl?: string; link?: string; name?: string }) => void;
-}> = ({ folderName, onUploaded }) => {
-  const [busy, setBusy] = useState(false);
-  const [linkMode, setLinkMode] = useState(!driveAvailable());
-  const [link, setLink] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-
-  const handleFile = async (file?: File | null) => {
-    if (!file) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      const res = await uploadToDrive(file, folderName);
-      onUploaded({ driveFileId: res.fileId, driveUrl: res.webViewLink, name: file.name });
-    } catch (e: any) {
-      // Fallback: Drive non configurato/negato → consenti link manuale
-      setLinkMode(true);
-      setErr('Upload Drive non disponibile: incolla un link al file.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      {!linkMode && (
-        <label className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold cursor-pointer hover:bg-[#fafafa] ${busy ? 'opacity-60 pointer-events-none' : ''}`}>
-          <CloudUpload className="w-4 h-4" /> {busy ? 'Caricamento…' : 'Carica su Drive'}
-          <input type="file" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-        </label>
-      )}
-      {linkMode && (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 flex-1 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white">
-            <LinkIcon className="w-4 h-4 text-[#9a9a9a]" />
-            <input
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="https://…  (Drive/Dropbox/…)"
-              className="flex-1 border-none outline-none text-[12.5px] bg-transparent"
-            />
-          </div>
-          <button
-            type="button"
-            disabled={!link.trim()}
-            onClick={() => { onUploaded({ link: link.trim() }); setLink(''); }}
-            className="px-3 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40"
-          >
-            Allega
-          </button>
-        </div>
-      )}
-      {err && <span className="inline-flex items-center gap-1 text-[11px] text-amber-700"><AlertTriangle className="w-3 h-3" /> {err}</span>}
-      {!linkMode && driveAvailable() && (
-        <button type="button" onClick={() => setLinkMode(true)} className="self-start text-[11px] text-[#9a9a9a] underline">
-          oppure incolla un link
-        </button>
-      )}
-    </div>
-  );
-};
-
-// ----------------------------------------------------------------
 // Componente principale
 // ----------------------------------------------------------------
 export const CantiereBoard: React.FC<CantiereBoardProps> = (props) => {
   const { mode, myUid, myName, myRole, project, cantieri } = props;
   const isStudio = mode === 'studio';
   const [selId, setSelId] = useState<string | null>(cantieri[0]?.id || null);
-  const [tab, setTab] = useState<Tab>('rapportini');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -246,8 +189,6 @@ export const CantiereBoard: React.FC<CantiereBoardProps> = (props) => {
           {...props}
           isStudio={isStudio}
           cantiere={sel}
-          tab={tab}
-          setTab={setTab}
           folderName={folderName}
           saveEntity={saveEntity}
           delEntity={delEntity}
@@ -260,29 +201,172 @@ export const CantiereBoard: React.FC<CantiereBoardProps> = (props) => {
 // ----------------------------------------------------------------
 // Dettaglio cantiere selezionato
 // ----------------------------------------------------------------
-const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: 'rapportini', label: 'Rapportini', icon: FileText },
-  { id: 'presenze', label: 'Presenze', icon: Users },
-  { id: 'foto', label: 'Foto', icon: ImageIcon },
-  { id: 'materiali', label: 'Materiali', icon: Boxes },
-  { id: 'checklist', label: 'Checklist', icon: ListChecks },
-  { id: 'documenti', label: 'Documenti', icon: FileText },
-  { id: 'sal', label: 'SAL & Avanzamento', icon: TrendingUp },
-  { id: 'storico', label: 'Storico', icon: History }
+type AreaId = 'shared' | 'tecnici' | 'impresa';
+const AREAS: { id: AreaId; label: string }[] = [
+  { id: 'shared', label: 'Campi condivisi' },
+  { id: 'tecnici', label: 'Area Tecnici' },
+  { id: 'impresa', label: 'Area Impresa' }
+];
+
+type SectionRender =
+  | { t: 'comp'; name: 'diario' | 'presenze' | 'foto' | 'materiali' | 'checklist' | 'sal' | 'storico' | 'chat' | 'dati' | 'localizzazione' | 'cliente' }
+  | { t: 'cantdoc'; section: string; categories?: string[]; withExpiry?: boolean; partnerWrite?: boolean }
+  | { t: 'cantrec'; section: string; columns: RecordColumn[]; statuses?: string[]; partnerWrite?: boolean }
+  | { t: 'impdoc'; categories?: string[] }
+  | { t: 'imprec'; section: string; columns: RecordColumn[]; statuses?: string[] }
+  | { t: 'soon'; hint?: string };
+
+interface SectionDef { area: AreaId; id: string; label: string; icon: React.ElementType; render: SectionRender; }
+
+const SECTIONS: SectionDef[] = [
+  // ---- Campi condivisi ----
+  { area: 'shared', id: 'dati', label: 'Dati generali', icon: Info, render: { t: 'comp', name: 'dati' } },
+  { area: 'shared', id: 'localizzazione', label: 'Localizzazione', icon: MapPin, render: { t: 'comp', name: 'localizzazione' } },
+  { area: 'shared', id: 'cliente', label: 'Cliente / Committente', icon: Users, render: { t: 'comp', name: 'cliente' } },
+  { area: 'shared', id: 'diario', label: 'Diario di cantiere', icon: FileText, render: { t: 'comp', name: 'diario' } },
+  { area: 'shared', id: 'foto', label: 'Foto', icon: ImageIcon, render: { t: 'comp', name: 'foto' } },
+  { area: 'shared', id: 'attivita', label: 'Attività & Scadenze', icon: ClipboardList, render: { t: 'cantrec', section: 'scadenze', partnerWrite: true, statuses: ['Da fare', 'In corso', 'Completata'], columns: [{ key: 'title', label: 'Attività / scadenza' }, { key: 'date', label: 'Scadenza', type: 'date' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'shared', id: 'documenti', label: 'Documenti', icon: FolderOpen, render: { t: 'cantdoc', section: 'documenti', partnerWrite: true, categories: ['Disegni', 'Verbali', 'Contratti', 'Foto', 'Altro'] } },
+  { area: 'shared', id: 'chat', label: 'Comunicazioni', icon: MessageSquare, render: { t: 'comp', name: 'chat' } },
+
+  // ---- Area Tecnici (direzione lavori / progettazione / sicurezza / qualità / doc tecnica) ----
+  { area: 'tecnici', id: 'sal', label: 'SAL & Avanzamento', icon: TrendingUp, render: { t: 'comp', name: 'sal' } },
+  { area: 'tecnici', id: 'cronoprogramma', label: 'Cronoprogramma', icon: CalIcon, render: { t: 'cantrec', section: 'cronoprogramma', statuses: ['Pianificata', 'In corso', 'Completata'], columns: [{ key: 'title', label: 'Lavorazione / fase' }, { key: 'date', label: 'Inizio', type: 'date' }, { key: 'dateEnd', label: 'Fine', type: 'date' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'tecnici', id: 'verifiche', label: 'Verifica lavorazioni', icon: CheckCircle2, render: { t: 'cantrec', section: 'verifiche', statuses: ['Conforme', 'Non conforme', 'In attesa'], columns: [{ key: 'title', label: 'Lavorazione verificata' }, { key: 'date', label: 'Data', type: 'date' }, { key: 'status', label: 'Esito' }] } },
+  { area: 'tecnici', id: 'nonconformita', label: 'Non conformità', icon: BadgeAlert, render: { t: 'cantrec', section: 'nonconformita', statuses: ['Aperta', 'In corso', 'Chiusa'], columns: [{ key: 'title', label: 'Non conformità' }, { key: 'date', label: 'Rilevata', type: 'date' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'tecnici', id: 'ordini_servizio', label: 'Ordini di servizio / Verbali', icon: FileText, render: { t: 'cantdoc', section: 'verbali', categories: ['Verbale', 'Ordine di servizio', 'Sopralluogo', 'Altro'] } },
+  { area: 'tecnici', id: 'sicurezza', label: 'Sicurezza (POS/PSC/DUVRI)', icon: ShieldCheck, render: { t: 'cantdoc', section: 'sicurezza', categories: ['POS', 'PSC', 'DUVRI', 'Verbale sicurezza', 'Altro'] } },
+  { area: 'tecnici', id: 'progettazione', label: 'Progettazione', icon: Layers, render: { t: 'cantdoc', section: 'progettazione', categories: ['Elaborati grafici', 'Tavole tecniche', 'Computi metrici', 'Varianti', 'Revisioni'] } },
+  { area: 'tecnici', id: 'qualita', label: 'Controllo qualità', icon: ListChecks, render: { t: 'comp', name: 'checklist' } },
+  { area: 'tecnici', id: 'doctecnica', label: 'Documentazione tecnica', icon: FolderOpen, render: { t: 'cantdoc', section: 'doctecnica', withExpiry: true, categories: ['Permesso', 'Autorizzazione', 'Pratica comunale', 'Relazione tecnica', 'Certificato'] } },
+  { area: 'tecnici', id: 'collaudi', label: 'Collaudi & test materiali', icon: CheckCircle2, render: { t: 'soon', hint: 'Collaudi, test materiali e certificazioni impianti: in preparazione.' } },
+  { area: 'tecnici', id: 'storico', label: 'Storico', icon: History, render: { t: 'comp', name: 'storico' } },
+
+  // ---- Area Impresa (profilo impresa partner, riusabile su tutti i cantieri) ----
+  { area: 'impresa', id: 'documentazione', label: 'Documentazione impresa', icon: FileText, render: { t: 'impdoc', categories: ['DURC', 'Visura', 'Polizza assicurativa', 'Certificazione SOA', 'Documento dipendente'] } },
+  { area: 'impresa', id: 'squadre', label: 'Squadre', icon: Users, render: { t: 'imprec', section: 'squadre', columns: [{ key: 'title', label: 'Nome squadra' }, { key: 'caposquadra', label: 'Caposquadra' }, { key: 'componenti', label: 'N. componenti', type: 'number' }] } },
+  { area: 'impresa', id: 'operai', label: 'Operai', icon: HardHat, render: { t: 'imprec', section: 'operai', columns: [{ key: 'title', label: 'Nominativo' }, { key: 'mansione', label: 'Mansione' }, { key: 'contatto', label: 'Contatto' }] } },
+  { area: 'impresa', id: 'presenze', label: 'Presenze & ore', icon: Clock, render: { t: 'comp', name: 'presenze' } },
+  { area: 'impresa', id: 'mezzi', label: 'Mezzi & attrezzature', icon: Truck, render: { t: 'imprec', section: 'mezzi', statuses: ['Operativo', 'In manutenzione', 'Guasto'], columns: [{ key: 'title', label: 'Mezzo / attrezzatura' }, { key: 'targa', label: 'Targa / codice' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'impresa', id: 'materiali', label: 'Materiali (consegne/impiego)', icon: Boxes, render: { t: 'comp', name: 'materiali' } },
+  { area: 'impresa', id: 'sicurezza_impresa', label: 'Sicurezza impresa', icon: ShieldCheck, render: { t: 'imprec', section: 'sicurezza_impresa', statuses: ['Valido', 'In scadenza', 'Scaduto'], columns: [{ key: 'title', label: 'Voce (DPI/formazione/visita/patentino)' }, { key: 'lavoratore', label: 'Lavoratore' }, { key: 'date', label: 'Scadenza', type: 'date' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'impresa', id: 'magazzino', label: 'Magazzino & ordini', icon: HardDrive, render: { t: 'soon', hint: 'Ordini, fornitori, magazzino e giacenze dell\'impresa: in preparazione.' } }
 ];
 
 const CantiereDetail: React.FC<CantiereBoardProps & {
   isStudio: boolean;
   cantiere: Cantiere;
-  tab: Tab;
-  setTab: (t: Tab) => void;
   folderName: string;
   saveEntity: (coll: string, item: any) => void;
   delEntity: (coll: string, id: string) => void;
 }> = (p) => {
-  const { cantiere: c, isStudio, tab, setTab, myUid, myName, myRole, folderName, saveEntity, delEntity } = p;
+  const { cantiere: c, isStudio, myUid, myName, myRole, folderName, saveEntity, delEntity } = p;
   const cid = c.id;
   const [assignOpen, setAssignOpen] = useState(false);
+  const [area, setArea] = useState<AreaId>('shared');
+  const [section, setSection] = useState<string>('dati');
+
+  // Impresa attiva per l'Area Impresa: partner = se stesso; studio = partner assegnato selezionato
+  const assignedUids = Object.keys(c.partnerUids || {});
+  const [impUid, setImpUid] = useState<string>(isStudio ? (assignedUids[0] || '') : myUid);
+  const partnerName = (uid: string) => (p.partnerAccounts || []).find((a) => a.uid === uid)?.companyName
+    || (p.partnerAccounts || []).find((a) => a.uid === uid)?.name || 'Impresa';
+  const partnerAssigned = !!c.partnerUids?.[myUid];
+
+  const areaSections = SECTIONS.filter((s) => s.area === area);
+  const def = SECTIONS.find((s) => s.id === section) || areaSections[0];
+
+  const switchArea = (a: AreaId) => {
+    setArea(a);
+    const first = SECTIONS.find((s) => s.area === a);
+    if (first) setSection(first.id);
+  };
+
+  // -- builder dati per i registri generici --
+  const cantDocItems = (sec: string): DocItem[] =>
+    vals(p.documenti?.[cid]).filter((d) => (d.section || 'documenti') === sec)
+      .map((d) => ({ id: d.id, name: d.name, driveUrl: d.driveUrl, link: d.link, category: d.category, expiry: d.expiry, by: d.by, at: d.at }));
+  const cantRecItems = (sec: string): GenericRecord[] => vals(p.records?.[cid]).filter((r) => r.section === sec);
+  const impDocItems = (): DocItem[] =>
+    vals(p.impresaDocs?.[impUid]).map((d) => ({ id: d.id, name: d.name, driveUrl: d.driveUrl, link: d.link, category: d.docType, expiry: d.expiry, by: d.by, at: d.at }));
+  const impRecItems = (sec: string): GenericRecord[] => vals(p.impresaRecords?.[impUid]).filter((r) => r.section === sec);
+
+  const renderSection = (): React.ReactNode => {
+    const r = def.render;
+    if (r.t === 'comp') {
+      switch (r.name) {
+        case 'diario': return <RapportiniTab {...p} />;
+        case 'presenze': return <PresenzeTab {...p} />;
+        case 'foto': return <FotoTab {...p} />;
+        case 'materiali': return <MaterialiTab {...p} />;
+        case 'checklist': return <ChecklistTab {...p} />;
+        case 'sal': return <SalTab {...p} />;
+        case 'storico': return <StoricoTab {...p} />;
+        case 'chat': return <ChatTab {...p} />;
+        case 'dati': return <DatiGeneraliTab {...p} />;
+        case 'localizzazione': return <LocalizzazioneTab {...p} />;
+        case 'cliente': return <ClienteTab {...p} />;
+      }
+    }
+    if (r.t === 'cantdoc') {
+      const canWrite = isStudio || (!!r.partnerWrite && partnerAssigned);
+      return (
+        <DocRegistry
+          items={cantDocItems(r.section)}
+          folderName={folderName}
+          canWrite={canWrite}
+          canDelete={(d) => isStudio || d.by === myUid}
+          categories={r.categories}
+          withExpiry={r.withExpiry}
+          onAdd={(data) => saveEntity('cantiereDocumenti', { id: newId('doc'), name: data.name, driveFileId: data.driveFileId || null, driveUrl: data.driveUrl || null, link: data.link || null, section: r.section, category: data.category || null, expiry: data.expiry || null, by: myUid, role: myRole, at: Date.now() })}
+          onDelete={(id) => delEntity('cantiereDocumenti', id)}
+        />
+      );
+    }
+    if (r.t === 'cantrec') {
+      const canWrite = isStudio || (!!r.partnerWrite && partnerAssigned);
+      return (
+        <RecordRegistry
+          items={cantRecItems(r.section)}
+          columns={r.columns}
+          statuses={r.statuses}
+          canWrite={canWrite}
+          canDelete={(rec) => isStudio || rec.by === myUid}
+          onAdd={(data) => saveEntity('cantiereRecords', { id: newId('rec'), section: r.section, title: data.title, date: data.date || null, dateEnd: data.dateEnd || null, status: data.status || null, fields: data.fields, by: myUid, byName: myName, role: myRole, at: Date.now() })}
+          onDelete={(id) => delEntity('cantiereRecords', id)}
+        />
+      );
+    }
+    if (r.t === 'impdoc' || r.t === 'imprec') {
+      if (!impUid) return <SectionPlaceholder label="Nessuna impresa assegnata" hint="Assegna un'impresa partner al cantiere per vederne l'Area Impresa." />;
+      const canWrite = !isStudio && impUid === myUid;
+      if (r.t === 'impdoc') {
+        return (
+          <DocRegistry
+            items={impDocItems()}
+            folderName={`Onirico Impresa - ${partnerName(impUid)}`}
+            canWrite={canWrite}
+            categories={r.categories}
+            withExpiry
+            emptyText="Nessun documento dell'impresa."
+            onAdd={(data) => p.onSaveImpresaEntity?.('impresaDocs', impUid, { id: newId('idoc'), docType: data.category || 'Documento', name: data.name, expiry: data.expiry || null, driveFileId: data.driveFileId || null, driveUrl: data.driveUrl || null, link: data.link || null, by: myUid, at: Date.now() })}
+            onDelete={(id) => p.onDeleteImpresaEntity?.('impresaDocs', impUid, id)}
+          />
+        );
+      }
+      return (
+        <RecordRegistry
+          items={impRecItems(r.section)}
+          columns={r.columns}
+          statuses={r.statuses}
+          canWrite={canWrite}
+          onAdd={(data) => p.onSaveImpresaEntity?.('impresaRecords', impUid, { id: newId('irec'), section: r.section, title: data.title, date: data.date || null, status: data.status || null, fields: data.fields, by: myUid, at: Date.now() })}
+          onDelete={(id) => p.onDeleteImpresaEntity?.('impresaRecords', impUid, id)}
+        />
+      );
+    }
+    return <SectionPlaceholder label={def.label} hint={(r as any).hint} />;
+  };
 
   return (
     <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4">
@@ -349,31 +433,51 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
         </div>
       )}
 
-      {/* tabs */}
-      <div className="flex gap-1 overflow-x-auto mb-3">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
+      {/* nav AREA (livello 1) */}
+      <div className="flex gap-1.5 mb-2.5 border-b border-[#f2f2f2] pb-2.5">
+        {AREAS.map((a) => {
+          const active = area === a.id;
           return (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${active ? 'bg-[#161616] text-white' : 'bg-[#f3f3f3] text-[#6b6b6b]'}`}
+              key={a.id}
+              onClick={() => switchArea(a.id)}
+              className={`px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors ${active ? 'bg-[#161616] text-white' : 'bg-white text-[#6b6b6b] border border-[#e2e2e2] hover:bg-[#fafafa]'}`}
             >
-              <Icon className="w-3.5 h-3.5" /> {t.label}
+              {a.label}
             </button>
           );
         })}
       </div>
 
-      {tab === 'rapportini' && <RapportiniTab {...p} />}
-      {tab === 'presenze' && <PresenzeTab {...p} />}
-      {tab === 'foto' && <FotoTab {...p} />}
-      {tab === 'materiali' && <MaterialiTab {...p} />}
-      {tab === 'checklist' && <ChecklistTab {...p} />}
-      {tab === 'documenti' && <DocumentiTab {...p} />}
-      {tab === 'sal' && <SalTab {...p} />}
-      {tab === 'storico' && <StoricoTab {...p} />}
+      {/* nav SEZIONE (livello 2) */}
+      <div className="flex gap-1 overflow-x-auto mb-3">
+        {areaSections.map((s) => {
+          const Icon = s.icon;
+          const active = section === s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => setSection(s.id)}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${active ? 'bg-[#2b2b2b] text-white' : 'bg-[#f3f3f3] text-[#6b6b6b]'}`}
+            >
+              <Icon className="w-3.5 h-3.5" /> {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* selettore impresa (solo studio, Area Impresa con più partner) */}
+      {area === 'impresa' && isStudio && assignedUids.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[11.5px] font-bold text-[#9a9a9a]">Impresa:</span>
+          <select value={impUid} onChange={(e) => setImpUid(e.target.value)} className="px-2.5 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold outline-none">
+            {assignedUids.map((uid) => <option key={uid} value={uid}>{partnerName(uid)}</option>)}
+          </select>
+          <span className="text-[11px] text-[#b0b0b0]">(profilo riusato su tutti i cantieri dell'impresa, sola lettura)</span>
+        </div>
+      )}
+
+      {renderSection()}
     </div>
   );
 };
@@ -627,34 +731,110 @@ const ChecklistTab: React.FC<TabProps> = (p) => {
   );
 };
 
-// -------------------- Documenti --------------------
-const DocumentiTab: React.FC<TabProps> = (p) => {
-  const { cantiere: c, isStudio, myUid, myRole, folderName, saveEntity, delEntity } = p;
-  const list = vals(p.documenti?.[c.id]).sort((a, b) => b.at - a.at);
+// -------------------- Comunicazioni / Chat --------------------
+const ChatTab: React.FC<TabProps> = (p) => {
+  const { cantiere: c, myUid } = p;
+  const list = vals(p.messages?.[c.id]).sort((a, b) => a.at - b.at);
+  const [text, setText] = useState('');
+  const send = () => { if (!text.trim()) return; p.onSendMessage?.(c.id, text); setText(''); };
   return (
     <div className="flex flex-col gap-3">
-      <DriveUploader folderName={folderName} onUploaded={(f) => {
-        const d: CantiereDoc = { id: newId('doc'), name: f.name || 'Documento', driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, by: myUid, role: myRole, at: Date.now() };
-        saveEntity('cantiereDocumenti', d);
-      }} />
-      {list.length === 0 ? sectionEmpty('Nessun documento.') : (
-        <div className="flex flex-col gap-1.5">
-          {list.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
-              <a href={d.driveUrl || d.link || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[12.5px] font-medium text-[#161616]">
-                <FileText className="w-4 h-4 text-[#9a9a9a]" /> {d.name}
-              </a>
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] text-[#9a9a9a]">{fmtDay(new Date(d.at).toISOString().slice(0, 10))}</span>
-                {(isStudio || d.by === myUid) && <button onClick={() => delEntity('cantiereDocumenti', d.id)} className="text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>}
-              </div>
+      <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto">
+        {list.length === 0 ? sectionEmpty('Nessun messaggio. Avvia il coordinamento di cantiere.') : list.map((m) => {
+          const mine = m.from === myUid;
+          return (
+            <div key={m.id} className={`max-w-[80%] ${mine ? 'self-end' : 'self-start'}`}>
+              <div className={`px-3 py-2 rounded-2xl text-[12.5px] ${mine ? 'bg-[#161616] text-white' : 'bg-[#f3f3f3] text-[#161616]'}`}>{m.text}</div>
+              <div className={`text-[10px] text-[#9a9a9a] mt-0.5 ${mine ? 'text-right' : ''}`}>{m.name} · {new Date(m.at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2">
+        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="Scrivi un messaggio di cantiere…" className="flex-1 px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
+        <button onClick={send} disabled={!text.trim()} className="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40"><Send className="w-4 h-4" /> Invia</button>
+      </div>
+    </div>
+  );
+};
+
+// -------------------- Dati generali (edit studio) --------------------
+const DatiGeneraliTab: React.FC<TabProps> = (p) => {
+  const { cantiere: c, isStudio } = p;
+  const upd = (patch: Partial<Cantiere>) => p.onSaveCantiere?.({ ...c, ...patch, updatedAt: Date.now() });
+  if (!isStudio) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[12.5px]">
+        <Field label="Cantiere" value={c.name} />
+        <Field label="Stato" value={STATUS_LABEL[c.status]} />
+        <Field label="Inizio" value={c.startDate ? fmtDay(c.startDate) : '—'} />
+        <Field label="Consegna prevista" value={c.dueDate ? fmtDay(c.dueDate) : '—'} />
+        <Field label="Localizzazione" value={c.location || '—'} />
+        <Field label="Avanzamento" value={`${c.progressPct || 0}%`} />
+        {c.notes && <div className="md:col-span-2"><Field label="Note" value={c.notes} /></div>}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <LabeledInput label="Nome cantiere" value={c.name} onChange={(v) => upd({ name: v })} />
+      <LabeledInput label="Localizzazione" value={c.location || ''} onChange={(v) => upd({ location: v })} />
+      <LabeledInput label="Inizio" type="date" value={c.startDate || ''} onChange={(v) => upd({ startDate: v || null })} />
+      <LabeledInput label="Consegna prevista" type="date" value={c.dueDate || ''} onChange={(v) => upd({ dueDate: v || null })} />
+      <div className="md:col-span-2 flex flex-col gap-1">
+        <label className="text-[11.5px] font-bold text-[#6b6b6b]">Note</label>
+        <textarea value={c.notes || ''} onChange={(e) => upd({ notes: e.target.value })} rows={3} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none resize-none" />
+      </div>
+    </div>
+  );
+};
+
+// -------------------- Localizzazione --------------------
+const LocalizzazioneTab: React.FC<TabProps> = (p) => {
+  const { cantiere: c, isStudio } = p;
+  const loc = c.location || p.project?.location || '';
+  return (
+    <div className="flex flex-col gap-3">
+      {isStudio ? (
+        <LabeledInput label="Indirizzo / località del cantiere" value={c.location || ''} onChange={(v) => p.onSaveCantiere?.({ ...c, location: v, updatedAt: Date.now() })} />
+      ) : (
+        <Field label="Localizzazione" value={loc || '—'} />
+      )}
+      {loc && (
+        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 self-start px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] font-bold text-[#161616] hover:bg-[#fafafa]">
+          <MapPin className="w-4 h-4" /> Apri in Google Maps
+        </a>
       )}
     </div>
   );
 };
+
+// -------------------- Cliente / Committente --------------------
+const ClienteTab: React.FC<TabProps> = (p) => {
+  const cl = p.project?.client;
+  const com = p.project?.committente;
+  if (!cl && !com) return sectionEmpty('Dati cliente/committente non disponibili (collega il cliente dal fascicolo progetto).');
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[12.5px]">
+      <Field label="Cliente" value={cl || '—'} />
+      <Field label="Committente" value={com || cl || '—'} />
+    </div>
+  );
+};
+
+const Field: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="px-3 py-2 rounded-xl border border-[#eee] bg-[#fafafa]">
+    <div className="text-[10.5px] font-bold uppercase tracking-wide text-[#9a9a9a]">{label}</div>
+    <div className="text-[12.5px] font-medium text-[#161616] mt-0.5 whitespace-pre-wrap">{value}</div>
+  </div>
+);
+
+const LabeledInput: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }> = ({ label, value, onChange, type }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-[11.5px] font-bold text-[#6b6b6b]">{label}</label>
+    <input type={type || 'text'} value={value} onChange={(e) => onChange(e.target.value)} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
+  </div>
+);
 
 // -------------------- SAL & Avanzamento (write solo studio) --------------------
 const SalTab: React.FC<TabProps> = (p) => {

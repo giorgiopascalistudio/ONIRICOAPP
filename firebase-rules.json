@@ -229,6 +229,47 @@
         ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
         ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
       }
+    },
+
+    "cantiereRecords": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      "$cid": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
+        "$id": {
+          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && (newData.child('by').val() == auth.uid || (!newData.exists() && data.child('by').val() == auth.uid))))"
+        }
+      }
+    },
+
+    "cantiereMessages": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      "$cid": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true)",
+        "$id": {
+          ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (root.child('cantieri').child($cid).child('partnerUids').child(auth.uid).val() == true && !data.exists() && newData.child('from').val() == auth.uid))"
+        }
+      }
+    },
+
+    "impresaDocs": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
+      }
+    },
+
+    "impresaRecords": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
+      }
+    },
+
+    "clients": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
     }
   }
 }
