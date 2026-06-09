@@ -6,7 +6,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Sparkles, Edit2, Check, X, UserPlus, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, Task, Appointment } from '../types';
+import { Project, Task, Appointment, TeamLeave } from '../types';
 import { fmtMonthYear, fmtDayLong, DOW, addDays, startOfMonth, startOfWeek, isoDate, relDay, sameDay, parseISO } from '../utils';
 
 interface CalendarViewProps {
@@ -25,6 +25,10 @@ interface CalendarViewProps {
   onDeclineAppointment: (id: string) => void;
   onDeleteAppointment: (id: string) => void;
   myUid: string;
+  myName?: string;
+  teamLeave?: TeamLeave[];
+  onSaveLeave?: (leave: TeamLeave) => void;
+  onDeleteLeave?: (id: string) => void;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -42,7 +46,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onConfirmAppointment,
   onDeclineAppointment,
   onDeleteAppointment,
-  myUid
+  myUid,
+  myName,
+  teamLeave = [],
+  onSaveLeave,
+  onDeleteLeave
 }) => {
   const todayISO = isoDate(new Date());
 
@@ -107,7 +115,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return [...std, ...prj].sort((a, b) => {
       const timeCompare = (a.time || '99:99').localeCompare(b.time || '99:99');
       if (timeCompare !== 0) return timeCompare;
-      const prioVal = (p: string) => (p === 'alta' ? 0 : p === 'media' ? 1 : 2);
+      const prioVal = (p: string) => (p === 'urgente' ? 0 : p === 'alta' ? 1 : p === 'media' ? 2 : 3);
       return prioVal(a.priority) - prioVal(b.priority);
     });
   };
@@ -677,6 +685,98 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {calView === 'month' ? renderMonth() : calView === 'week' ? renderWeek() : renderDay()}
         </motion.div>
       </AnimatePresence>
+
+      <TeamLeavePanel teamLeave={teamLeave} myUid={myUid} myName={myName || ''} onSaveLeave={onSaveLeave} onDeleteLeave={onDeleteLeave} />
+    </div>
+  );
+};
+
+// ---- Ferie & Assenze team ----
+const LEAVE_LABEL: Record<TeamLeave['type'], string> = { ferie: 'Ferie', permesso: 'Permesso', malattia: 'Malattia' };
+const LEAVE_STYLE: Record<TeamLeave['type'], string> = {
+  ferie: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  permesso: 'bg-amber-50 text-amber-700 border-amber-200',
+  malattia: 'bg-rose-50 text-rose-700 border-rose-200'
+};
+
+const TeamLeavePanel: React.FC<{
+  teamLeave: TeamLeave[];
+  myUid: string;
+  myName: string;
+  onSaveLeave?: (l: TeamLeave) => void;
+  onDeleteLeave?: (id: string) => void;
+}> = ({ teamLeave, myUid, myName, onSaveLeave, onDeleteLeave }) => {
+  const [open, setOpen] = React.useState(false);
+  const [from, setFrom] = React.useState('');
+  const [to, setTo] = React.useState('');
+  const [type, setType] = React.useState<TeamLeave['type']>('ferie');
+  const [note, setNote] = React.useState('');
+  const todayIso = isoDate(new Date());
+
+  const upcoming = [...teamLeave].filter((l) => l.dateTo >= todayIso).sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  // banner: ferie altrui che iniziano entro 7 giorni
+  const soon = upcoming.filter((l) => {
+    if (l.uid === myUid) return false;
+    const days = Math.ceil((parseISO(l.dateFrom).getTime() - Date.now()) / 86400000);
+    return days >= 0 && days <= 7;
+  });
+
+  const add = () => {
+    if (!from || !onSaveLeave) return;
+    const id = `leave-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    onSaveLeave({ id, uid: myUid, name: myName || 'Membro', dateFrom: from, dateTo: to || from, type, note: note || null, at: Date.now() });
+    setFrom(''); setTo(''); setType('ferie'); setNote(''); setOpen(false);
+  };
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4 text-left">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="inline-flex items-center gap-2 text-[15px] font-extrabold text-[#161616]">
+          <CalendarIcon className="w-5 h-5" /> Ferie & Assenze team
+        </h3>
+        <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#161616] text-white text-[12.5px] font-bold">
+          <Plus className="w-4 h-4" /> Segna assenza
+        </button>
+      </div>
+
+      {soon.length > 0 && (
+        <div className="mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+          <b>In arrivo entro 7 giorni:</b> {soon.map((l) => `${l.name} (${LEAVE_LABEL[l.type]} dal ${l.dateFrom})`).join(' · ')}
+        </div>
+      )}
+
+      {open && (
+        <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-wrap gap-2 items-end">
+          <div className="flex flex-col gap-1"><label className="text-[11px] font-bold text-[#6b6b6b]">Dal</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" /></div>
+          <div className="flex flex-col gap-1"><label className="text-[11px] font-bold text-[#6b6b6b]">Al</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" /></div>
+          <div className="flex flex-col gap-1"><label className="text-[11px] font-bold text-[#6b6b6b]">Tipo</label>
+            <select value={type} onChange={(e) => setType(e.target.value as TeamLeave['type'])} className="px-2.5 py-2 rounded-xl border border-[#e2e2e2] text-[12px] outline-none">
+              <option value="ferie">Ferie</option><option value="permesso">Permesso</option><option value="malattia">Malattia</option>
+            </select>
+          </div>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (facoltativa)" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
+          <button onClick={add} disabled={!from} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Conferma</button>
+        </div>
+      )}
+
+      {upcoming.length === 0 ? (
+        <p className="text-[12.5px] italic text-[#9a9a9a] py-2">Nessuna assenza programmata.</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {upcoming.map((l) => (
+            <div key={l.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${LEAVE_STYLE[l.type]}`}>{LEAVE_LABEL[l.type]}</span>
+                <span className="text-[12.5px] font-bold text-[#161616] truncate">{l.name}</span>
+                <span className="text-[11.5px] text-[#9a9a9a]">{l.dateFrom === l.dateTo ? l.dateFrom : `${l.dateFrom} → ${l.dateTo}`}{l.note ? ` · ${l.note}` : ''}</span>
+              </div>
+              {(l.uid === myUid) && onDeleteLeave && (
+                <button onClick={() => onDeleteLeave(l.id)} className="text-rose-600 shrink-0"><X className="w-4 h-4" /></button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -127,7 +127,8 @@ export interface Task {
   date: string;
   time?: string | null;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly';
-  priority: 'alta' | 'media' | 'bassa';
+  priority: 'urgente' | 'alta' | 'media' | 'bassa';
+  tipo?: string | null;          // tipologia attività (rilievo, progetto 3D, computo…)
   assignee?: string | null;
   projectId?: string | null;
   owner?: string | null;
@@ -138,6 +139,73 @@ export interface Task {
   updatedAt: number;
   createdBy: string;
   _proj?: boolean; // synthesized flag for client-side project task mapping
+}
+
+/** Notifica persistente (nodo notifications/<uid>/<id>); scritta da app o Cloud Functions. */
+export interface Notification {
+  id: string;
+  type: string;                  // es. 'ferie','preventivo','scadenza','task','appuntamento'
+  title: string;
+  body?: string | null;
+  link?: string | null;          // hash di destinazione (es. '#preventivi')
+  read: boolean;
+  at: number;
+  by?: string | null;
+  byName?: string | null;
+}
+
+// ---- Preventivi studio (nodo quotes/<id>) ----
+export type QuoteMacro = 'progettazione' | 'consulenza' | 'opere_edili' | 'impiantistica' | 'materiali' | 'altro';
+
+export interface QuoteLine {
+  id: string;
+  macro: QuoteMacro;
+  desc: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;            // qty * unitPrice
+}
+
+export interface PaymentMilestone {
+  id: string;
+  label: string;             // es. 'Acconto', 'SAL 1', 'Saldo'
+  percent?: number | null;   // % del totale (opzionale)
+  amount: number;            // importo della rata
+  dueDate?: string | null;   // yyyy-mm-dd
+  status: 'da_emettere' | 'fatturato' | 'incassato';
+  invoiceId?: string | null; // fattura attiva collegata (finInvoicesActive)
+}
+
+export type QuoteStatus = 'elaborato' | 'in_attesa' | 'accettato' | 'rifiutato';
+
+export interface Quote {
+  id: string;
+  number: string;            // numero preventivo (es. PRV-2026-001)
+  clientRecordId?: string | null;
+  clientName: string;
+  projectId?: string | null;
+  division: 'studio' | 'strategico' | 'materico' | 'unico';
+  status: QuoteStatus;
+  lines: QuoteLine[];
+  total: number;
+  paymentPlan?: PaymentMilestone[];
+  validUntil?: string | null;
+  notes?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+  createdBy?: string;
+}
+
+/** Ferie/assenze del team (nodo teamLeave/<id>). */
+export interface TeamLeave {
+  id: string;
+  uid: string;
+  name: string;
+  dateFrom: string;              // yyyy-mm-dd
+  dateTo: string;                // yyyy-mm-dd
+  type: 'ferie' | 'permesso' | 'malattia';
+  note?: string | null;
+  at: number;
 }
 
 export interface TemplateTask {
@@ -445,12 +513,15 @@ export interface ClientRecord {
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;    // numero per link wa.me (se diverso dal telefono)
   address?: string | null;     // residenza / sede legale
   codiceFiscale?: string | null;
   companyName?: string | null; // (azienda)
   partitaIva?: string | null;  // (azienda)
   pec?: string | null;         // (azienda)
   sdi?: string | null;         // (azienda) codice destinatario FE
+  tier?: 1 | 2 | 3 | null;     // fascia/classificazione cliente
+  responsabili?: Record<string, boolean>; // uid dei membri studio responsabili
   accountUid?: string | null;  // opz.: account portale collegato (users/<uid>)
   notes?: string | null;
   createdBy: string;

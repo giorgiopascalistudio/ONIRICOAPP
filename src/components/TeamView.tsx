@@ -24,7 +24,7 @@ import {
   FileCheck 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserProfile, Project } from '../types';
+import { UserProfile, Project, Task } from '../types';
 import { initials } from '../utils';
 
 interface TeamViewProps {
@@ -39,6 +39,7 @@ interface TeamViewProps {
   onNav: (route: string) => void;
   onPreviewClient: (uid: string) => void;
   myUid: string;
+  tasks?: Task[];
 }
 
 export const TeamView: React.FC<TeamViewProps> = ({
@@ -52,7 +53,8 @@ export const TeamView: React.FC<TeamViewProps> = ({
   onUserMenu,
   onNav,
   onPreviewClient,
-  myUid
+  myUid,
+  tasks = []
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -333,6 +335,11 @@ export const TeamView: React.FC<TeamViewProps> = ({
           ? "Elenco delle imprese partner, impiantisti, geometri e artigiani abilitati che collaborano alla realizzazione dei cantieri attivi dello studio."
           : "Elenco dei committenti registrati per i settori dello studio (Architettura, Brand e Finiture d'Interni) con credenziali di accesso dedicate."}
       </p>
+
+      {/* DASHBOARD PRODUTTIVITÀ (solo team) */}
+      {peopleTab === 'team' && (
+        <ProductivityDashboard members={teamList} tasks={tasks} />
+      )}
 
       {/* RENDER GRID MODE */}
       {viewMode === 'grid' ? (
@@ -995,6 +1002,60 @@ export const TeamView: React.FC<TeamViewProps> = ({
           </div>
         </motion.div>
       )}
+    </div>
+  );
+};
+
+// ---- Dashboard produttività per collaboratore ----
+const ProductivityDashboard: React.FC<{ members: any[]; tasks: Task[] }> = ({ members, tasks }) => {
+  const [range, setRange] = useState<'week' | 'month'>('week');
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+  const start = new Date(now);
+  if (range === 'week') { const d = (start.getDay() + 6) % 7; start.setDate(start.getDate() - d); } else { start.setDate(1); }
+  start.setHours(0, 0, 0, 0);
+  const startMs = start.getTime();
+
+  const statsFor = (uid: string) => {
+    const mine = tasks.filter((t) => t.assignee === uid);
+    const open = mine.filter((t) => !t.done);
+    const overdue = open.filter((t) => t.date && t.date < todayIso);
+    const completed = mine.filter((t) => t.done && (t.updatedAt || 0) >= startMs);
+    const urgent = open.filter((t) => t.priority === 'urgente');
+    return { open: open.length, overdue: overdue.length, completed: completed.length, urgent: urgent.length };
+  };
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4 text-left">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="inline-flex items-center gap-2 text-[14.5px] font-extrabold text-[#161616]"><Compass className="w-4.5 h-4.5" /> Produttività team</h3>
+        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+          {(['week', 'month'] as const).map((r) => (
+            <button key={r} onClick={() => setRange(r)} className={`text-[11.5px] font-bold px-3 py-1 rounded-full ${range === r ? 'bg-[#161616] text-white' : 'text-[#8a8a8a]'}`}>
+              {r === 'week' ? 'Settimana' : 'Mese'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {members.map((u) => {
+          const s = statsFor(u.uid);
+          return (
+            <div key={u.uid} className="px-3 py-2.5 rounded-2xl border border-[#eee] bg-[#fafafa]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-7 h-7 rounded-full bg-[#161616] text-white flex items-center justify-center text-[10px] font-bold">{initials(u.name)}</span>
+                <b className="text-[12.5px] text-[#161616] truncate">{u.name}</b>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 text-center">
+                <div><div className="text-[15px] font-black text-[#161616]">{s.open}</div><div className="text-[8.5px] font-bold uppercase text-[#9a9a9a]">Aperti</div></div>
+                <div><div className={`text-[15px] font-black ${s.urgent ? 'text-rose-600' : 'text-[#161616]'}`}>{s.urgent}</div><div className="text-[8.5px] font-bold uppercase text-[#9a9a9a]">Urgenti</div></div>
+                <div><div className={`text-[15px] font-black ${s.overdue ? 'text-amber-600' : 'text-[#161616]'}`}>{s.overdue}</div><div className="text-[8.5px] font-bold uppercase text-[#9a9a9a]">Scaduti</div></div>
+                <div><div className="text-[15px] font-black text-emerald-600">{s.completed}</div><div className="text-[8.5px] font-bold uppercase text-[#9a9a9a]">Fatti</div></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
