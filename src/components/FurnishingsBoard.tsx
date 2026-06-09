@@ -24,6 +24,7 @@ import { Furnishing, Project } from '../types';
 import { todayISO, eur } from '../utils';
 import { arrediTotals, STUDIO_FEE_PCT, ARREDI_MOBILI_FEE_PCT } from '../finance';
 import { Box, Maximize2, Loader2 } from 'lucide-react';
+import { MoodboardErrorBoundary } from './moodboard3d/MoodboardErrorBoundary';
 // Caricamento lazy: three/fiber/drei finiscono in un chunk separato, scaricato solo all'apertura
 const Moodboard3D = lazy(() => import('./moodboard3d/Moodboard3D'));
 
@@ -422,20 +423,22 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
 
       {/* Editor moodboard 3D (overlay fullscreen, caricato on-demand) */}
       {mb3dOpen && (
-        <Suspense fallback={
-          <div className="fixed inset-0 z-[120] bg-[#F5F5F3] flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-7 h-7 text-[#161616] animate-spin" />
-            <span className="text-[12.5px] font-bold text-[#8a8a8a]">Caricamento moodboard 3D…</span>
-          </div>
-        }>
-          <Moodboard3D
-            open={mb3dOpen}
-            onClose={() => setMb3dOpen(false)}
-            projectName={project.name}
-            elements={moodboard3dElements || []}
-            onSave={(els) => onSaveMoodboard3d?.(pid, els)}
-          />
-        </Suspense>
+        <MoodboardErrorBoundary onClose={() => setMb3dOpen(false)}>
+          <Suspense fallback={
+            <div className="fixed inset-0 z-[120] bg-[#F5F5F3] flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-7 h-7 text-[#161616] animate-spin" />
+              <span className="text-[12.5px] font-bold text-[#8a8a8a]">Caricamento moodboard 3D…</span>
+            </div>
+          }>
+            <Moodboard3D
+              open={mb3dOpen}
+              onClose={() => setMb3dOpen(false)}
+              projectName={project.name}
+              elements={moodboard3dElements || []}
+              onSave={(els) => onSaveMoodboard3d?.(pid, els)}
+            />
+          </Suspense>
+        </MoodboardErrorBoundary>
       )}
 
       {/* MODALE NUOVO ARREDO */}

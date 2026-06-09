@@ -481,6 +481,10 @@ export default function MoodboardCanvas({
     }
   }, [setCanvasDOMElement]);
 
+  // Al cambio selezione azzera il target del gizmo: TransformControls si smonta e si
+  // riaggancia pulito al nuovo oggetto (evita riferimenti a oggetti rimossi dalla scena).
+  useEffect(() => { setGizmoTarget(null); }, [selectedId]);
+
   // Safe Transform change listener to handle scale, rotation and translates
   useEffect(() => {
     if (!transformControlsRef.current) return;
