@@ -314,3 +314,54 @@ textarea:focus {
     transform: translateY(-50%);
   }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ============================================================
+   DARK MODE (segue il tema di sistema) — v1
+   Rimappa le superfici/testi/bordi/input "cablati" usati in tutta l'app.
+   I badge colorati (emerald/amber/rose/indigo/purple) restano invariati.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+
+  body { background-color: #0e0f11 !important; color: #e8e8ea !important; }
+
+  /* superfici chiare → scure */
+  .bg-\[\#F5F5F3\], .bg-\[\#f5f5f3\] { background-color: #0e0f11 !important; }
+  .bg-white { background-color: #17181b !important; }
+  .bg-\[\#fafafa\], .bg-\[\#fbfbfb\], .bg-\[\#f9f9f9\], .bg-\[\#f6f6f4\], .bg-\[\#f5f5f5\],
+  .bg-\[\#f3f3f3\], .bg-\[\#f1f1f1\], .bg-\[\#f0f0f0\], .bg-\[\#ececec\],
+  .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-zinc-50, .bg-neutral-100, .bg-stone-50 { background-color: #1d1f23 !important; }
+
+  /* gradiente sidebar */
+  .from-white { --tw-gradient-from: #17181b !important; }
+  .to-\[\#f5f5f5\] { --tw-gradient-to: #1d1f23 !important; }
+
+  /* testo scuro → chiaro */
+  .text-\[\#161616\], .text-\[\#1b1b1b\], .text-\[\#1a1a1a\], .text-black { color: #e8e8ea !important; }
+  .text-\[\#333\], .text-\[\#333333\], .text-\[\#3a3a3a\], .text-\[\#3d3d3d\],
+  .text-gray-700, .text-gray-800, .text-gray-900, .text-gray-850, .text-zinc-800, .text-zinc-900, .text-slate-700, .text-stone-700 { color: #cfd2d6 !important; }
+  .text-\[\#6b6b6b\], .text-\[\#6e6e6e\], .text-\[\#8a8a8a\], .text-\[\#9a9a9a\], .text-\[\#a8a8a8\],
+  .text-\[\#b0b0b0\], .text-\[\#bdbdbd\], .text-\[\#c9c9c9\],
+  .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-605, .text-slate-500, .text-zinc-500, .text-stone-500 { color: #9aa0a6 !important; }
+
+  /* bordi chiari → scuri */
+  .border-\[\#e2e2e2\], .border-\[\#eee\], .border-\[\#ececec\], .border-\[\#f2f2f2\], .border-\[\#f0f0f0\], .border-\[\#f5f5f5\], .border-\[\#dcdcdc\],
+  .border-gray-100, .border-gray-200, .border-slate-200, .border-zinc-200, .border-neutral-100, .border-stone-200 { border-color: #2a2d31 !important; }
+
+  /* pulsanti/elementi "neri" → grigio scuro leggibile (il testo bianco resta) */
+  .bg-\[\#161616\], .bg-\[\#1b1b1b\], .bg-\[\#1b1a16\], .bg-\[\#2b2b2b\], .bg-\[\#1a1a1a\] { background-color: #2f333a !important; }
+  .hover\:bg-black:hover, .hover\:bg-\[\#1b1b1b\]:hover, .hover\:bg-\[\#161616\]:hover { background-color: #3a3f47 !important; }
+
+  /* campi modulo */
+  select, input, textarea, .input, .select { background-color: #1d1f23 !important; color: #e8e8ea !important; border-color: #2a2d31 !important; }
+  ::placeholder { color: #7c8086 !important; }
+
+  /* scrollbar su fondo scuro */
+  *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3) !important; background-clip: content-box; }
+}

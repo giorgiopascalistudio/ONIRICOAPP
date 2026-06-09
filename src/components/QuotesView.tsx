@@ -8,10 +8,11 @@
  */
 import React, { useMemo, useState } from 'react';
 import {
-  FileSignature, Plus, X, Trash2, Euro, CheckCircle2, Clock, Send, Receipt, ChevronDown, ChevronUp
+  FileSignature, Plus, Trash2, Receipt, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Quote, QuoteLine, QuoteMacro, PaymentMilestone, ClientRecord, Project } from '../types';
 import { eur } from '../utils';
+import { Modal } from './Modal';
 
 const MACRO_LABEL: Record<QuoteMacro, string> = {
   progettazione: 'Progettazione', consulenza: 'Consulenza', opere_edili: 'Opere edili',
@@ -205,13 +206,15 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
 
       {/* EDITOR */}
       {editorOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setEditorOpen(false)}>
-          <div className="bg-white rounded-[24px] w-full max-w-[680px] max-h-[88vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[17px] font-black text-[#161616]">{quotes[draft.id] ? 'Modifica preventivo' : 'Nuovo preventivo'}</h3>
-              <button onClick={() => setEditorOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-
+        <Modal
+          title={quotes[draft.id] ? 'Modifica preventivo' : 'Nuovo preventivo'}
+          isOpen={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          wide
+          footer={
+            <button onClick={save} disabled={!draft.number.trim() || !draft.clientName.trim()} className="btn bg-[#1b1b1b] text-white hover:bg-black font-semibold cursor-pointer disabled:opacity-40 justify-center">Salva preventivo</button>
+          }
+        >
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <L label="Numero *"><input value={draft.number} onChange={(e) => setDraft((d) => ({ ...d, number: e.target.value }))} placeholder="PRV-2026-001" className="qi font-mono" /></L>
@@ -293,11 +296,8 @@ export const QuotesView: React.FC<QuotesViewProps> = ({ quotes, clients, project
               </div>
 
               <L label="Note"><textarea value={draft.notes || ''} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value || null }))} rows={2} className="qi resize-none" /></L>
-
-              <button onClick={save} disabled={!draft.number.trim() || !draft.clientName.trim()} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] disabled:opacity-40 border-none cursor-pointer">Salva preventivo</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <style>{`.qi{height:36px;border:1px solid #e2e2e2;border-radius:10px;padding:0 10px;font-size:12.5px;background:#fff;outline:none}.qi:focus{border-color:#161616}textarea.qi{height:auto;padding:8px 10px}.qlbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9a9a9a}`}</style>
