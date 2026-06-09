@@ -506,33 +506,31 @@ export default function MoodboardCanvas({
   // riaggancia pulito al nuovo oggetto (evita riferimenti a oggetti rimossi dalla scena).
   useEffect(() => { setGizmoTarget(null); }, [selectedId]);
 
-  // Safe Transform change listener to handle scale, rotation and translates
+  // Safe Transform change listener — si aggancia quando il gizmo monta davvero (gizmoTarget)
   useEffect(() => {
-    if (!transformControlsRef.current) return;
     const transformControls = transformControlsRef.current;
+    if (!transformControls) return;
+
+    // Aggiorna lo stato SOLO durante un trascinamento reale: così deselezione/aggancio del
+    // gizmo non possono "spostare" l'oggetto (es. una luce sospesa che cadeva sul tavolo).
+    let dragging = false;
 
     const handleDraggingChanged = (event: any) => {
-      if (orbitControlsRef.current) {
-        // Toggle OrbitControls so dragging a gizmo doesn't pan the camera!
-        orbitControlsRef.current.enabled = !event.value;
-      }
+      dragging = !!event.value;
+      if (orbitControlsRef.current) orbitControlsRef.current.enabled = !event.value;
     };
 
     const handleObjectChanged = () => {
-      if (selectedId && transformControls.object) {
-        const obj = transformControls.object;
-        
-        // Convert rotation back to degrees
-        const rx = Math.round(obj.rotation.x * (180 / Math.PI));
-        const ry = Math.round(obj.rotation.y * (180 / Math.PI));
-        const rz = Math.round(obj.rotation.z * (180 / Math.PI));
-
-        onUpdateElement(selectedId, {
-          position: [obj.position.x, obj.position.y, obj.position.z],
-          rotation: [rx, ry, rz],
-          scale: [obj.scale.x, obj.scale.y, obj.scale.z]
-        });
-      }
+      if (!dragging || !selectedId || !transformControls.object) return;
+      const obj = transformControls.object;
+      const rx = Math.round(obj.rotation.x * (180 / Math.PI));
+      const ry = Math.round(obj.rotation.y * (180 / Math.PI));
+      const rz = Math.round(obj.rotation.z * (180 / Math.PI));
+      onUpdateElement(selectedId, {
+        position: [obj.position.x, obj.position.y, obj.position.z],
+        rotation: [rx, ry, rz],
+        scale: [obj.scale.x, obj.scale.y, obj.scale.z]
+      });
     };
 
     transformControls.addEventListener('dragging-changed', handleDraggingChanged);
@@ -542,7 +540,7 @@ export default function MoodboardCanvas({
       transformControls.removeEventListener('dragging-changed', handleDraggingChanged);
       transformControls.removeEventListener('objectChange', handleObjectChanged);
     };
-  }, [selectedId, onUpdateElement]);
+  }, [selectedId, onUpdateElement, gizmoTarget]);
 
   // Helper listener for general canvas clicks to clear active selection
   const handleMissedClick = () => {
