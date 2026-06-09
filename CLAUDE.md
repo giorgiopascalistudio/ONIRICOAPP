@@ -141,6 +141,14 @@ presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; inclu
   In Nuovo/Modifica progetto il select "Cliente (rubrica)" auto-compila i campi (`Project.clientRecordId`);
   collegamento all'account portale resta separato e opzionale (`clientUid`).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
+- `notifications/<uid>/<id>` — **notifiche persistenti** (`Notification`): scritte dall'app
+  (`pushNotification`/`notifyStudio` in App) e dalle **Cloud Functions** (Admin SDK). Sostituiscono
+  le vecchie notifiche solo-in-memoria; il Centro Notifiche mostra queste + le richieste appuntamento.
+  read/write solo del proprio uid (write anche da studio attivo per notificare colleghi).
+- `teamLeave/<id>` — **ferie/assenze team** (`TeamLeave`): pannello in `CalendarView`; all'inserimento
+  notifica in-app a tutto il team (il reminder 7gg prima è una Cloud Function).
+- `quotes/<id>` — **Preventivi studio** (`Quote`, vedi §16): macro-voci, stati, piano pagamenti;
+  admin/manager. La rata "emessa" genera fattura attiva + scadenza nei nodi finanza (consolidato).
 - **Modulo Cantiere** (vedi §15): `cantieri/<cid>` (record cantiere, `partnerUids:{uid:true}`) +
   sotto-collezioni granulari per-elemento `cantiereRapportini|cantierePresenze|cantiereFoto|
   cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog|cantiereRecords|
@@ -232,6 +240,12 @@ upload Google Drive con fallback link. Alcune sotto-voci del PDF sono placeholde
 ("in preparazione") da attivare incrementalmente.
 Fatto: **Rubrica clienti** (`clients`) — anagrafica riutilizzabile (CRM → tab "Clienti") che
 auto-compila il form progetto.
+Fatto: **CRM esteso** (doc CONSIDERAZIONI CRM, §16-18): notifiche persistenti, rubrica con fasce/
+responsabili/WhatsApp, Task con priorità urgente/tipologia + dashboard produttività, ferie team,
+**Preventivi & Amministrazione** (`quotes` con macro-voci/stati/piano pagamenti → finanza), e
+**backend Cloud Functions** (`functions/`: email SendGrid, reminder schedulati, report) — da deployare.
+Da fare (CRM doc, fasi successive): 5 statistiche + Break Even Point, **Incentivi & Performance**
+(300+ attività a punti), **Marketing & Eventi**, **Sondaggi/Customer satisfaction**, WhatsApp API.
 Da fare: completare le voci Cantiere "in preparazione" (manutenzioni/guasti/magazzino/collaudi…),
 modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, integrazioni esterne
@@ -256,6 +270,9 @@ reporting/redditività, integrazioni esterne
   `impresaDocs`/`impresaRecords` (Area Impresa, write del partner proprietario o admin/manager):
   **ripubblicare le regole**, altrimenti rubrica, registri/chat di cantiere e Area Impresa danno
   "permission denied" con write silenziosa lato client.
+  ⚠️ Aggiunti infine `notifications/$uid` (read/write proprio uid; write da studio attivo),
+  `teamLeave` (read studio; write proprio o admin/manager) e `quotes` (admin/manager):
+  **ripubblicare le regole** dopo il deploy.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -326,3 +343,34 @@ reporting/redditività, integrazioni esterne
   `FinanzeView`. I "movimenti liberi" (cassa) restano su `studioFinance` e **non**
   entrano nel margine. Lo snapshot `projectEconomics` per il cliente resta **solo
   ricavi** (niente costi/margine dello studio).
+
+## 16. Preventivi & Amministrazione (CRM esteso)
+- **`QuotesView`** + voce menu **"Preventivi"** (admin/manager). Nodo `quotes/<id>` (`Quote`):
+  righe per **macro-voce** (Progettazione/Consulenza/Opere edili/Impiantistica/Materiali/Altro),
+  **stati** (Elaborato/In attesa/Accettato/Rifiutato), **piano pagamenti** (`PaymentMilestone`:
+  acconto/rate/saldo con % o importo + scadenza). Cliente dalla rubrica `clients`.
+- **Collegamento a finanza**: `handleEmitMilestone` (App) genera da una rata una **bozza fattura
+  attiva** (`finInvoicesActive`) + **scadenza** (`finScadenze`) via `handleSaveFinanceItem`
+  (con `projectId`/`sector=division`) → consolidato `FinanzeView`; la milestone tiene `invoiceId`.
+- **Quadro pagamenti per cliente**: nella scheda cliente del CRM (fatturato/incassato/da incassare +
+  scadenze da sollecitare con pulsanti email/WhatsApp). Notifica al team su preventivo accettato.
+
+## 17. CRM esteso — rubrica, produttività, ferie, notifiche
+- **Notifiche persistenti** (vedi §6 `notifications`): `pushNotification(uid,…)` / `notifyStudio(…)`
+  in `App.tsx`; il Centro Notifiche (desktop+mobile) legge il nodo; click apre `link` (hash).
+- **Rubrica clienti potenziata** (`CrmView` tab Clienti): `ClientRecord.tier` (fasce 1/2/3 + filtro),
+  `responsabili` (più membri), `whatsapp`; scheda con storico progetti + quadro pagamenti + WhatsApp/email.
+- **Task & Produttività**: `Task.priority` include **'urgente'**, `Task.tipo` (tipologia, datalist);
+  notifica al collaboratore alla (ri)assegnazione; **dashboard produttività** per collaboratore in
+  `TeamView` (aperti/urgenti/scaduti/completati, settimana/mese).
+- **Ferie team** (vedi §6 `teamLeave`): pannello in `CalendarView` + notifica in-app a tutti.
+
+## 18. Backend — Cloud Functions (automazioni)
+- Cartella **`functions/`** (TS, firebase-functions v2, region `europe-west1`), config `firebase.json`
+  + `.firebaserc` (progetto `oniricoapp-48953`). Email via **SendGrid** (secret `SENDGRID_KEY`).
+- Funzioni: `onQuoteStatusChange` (preventivo accettato → notifica+email), `dailyReminders`
+  (ferie 7gg prima + scadenze 3gg), `weeklyReport`/`monthlyReport` (attività completate per
+  collaboratore). Scrivono notifiche su `notifications/<uid>` (Admin SDK, bypassa le regole).
+- **Deploy a carico utente** (vedi `functions/README.md`): `firebase login`, piano **Blaze**,
+  `firebase functions:secrets:set SENDGRID_KEY`, `firebase deploy --only functions`. Non verificabile
+  da Claude (serve auth/Blaze/API key). WhatsApp automatico = futuro (oggi link `wa.me` in app).
