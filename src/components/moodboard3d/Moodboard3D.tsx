@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { UploadCloud, X, Save, Maximize2 } from 'lucide-react';
+import { UploadCloud, X, Save, Maximize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import Sidebar from './Sidebar';
 import PropertiesPanel from './PropertiesPanel';
 import Toolbar from './Toolbar';
@@ -37,6 +37,9 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [canvasDOMElement, setCanvasDOMElement] = useState<HTMLCanvasElement | null>(null);
   const [showWelcomeTooltip, setShowWelcomeTooltip] = useState(true);
+  // Pannelli laterali richiudibili
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
   // Dettagli ambientali personalizzabili
   const [bgColor, setBgColor] = useState<string>('#EAEAE5');
@@ -130,6 +133,8 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
       shape: material.category === 'fabric' ? 'circle' : 'tile',
       color: material.color,
       textureUrl: material.textureUrl,
+      normalUrl: material.normalUrl,
+      roughnessUrl: material.roughnessUrl,
       textureName: material.name,
       roughness: material.roughness,
       metalness: material.metalness,
@@ -239,7 +244,7 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
 
       {/* Corpo: libreria · canvas · proprietà */}
       <div className="flex flex-1 min-h-0 w-full overflow-hidden text-[#161616]" onDragOver={handleDragOver}>
-        <Sidebar
+        {leftOpen && <Sidebar
           elements={elements}
           selectedId={selectedId}
           onSelectElement={setSelectedId}
@@ -257,7 +262,7 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
           tableRoughness={tableRoughness} setTableRoughness={setTableRoughness}
           tableMetalness={tableMetalness} setTableMetalness={setTableMetalness}
           showGrid={showGrid} setShowGrid={setShowGrid}
-        />
+        />}
 
         <div className="flex-1 flex flex-col min-w-0 relative h-full bg-[#EAEAE5]">
           <Toolbar
@@ -288,6 +293,22 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
               showGrid={showGrid}
             />
 
+            {/* toggle pannelli laterali (richiudibili) */}
+            <button
+              onClick={() => setLeftOpen((v) => !v)}
+              title={leftOpen ? 'Nascondi libreria' : 'Mostra libreria'}
+              className="absolute top-1/2 -translate-y-1/2 left-2 z-20 w-8 h-12 rounded-xl bg-white/95 backdrop-blur border border-[#e2e2e2] shadow flex items-center justify-center text-[#6b6b6b] hover:text-[#161616] cursor-pointer"
+            >
+              {leftOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={() => setRightOpen((v) => !v)}
+              title={rightOpen ? 'Nascondi proprietà' : 'Mostra proprietà'}
+              className="absolute top-1/2 -translate-y-1/2 right-2 z-20 w-8 h-12 rounded-xl bg-white/95 backdrop-blur border border-[#e2e2e2] shadow flex items-center justify-center text-[#6b6b6b] hover:text-[#161616] cursor-pointer"
+            >
+              {rightOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+            </button>
+
             {/* gizmo modalità trasformazione */}
             {selectedId && (
               <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md p-1 border border-[#e2e2e2] shadow-lg flex items-center gap-1 z-20 rounded-xl">
@@ -316,14 +337,14 @@ export const Moodboard3D: React.FC<Moodboard3DProps> = ({ open, onClose, project
           </div>
         </div>
 
-        <PropertiesPanel
+        {rightOpen && <PropertiesPanel
           selectedElement={elements.find(el => el.id === selectedId) || null}
           transformMode={transformMode}
           onSetTransformMode={setTransformMode}
           onUpdateElement={handleUpdateElement}
           onDuplicateElement={handleDuplicateElement}
           onDeleteElement={handleDeleteElement}
-        />
+        />}
       </div>
 
       {/* overlay drag&drop file */}
