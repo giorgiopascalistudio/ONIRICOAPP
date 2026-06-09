@@ -292,6 +292,8 @@ interface ClientPortalViewProps {
   furnishings?: Record<string, Record<string, Furnishing>>;
   onSaveFurnishing?: (pid: string, item: Furnishing) => void;
   onDeleteFurnishing?: (pid: string, itemId: string) => void;
+  moodboard3d?: Record<string, any>;
+  onSaveMoodboard3d?: (pid: string, elements: any[]) => void;
   onLogout: () => void;
   isPreview?: boolean;
   onExitPreview?: () => void;
@@ -340,6 +342,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   furnishings = {},
   onSaveFurnishing,
   onDeleteFurnishing,
+  moodboard3d = {},
+  onSaveMoodboard3d,
   onLogout,
   isPreview = false,
   onExitPreview,
@@ -2050,6 +2054,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 isStudio={false}
                 onSaveItem={onSaveFurnishing || (() => {})}
                 onDeleteItem={onDeleteFurnishing || (() => {})}
+                moodboard3dElements={moodboard3d[p.id]?.elements || []}
+                onSaveMoodboard3d={onSaveMoodboard3d}
               />
             </div>
           )}

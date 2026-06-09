@@ -77,6 +77,8 @@ interface ProjectsViewProps {
   onSaveFurnishing?: (pid: string, item: Furnishing) => void;
   onDeleteFurnishing?: (pid: string, itemId: string) => void;
   onToggleStudioManagesMobili?: (pid: string, value: boolean) => void;
+  moodboard3d?: Record<string, any>;
+  onSaveMoodboard3d?: (pid: string, elements: any[]) => void;
   isInternalBoss: boolean;
   myUid: string;
   finance?: FinanceMovement[];
@@ -155,6 +157,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onSaveFurnishing,
   onDeleteFurnishing,
   onToggleStudioManagesMobili,
+  moodboard3d = {},
+  onSaveMoodboard3d,
   isInternalBoss,
   myUid,
   finance = [],
@@ -1512,6 +1516,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               onSaveItem={onSaveFurnishing || (() => {})}
               onDeleteItem={onDeleteFurnishing || (() => {})}
               onToggleStudioManagesMobili={onToggleStudioManagesMobili}
+              moodboard3dElements={moodboard3d[p.id]?.elements || []}
+              onSaveMoodboard3d={onSaveMoodboard3d}
             />
           </div>
         )}
