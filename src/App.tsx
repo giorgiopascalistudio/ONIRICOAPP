@@ -50,7 +50,9 @@ import {
   CantiereMessage,
   ImpresaDoc,
   ImpresaRecord,
-  ClientRecord
+  ClientRecord,
+  Notification,
+  TeamLeave
 } from './types';
 
 import {
@@ -116,6 +118,7 @@ import {
   watchNode,
   getNode,
   writeNode,
+  updateNode,
   removeNode,
   type User as GUser
 } from './firebase';
@@ -258,9 +261,11 @@ export default function App() {
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Notifications states
+  // Notifications states (persistite su notifications/<uid>)
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Ferie/assenze team
+  const [teamLeave, setTeamLeave] = useState<Record<string, TeamLeave>>({});
 
   // ----------------------------------------------------
   // INITIALIZATIONS
@@ -623,6 +628,12 @@ export default function App() {
     const add = (path: string, fn: (v: any) => void) =>
       subs.push(watchNode(path, (v) => fn(v || {}), () => {}));
 
+    // Notifiche persistenti del proprio account (tutti i ruoli)
+    subs.push(watchNode(`notifications/${currentUser.uid}`, (v) => {
+      const arr = (v ? Object.values(v) : []) as Notification[];
+      setNotifications(arr.sort((a, b) => b.at - a.at));
+    }, () => {}));
+
     if (studio) {
       // Seed iniziale dei template (solo admin, solo se vuoti)
       if (role === 'admin' && !seededRef.current) {
@@ -685,6 +696,8 @@ export default function App() {
       add('impresaRecords', setImpresaRecords);
       // Rubrica clienti
       add('clients', setClients);
+      // Ferie/assenze team
+      add('teamLeave', setTeamLeave);
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
@@ -778,7 +791,8 @@ export default function App() {
   const [tDateInput, setTDateInput] = useState('');
   const [tTimeInput, setTTimeInput] = useState('');
   const [tFreq, setTFreq] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
-  const [tPrio, setTPrio] = useState<'alta' | 'media' | 'bassa'>('media');
+  const [tPrio, setTPrio] = useState<'urgente' | 'alta' | 'media' | 'bassa'>('media');
+  const [tTipo, setTTipo] = useState('');
   const [tAssignee, setTAssignee] = useState('');
   const [tProjectId, setTProjectId] = useState('');
   const [tNotes, setTNotes] = useState('');
@@ -939,6 +953,7 @@ export default function App() {
     setTTimeInput(t.time || '');
     setTFreq(t.frequency);
     setTPrio(t.priority);
+    setTTipo(t.tipo || '');
     setTAssignee(t.assignee || '');
     setTProjectId(t.projectId || '');
     setTNotes(t.notes || '');
@@ -949,6 +964,17 @@ export default function App() {
     if (!tTitle.trim()) {
       showToast('Inserisci il titolo del task!', 'err');
       return;
+    }
+
+    // notifica al collaboratore se l'assegnatario è nuovo o cambiato (riassegnazione)
+    const prevAssignee = editTaskId ? tasks[editTaskId]?.assignee || '' : '';
+    if (tAssignee && tAssignee !== prevAssignee && tAssignee !== currentUser?.uid) {
+      pushNotification(tAssignee, {
+        type: 'task',
+        title: `Attività assegnata: ${tTitle.trim()}`,
+        body: `${currentUser?.name || 'Lo studio'} ti ha assegnato un'attività${tDateInput ? ` per il ${tDateInput}` : ''}.`,
+        link: '#calendario'
+      });
     }
 
     setTasks(prev => {
@@ -963,6 +989,7 @@ export default function App() {
           time: tTimeInput || null,
           frequency: tFreq,
           priority: tPrio,
+          tipo: tTipo.trim() || null,
           assignee: tAssignee || null,
           projectId: tProjectId || null,
           notes: tNotes.trim() || null,
@@ -978,6 +1005,7 @@ export default function App() {
           time: tTimeInput || null,
           frequency: tFreq,
           priority: tPrio,
+          tipo: tTipo.trim() || null,
           assignee: tAssignee || null,
           projectId: tProjectId || null,
           notes: tNotes.trim() || null,
@@ -1516,6 +1544,61 @@ export default function App() {
     setClients((prev) => { const n = { ...prev }; delete n[id]; return n; });
     removeNode(`clients/${id}`).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
   };
+
+  // ---- Notifiche persistenti (notifications/<uid>) ----
+  const pushNotification = (uid: string, payload: { type: string; title: string; body?: string | null; link?: string | null }) => {
+    if (!uid) return;
+    const id = `ntf-${Date.now()}-${Math.floor(Math.random() * 9000)}`;
+    const ntf: Notification = {
+      id, type: payload.type, title: payload.title, body: payload.body || null, link: payload.link || null,
+      read: false, at: Date.now(), by: currentUser?.uid || null, byName: currentUser?.name || null
+    };
+    writeNode(`notifications/${uid}/${id}`, ntf).catch(() => {});
+  };
+  // Notifica a tutti i membri studio (esclude opzionalmente un uid, es. l'autore)
+  const notifyStudio = (payload: { type: string; title: string; body?: string | null; link?: string | null }, exceptUid?: string) => {
+    const uids = new Set<string>([
+      ...Object.keys(directory || {}),
+      ...Object.values(users).filter((u: any) => u && u.active && u.role !== 'cliente' && u.role !== 'partner').map((u: any) => u.uid)
+    ]);
+    uids.forEach((uid) => { if (uid && uid !== exceptUid) pushNotification(uid, payload); });
+  };
+  const markNotificationRead = (id: string) => {
+    if (!currentUser) return;
+    if (!notifications.some((n) => n.id === id)) return; // sintetiche (es. richieste appuntamento): non persistite
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    updateNode(`notifications/${currentUser.uid}/${id}`, { read: true }).catch(() => {});
+  };
+  const markAllNotificationsRead = () => {
+    if (!currentUser) return;
+    notifications.filter((n) => !n.read).forEach((n) => updateNode(`notifications/${currentUser.uid}/${n.id}`, { read: true }).catch(() => {}));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+  const clearNotifications = () => {
+    if (!currentUser) return;
+    setNotifications([]);
+    removeNode(`notifications/${currentUser.uid}`).catch(() => {});
+  };
+
+  // ---- Ferie/assenze team (teamLeave/<id>) ----
+  const handleSaveLeave = (leave: TeamLeave) => {
+    setTeamLeave((prev) => ({ ...prev, [leave.id]: leave }));
+    writeNode(`teamLeave/${leave.id}`, leave)
+      .then(() => {
+        // notifica in-app a tutto il team (escluso l'autore)
+        notifyStudio({
+          type: 'ferie',
+          title: `${leave.name}: ${leave.type} dal ${leave.dateFrom}`,
+          body: leave.dateFrom === leave.dateTo ? `Giorno ${leave.dateFrom}` : `Dal ${leave.dateFrom} al ${leave.dateTo}`,
+          link: '#calendario'
+        }, leave.uid);
+      })
+      .catch(() => showToast('Errore ferie (controlla regole/permessi).', 'err'));
+  };
+  const handleDeleteLeave = (id: string) => {
+    setTeamLeave((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    removeNode(`teamLeave/${id}`).catch(() => showToast('Errore ferie (controlla regole/permessi).', 'err'));
+  };
   // Auto-compila i campi del progetto dall'anagrafica selezionata (committente solo se vuoto;
   // pIndirizzo NON viene toccato: è l'indirizzo dell'immobile, non la residenza del cliente)
   const applyClientRecord = (rec: ClientRecord | null) => {
@@ -1991,6 +2074,7 @@ export default function App() {
               setTTimeInput('');
               setTFreq('once');
               setTPrio('media');
+              setTTipo('');
               setTAssignee('');
               setTProjectId('');
               setTNotes('');
@@ -2024,12 +2108,17 @@ export default function App() {
               setTTimeInput('');
               setTFreq('once');
               setTPrio('media');
+              setTTipo('');
               setTAssignee('');
               setTProjectId('');
               setTNotes('');
               setTaskEditorOpen(true);
             }}
             myUid={currentUser.uid}
+            myName={currentUser.name}
+            teamLeave={Object.values(teamLeave)}
+            onSaveLeave={handleSaveLeave}
+            onDeleteLeave={handleDeleteLeave}
           />
         );
 
@@ -2230,6 +2319,10 @@ export default function App() {
             clients={clients}
             onSaveClient={handleSaveClient}
             onDeleteClient={handleDeleteClient}
+            projects={Object.values(projects)}
+            members={Object.values(users).filter((u: any) => u && (u.role === 'admin' || u.role === 'manager' || u.role === 'staff'))}
+            finInvoicesActive={finInvoicesActive}
+            finScadenze={finScadenze}
           />
         );
 
@@ -2293,6 +2386,7 @@ export default function App() {
               }
             }}
             myUid={currentUser.uid}
+            tasks={Object.values(tasks)}
           />
         );
 
@@ -2415,7 +2509,17 @@ export default function App() {
     read: false,
     apptDate: a.date
   }));
-  const liveNotifications = [...apptRequestNotifs, ...notifications];
+  const liveNotifications = [
+    ...apptRequestNotifs,
+    ...notifications.map((n) => ({
+      id: n.id,
+      title: n.title,
+      text: n.body || '',
+      time: new Date(n.at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      read: n.read,
+      link: n.link
+    }))
+  ];
 
   return (
     <div className="shell flex h-screen select-none bg-[#F5F5F3] relative min-h-0">
@@ -2514,7 +2618,7 @@ export default function App() {
                       {notifications.some(n => !n.read) && (
                         <button
                           onClick={() => {
-                            setNotifications(p => p.map(n => ({ ...n, read: true })));
+                            markAllNotificationsRead();
                             showToast('Tutte le notifiche segnate come lette.');
                           }}
                           className="text-[11px] font-extrabold text-indigo-650 hover:underline cursor-pointer bg-transparent border-none"
@@ -2537,7 +2641,9 @@ export default function App() {
                                 window.location.hash = 'calendario';
                                 return;
                               }
-                              setNotifications(p => p.map(item => item.id === n.id ? { ...item, read: true } : item));
+                              if ((n as any).link) { window.location.hash = String((n as any).link).replace(/^#/, ''); }
+                              setNotificationsOpen(false);
+                              markNotificationRead(n.id);
                             }}
                             className={`p-2.5 rounded-xl border transition-all duration-150 cursor-pointer relative ${
                               n.read
@@ -2566,7 +2672,7 @@ export default function App() {
                       <div className="border-t border-gray-100 pt-2.5 mt-2.5 flex justify-center">
                         <button
                           onClick={() => {
-                            setNotifications([]);
+                            clearNotifications();
                             showToast('Le notifiche sono state cancellate.');
                           }}
                           className="text-[11px] font-extrabold text-red-500 hover:text-red-700 bg-transparent border-none cursor-pointer"
@@ -2597,7 +2703,7 @@ export default function App() {
                   {notifications.some(n => !n.read) && (
                     <button
                       onClick={() => {
-                        setNotifications(p => p.map(n => ({ ...n, read: true })));
+                        markAllNotificationsRead();
                         showToast('Tutte le notifiche segnate come lette.');
                       }}
                       className="text-[12px] font-extrabold text-indigo-650 bg-transparent border-none cursor-pointer"
@@ -2627,7 +2733,9 @@ export default function App() {
                           window.location.hash = 'calendario';
                           return;
                         }
-                        setNotifications(p => p.map(item => item.id === n.id ? { ...item, read: true } : item));
+                        if ((n as any).link) { window.location.hash = String((n as any).link).replace(/^#/, ''); }
+                        setNotificationsOpen(false);
+                        markNotificationRead(n.id);
                       }}
                       className={`p-3 rounded-xl border transition-all relative ${
                         n.read 
@@ -2656,7 +2764,7 @@ export default function App() {
                 <div className="border-t border-gray-100 pt-3 flex justify-center bg-white">
                   <button
                     onClick={() => {
-                      setNotifications([]);
+                      clearNotifications();
                       showToast('Le notifiche sono state cancellate.');
                     }}
                     className="text-xs font-bold text-red-500 hover:text-red-700 bg-transparent border-none py-1"
@@ -2857,6 +2965,7 @@ export default function App() {
                 onChange={(e: any) => setTPrio(e.target.value)}
                 className="select mt-1"
               >
+                <option value="urgente">Urgente</option>
                 <option value="alta">Alta</option>
                 <option value="media">Media</option>
                 <option value="bassa">Bassa</option>
@@ -2875,6 +2984,20 @@ export default function App() {
                 <option value="monthly">Mensile</option>
               </select>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1 text-left">
+            <label className="text-[12px] font-bold text-[#333]">Tipologia attività <span className="text-gray-400 font-normal">(facoltativa)</span></label>
+            <input
+              value={tTipo}
+              onChange={(e) => setTTipo(e.target.value)}
+              list="task-tipi"
+              placeholder="Es. Rilievo, Progetto 3D, Computo…"
+              className="input mt-1"
+            />
+            <datalist id="task-tipi">
+              {['Rilievo', 'Progetto 3D', 'Computo', 'Pratica edilizia', 'Sopralluogo', 'Render', 'Consegna', 'Riunione'].map((t) => <option key={t} value={t} />)}
+            </datalist>
           </div>
 
           <div className="flex flex-col gap-1 text-left">
