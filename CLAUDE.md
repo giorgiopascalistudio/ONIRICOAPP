@@ -136,14 +136,27 @@ presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; inclu
   crearli), quindi la regola di write è a livello `$pid` senza vincolo `!data.exists()`.
 - `appointments/<id>` — agenda condivisa (vedi §8).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
+- `clients/<id>` — **Rubrica clienti** (anagrafica riutilizzabile, anche clienti **senza login**:
+  privato/azienda con CF/P.IVA/PEC/SDI/indirizzo). Gestita in CRM → tab "Clienti" (admin/manager).
+  In Nuovo/Modifica progetto il select "Cliente (rubrica)" auto-compila i campi (`Project.clientRecordId`);
+  collegamento all'account portale resta separato e opzionale (`clientUid`).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
 - **Modulo Cantiere** (vedi §15): `cantieri/<cid>` (record cantiere, `partnerUids:{uid:true}`) +
   sotto-collezioni granulari per-elemento `cantiereRapportini|cantierePresenze|cantiereFoto|
-  cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog` (tutte
-  `<cid>/<id>`). **Indice inverso** `partnerCantieri/<uid>/<cid>=true` (scritto dallo studio
+  cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog|cantiereRecords|
+  cantiereMessages` (tutte `<cid>/<id>`). `cantiereRecords` = **registro voci generico**
+  (discriminato da `section`: scadenze, cronoprogramma, verifiche, nonconformita, ordini_servizio…);
+  `cantiereDocumenti` esteso con `section`/`category`/`expiry` = **registro documenti generico**
+  (documenti, sicurezza POS/PSC/DUVRI, verbali, progettazione, doc tecnica…); `cantiereMessages` =
+  chat di cantiere. **Indice inverso** `partnerCantieri/<uid>/<cid>=true` (scritto dallo studio
   all'assegnazione) → permette al partner di **elencare** i cantieri assegnati (i partner non
   hanno i cid nei loro `projectIds`). Foto/documenti salvano `{driveFileId,driveUrl}` (upload
   reale Google Drive, vedi `src/drive.ts`) **oppure** `link` (fallback). Tipi in `src/types.ts`.
+- **Area Impresa** (profilo impresa partner, riutilizzabile su tutti i suoi cantieri, keyed per uid):
+  `impresaDocs/<uid>/<id>` (DURC/visure/polizze/SOA/doc dipendenti, con `expiry`) e
+  `impresaRecords/<uid>/<id>` (squadre/operai/mezzi/attrezzature/sicurezza, discriminati da `section`).
+  Scritti dal partner proprietario (read studio). UI: portale partner tab "La mia impresa"
+  (`src/components/cantiere/ImpresaArea.tsx`) + Area Impresa dentro al `CantiereBoard`.
 
 ### Persistenza
 - In App, `syncState(key, val)` scrive l'intero nodo via `writeNode` (mappa
@@ -211,10 +224,16 @@ condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
 Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
 investitori, ROI/margine — `unicoDeals`); manca la pubblicazione automatica in
 vetrina (oggi la vetrina Unico usa dati demo) e SPV/quote.
-Fatto: modulo **Cantiere** (§15): record `cantieri` + sotto-collezioni, ruolo partner
-assegnato per cantiere, rapportini/presenze/foto/materiali/checklist/documenti, SAL→fattura,
-upload Google Drive con fallback link.
-Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
+Fatto: modulo **Cantiere** (§15) ampliato alla struttura del PDF a 3 aree (Campi condivisi /
+Area Tecnici / Area Impresa): record `cantieri` + sotto-collezioni + registri generici
+(`cantiereRecords`/`cantiereDocumenti` con `section`) + chat (`cantiereMessages`) + Area Impresa
+riusabile (`impresaDocs`/`impresaRecords`, tab "La mia impresa" nel portale partner); SAL→fattura,
+upload Google Drive con fallback link. Alcune sotto-voci del PDF sono placeholder navigabili
+("in preparazione") da attivare incrementalmente.
+Fatto: **Rubrica clienti** (`clients`) — anagrafica riutilizzabile (CRM → tab "Clienti") che
+auto-compila il form progetto.
+Da fare: completare le voci Cantiere "in preparazione" (manutenzioni/guasti/magazzino/collaudi…),
+modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
 
@@ -232,6 +251,11 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunti anche i nodi del **modulo Cantiere** (`cantieri`, `cantiere*`, `partnerCantieri`):
   **ripubblicare le regole** dopo il deploy, altrimenti i cantieri falliscono con
   "permission denied" e — come per gli arredi — la write resta silenziosa lato client.
+  ⚠️ Aggiunti inoltre i nodi `clients` (rubrica clienti, write admin/manager), `cantiereRecords`,
+  `cantiereMessages` (per-cantiere, write studio + partner assegnato sui propri elementi) e
+  `impresaDocs`/`impresaRecords` (Area Impresa, write del partner proprietario o admin/manager):
+  **ripubblicare le regole**, altrimenti rubrica, registri/chat di cantiere e Area Impresa danno
+  "permission denied" con write silenziosa lato client.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -242,24 +266,39 @@ reporting/redditività, integrazioni esterne
 
 ## 15. Modulo Cantiere (studio ↔ impresa partner)
 - **Dove**: tab **"Cantiere"** nel fascicolo progetto (`ProjectsView`, divisioni studio/materico/
-  unico) lato studio; tab **"Cantieri"** nel portale `materico_partner` (`ClientPortalView`) lato
-  partner. Componente unico `CantiereBoard` con prop `mode:'studio'|'partner'`.
+  unico) lato studio; tab **"Cantieri"** + **"La mia impresa"** nel portale `materico_partner`
+  (`ClientPortalView`) lato partner. Componente unico `CantiereBoard` con prop `mode:'studio'|'partner'`.
+- **Struttura (PDF `MODULI/CANTIERE.pdf`)**: navigazione a **3 aree** in `CantiereBoard` →
+  **Campi condivisi** (Dati generali, Localizzazione, Cliente/Committente, Diario, Foto, Attività &
+  Scadenze, Documenti, Comunicazioni/Chat), **Area Tecnici** (SAL, Cronoprogramma, Verifiche, Non
+  conformità, Verbali/Ordini di servizio, Sicurezza POS/PSC/DUVRI, Progettazione, Doc tecnica,
+  Controllo qualità, Storico) e **Area Impresa** (Documentazione, Squadre, Operai, Presenze, Mezzi,
+  Sicurezza impresa). Config dichiarativa `SECTIONS` in `CantiereBoard.tsx`: ogni sezione è `comp`
+  (componente dedicato), `cantdoc`/`cantrec` (registro generico), `impdoc`/`imprec` (Area Impresa) o
+  `soon` (placeholder `SectionPlaceholder` per le voci ancora da attivare — promuoverle è una riga di
+  config). Componenti riusabili in `src/components/cantiere/` (`DocRegistry`, `RecordRegistry`,
+  `DriveUploader`, `SectionPlaceholder`, `ImpresaArea`).
 - **Modello**: vedi §6. Ogni progetto può avere 1+ cantieri (`cantieri/<cid>`, `projectId`).
   Lo studio assegna imprese **partner** per-cantiere (`partnerUids` + indice inverso
-  `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni si scrivono **per-elemento** (handler
-  generici `handleSaveCantEntity`/`handleDeleteCantEntity` in `App.tsx`).
+  `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni per-cantiere si scrivono **per-elemento**
+  (handler generici `handleSaveCantEntity`/`handleDeleteCantEntity`); l'Area Impresa (keyed per uid)
+  usa `handleSaveImpresaEntity`/`handleDeleteImpresaEntity` in `App.tsx`. La chat usa
+  `handleSendCantiereMessage`.
 - **Permessi** (`firebase-rules.json`): cantiere/sotto-collezioni leggibili da studio attivo
-  **o** partner assegnato; rapportini/presenze/foto/materiali/documenti scrivibili dal partner
-  assegnato solo per **propri** elementi (`by`/`partnerUid == auth.uid`); approvazioni
-  (`status:'approvato'`, `approvedBy`), checklist, SAL e log scrivibili **solo dallo studio**.
+  **o** partner assegnato; rapportini/presenze/foto/materiali/documenti/records/messages scrivibili
+  dal partner assegnato solo per **propri** elementi (`by`/`partnerUid`/`from == auth.uid`);
+  approvazioni (`status:'approvato'`, `approvedBy`), checklist, SAL e log scrivibili **solo dallo
+  studio**. `impresaDocs`/`impresaRecords/<uid>` scrivibili dal partner proprietario (`auth.uid==$uid`)
+  o admin/manager, leggibili da tutto lo studio attivo.
 - **Sottoscrizioni** (`App.tsx`): studio sottoscrive tutti i nodi `cantier*`; il partner
   sottoscrive `partnerCantieri/<uid>` e poi, per ogni `cid`, il cantiere e le sotto-collezioni.
 - **SAL → finanza**: lo studio approva un `cantiereSal` (`handleApproveSal`); in `FinanzeView`
   → tab **SAL** compaiono i SAL approvati non fatturati con "Emetti bozza fattura"
   (`handleGenerateCantiereSalInvoice`, riusa la logica di `handleGenerateSalInvoice`); il
   `linkedInvoiceId` collega cantiere↔fattura ed evita doppioni.
-- **File**: `DriveUploader` (in `CantiereBoard`) carica su Google Drive (vedi §13) e in mancanza
-  ricade su link incollato. In Firebase si salva solo `{driveFileId,driveUrl}` o `link`.
+- **File**: `DriveUploader` (`src/components/cantiere/DriveUploader.tsx`, usato da `CantiereBoard`,
+  `DocRegistry`, `ImpresaArea`) carica su Google Drive (vedi §13) e in mancanza ricade su link
+  incollato. In Firebase si salva solo `{driveFileId,driveUrl}` o `link`.
 - **Collegamento ai task del fascicolo**: solo riferimento in lettura (`taskRefs`), nessun
   cambio di stato dei task.
 

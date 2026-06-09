@@ -45,7 +45,12 @@ import {
   ChecklistItem,
   CantiereDoc,
   CantiereSal,
-  CantiereLog
+  CantiereLog,
+  CantiereRecord,
+  CantiereMessage,
+  ImpresaDoc,
+  ImpresaRecord,
+  ClientRecord
 } from './types';
 
 import {
@@ -192,6 +197,15 @@ export default function App() {
   const [cantDocumenti, setCantDocumenti] = useState<Record<string, Record<string, CantiereDoc>>>({});
   const [cantSal, setCantSal] = useState<Record<string, Record<string, CantiereSal>>>({});
   const [cantLog, setCantLog] = useState<Record<string, Record<string, CantiereLog>>>({});
+  const [cantRecords, setCantRecords] = useState<Record<string, Record<string, CantiereRecord>>>({});
+  const [cantMessages, setCantMessages] = useState<Record<string, Record<string, CantiereMessage>>>({});
+
+  // Area Impresa — profilo dell'impresa partner (riusabile su tutti i suoi cantieri), keyed per uid
+  const [impresaDocs, setImpresaDocs] = useState<Record<string, Record<string, ImpresaDoc>>>({});
+  const [impresaRecords, setImpresaRecords] = useState<Record<string, Record<string, ImpresaRecord>>>({});
+
+  // Rubrica clienti (anagrafica riutilizzabile)
+  const [clients, setClients] = useState<Record<string, ClientRecord>>({});
 
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
@@ -664,6 +678,13 @@ export default function App() {
       add('cantiereDocumenti', setCantDocumenti);
       add('cantiereSal', setCantSal);
       add('cantiereLog', setCantLog);
+      add('cantiereRecords', setCantRecords);
+      add('cantiereMessages', setCantMessages);
+      // Area Impresa: profili di tutte le imprese partner (riusabili sui cantieri)
+      add('impresaDocs', setImpresaDocs);
+      add('impresaRecords', setImpresaRecords);
+      // Rubrica clienti
+      add('clients', setClients);
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
@@ -686,6 +707,9 @@ export default function App() {
       // Partner: elenca i cantieri assegnati via indice inverso, poi sottoscrive per-cid.
       if (currentUser.role === 'partner') {
         const watched = new Set<string>();
+        // Area Impresa propria (riusabile su tutti i cantieri)
+        subs.push(watchNode(`impresaDocs/${currentUser.uid}`, (v) => setImpresaDocs((m) => ({ ...m, [currentUser.uid]: v || {} })), () => {}));
+        subs.push(watchNode(`impresaRecords/${currentUser.uid}`, (v) => setImpresaRecords((m) => ({ ...m, [currentUser.uid]: v || {} })), () => {}));
         subs.push(watchNode(`partnerCantieri/${currentUser.uid}`, (v) => {
           Object.keys(v || {}).forEach((cid) => {
             if (watched.has(cid)) return;
@@ -700,6 +724,9 @@ export default function App() {
             subs.push(watchNode(`cantiereChecklist/${cid}`, (cv) => setCantChecklist((m) => ({ ...m, [cid]: cv || {} })), () => {}));
             subs.push(watchNode(`cantiereDocumenti/${cid}`, (cv) => setCantDocumenti((m) => ({ ...m, [cid]: cv || {} })), () => {}));
             subs.push(watchNode(`cantiereSal/${cid}`, (cv) => setCantSal((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereRecords/${cid}`, (cv) => setCantRecords((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereMessages/${cid}`, (cv) => setCantMessages((m) => ({ ...m, [cid]: cv || {} })), () => {}));
+            subs.push(watchNode(`cantiereLog/${cid}`, (cv) => setCantLog((m) => ({ ...m, [cid]: cv || {} })), () => {}));
           });
         }, () => {}));
       }
@@ -764,6 +791,10 @@ export default function App() {
   const [pClient, setPClient] = useState('');
   const [pLocation, setPLocation] = useState('');
   const [pClientUid, setPClientUid] = useState('');
+  const [pClientRecordId, setPClientRecordId] = useState('');
+  // Nuovo cliente inline in rubrica (dal form progetto)
+  const [newRubricaOpen, setNewRubricaOpen] = useState(false);
+  const [ncDraft, setNcDraft] = useState<Partial<ClientRecord>>({ type: 'privato' });
   const [pManager, setPManager] = useState('admin');
   const [pStart, setPStart] = useState('');
   const [pDue, setPDue] = useState('');
@@ -1009,6 +1040,7 @@ export default function App() {
     setPClient('');
     setPLocation('');
     setPClientUid('');
+    setPClientRecordId('');
     setPManager('admin');
     setPStart(todayISO());
     setPDue('');
@@ -1134,6 +1166,7 @@ export default function App() {
       templateId: isStudioConfig ? null : (tm ? tm.id : null),
       templateName: isStudioConfig ? interventoLabel(pIntervento) : (tm ? tm.name : null),
       clientUid: pClientUid || null,
+      clientRecordId: pClientRecordId || null,
       committente: pCommittente.trim() || null,
       indirizzoImmobile: pIndirizzo.trim() || null,
       foglio: pFoglio.trim() || null,
@@ -1199,6 +1232,7 @@ export default function App() {
     setPClient(p.client || '');
     setPLocation(p.location || '');
     setPClientUid(p.clientUid || '');
+    setPClientRecordId(p.clientRecordId || '');
     setPManager(p.manager || 'admin');
     setPStart(p.startDate || '');
     setPDue(p.dueDate || '');
@@ -1229,6 +1263,7 @@ export default function App() {
         client: pClient.trim() || null,
         location: pLocation.trim() || null,
         clientUid: pClientUid || null,
+        clientRecordId: pClientRecordId || null,
         manager: pManager,
         startDate: pStart || null,
         dueDate: pDue || null,
@@ -1372,7 +1407,14 @@ export default function App() {
     cantiereMateriali: setCantMateriali as any,
     cantiereChecklist: setCantChecklist as any,
     cantiereDocumenti: setCantDocumenti as any,
-    cantiereSal: setCantSal as any
+    cantiereSal: setCantSal as any,
+    cantiereRecords: setCantRecords as any,
+    cantiereMessages: setCantMessages as any
+  };
+  // Area Impresa: collection keyed per uid (profilo riusabile del partner)
+  const impresaSetters: Record<string, (updater: (m: any) => any) => void> = {
+    impresaDocs: setImpresaDocs as any,
+    impresaRecords: setImpresaRecords as any
   };
   const cantErr = () => showToast('Errore cantiere (controlla regole/permessi).', 'err');
   // Storico/audit (scrittura solo lato studio: le regole vietano la scrittura ai partner)
@@ -1444,6 +1486,74 @@ export default function App() {
     if (!s) return;
     handleSaveCantEntity('cantiereSal', cid, { ...s, linkedInvoiceId: invoiceId });
     logCantiere(cid, 'sal.fatturato', 'sal', invoiceId);
+  };
+  // Chat di cantiere (studio + partner assegnato)
+  const handleSendCantiereMessage = (cid: string, text: string) => {
+    if (!currentUser || !text.trim()) return;
+    const id = `cmsg-${Date.now()}`;
+    const msg: CantiereMessage = {
+      id, from: currentUser.uid, role: currentUser.role,
+      name: currentUser.name, text: text.trim(), at: Date.now()
+    };
+    handleSaveCantEntity('cantiereMessages', cid, msg);
+  };
+  // Area Impresa: save/delete generici keyed per uid del partner
+  const handleSaveImpresaEntity = (coll: string, uid: string, item: any) => {
+    impresaSetters[coll]?.((m) => ({ ...m, [uid]: { ...(m[uid] || {}), [item.id]: item } }));
+    writeNode(`${coll}/${uid}/${item.id}`, item).catch(() => showToast('Errore impresa (controlla regole/permessi).', 'err'));
+  };
+  const handleDeleteImpresaEntity = (coll: string, uid: string, id: string) => {
+    impresaSetters[coll]?.((m) => { const sub = { ...(m[uid] || {}) }; delete sub[id]; return { ...m, [uid]: sub }; });
+    removeNode(`${coll}/${uid}/${id}`).catch(() => showToast('Errore impresa (controlla regole/permessi).', 'err'));
+  };
+  // Rubrica clienti (admin/manager)
+  const handleSaveClient = (rec: ClientRecord) => {
+    const enriched: ClientRecord = { ...rec, createdBy: rec.createdBy || currentUser?.uid || 'admin', updatedAt: Date.now() };
+    setClients((prev) => ({ ...prev, [rec.id]: enriched }));
+    writeNode(`clients/${rec.id}`, enriched).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
+  };
+  const handleDeleteClient = (id: string) => {
+    setClients((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    removeNode(`clients/${id}`).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
+  };
+  // Auto-compila i campi del progetto dall'anagrafica selezionata (committente solo se vuoto;
+  // pIndirizzo NON viene toccato: è l'indirizzo dell'immobile, non la residenza del cliente)
+  const applyClientRecord = (rec: ClientRecord | null) => {
+    if (!rec) return;
+    setPClient(rec.name || '');
+    setPCommittente((prev) => prev || rec.name || '');
+    if (rec.accountUid) setPClientUid(rec.accountUid);
+  };
+  const handleSaveInlineClient = () => {
+    const d = ncDraft;
+    const name = (d.type === 'azienda' ? (d.companyName || d.name) : (d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim())) || '';
+    if (!name.trim()) { showToast('Inserisci nome/ragione sociale del cliente.', 'err'); return; }
+    const id = `cli-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    const rec: ClientRecord = {
+      id,
+      type: (d.type as any) || 'privato',
+      name: name.trim(),
+      firstName: d.firstName || null,
+      lastName: d.lastName || null,
+      email: d.email || null,
+      phone: d.phone || null,
+      address: d.address || null,
+      codiceFiscale: d.codiceFiscale || null,
+      companyName: d.companyName || null,
+      partitaIva: d.partitaIva || null,
+      pec: d.pec || null,
+      sdi: d.sdi || null,
+      accountUid: d.accountUid || null,
+      notes: null,
+      createdBy: currentUser?.uid || 'admin',
+      createdAt: Date.now()
+    };
+    handleSaveClient(rec);
+    setPClientRecordId(id);
+    applyClientRecord(rec);
+    setNewRubricaOpen(false);
+    setNcDraft({ type: 'privato' });
+    showToast('Cliente aggiunto alla rubrica.');
   };
 
   // 4. Chat messages
@@ -1821,8 +1931,16 @@ export default function App() {
         cantChecklist={cantChecklist}
         cantDocumenti={cantDocumenti}
         cantSal={cantSal}
+        cantRecords={cantRecords}
+        cantMessages={cantMessages}
+        cantLog={cantLog}
+        impresaDocs={impresaDocs}
+        impresaRecords={impresaRecords}
         onSaveCantEntity={handleSaveCantEntity}
         onDeleteCantEntity={handleDeleteCantEntity}
+        onSendCantiereMessage={handleSendCantiereMessage}
+        onSaveImpresaEntity={handleSaveImpresaEntity}
+        onDeleteImpresaEntity={handleDeleteImpresaEntity}
       />
     );
   }
@@ -2040,12 +2158,20 @@ export default function App() {
             cantDocumenti={cantDocumenti}
             cantSal={cantSal}
             cantLog={cantLog}
+            cantRecords={cantRecords}
+            cantMessages={cantMessages}
+            impresaDocs={impresaDocs}
+            impresaRecords={impresaRecords}
+            clients={clients}
             partnerAccounts={Object.values(accounts).filter((a: any) => a?.role === 'partner' && a?.status === 'approved') as UserProfile[]}
             onSaveCantiere={handleSaveCantiere}
             onDeleteCantiere={handleDeleteCantiere}
             onAssignPartner={handleAssignPartner}
             onSaveCantEntity={handleSaveCantEntity}
             onDeleteCantEntity={handleDeleteCantEntity}
+            onSendCantiereMessage={handleSendCantiereMessage}
+            onSaveImpresaEntity={handleSaveImpresaEntity}
+            onDeleteImpresaEntity={handleDeleteImpresaEntity}
             onApproveRapportino={handleApproveRapportino}
             onApproveSal={handleApproveSal}
           />
@@ -2097,9 +2223,13 @@ export default function App() {
             leads={crmLeads}
             suppliers={crmSuppliers}
             myName={currentUser.name}
+            myUid={currentUser.uid}
             onSaveLeads={saveLeads}
             onSaveSuppliers={saveSuppliers}
             onConvertLead={handleConvertLead}
+            clients={clients}
+            onSaveClient={handleSaveClient}
+            onDeleteClient={handleDeleteClient}
           />
         );
 
@@ -2919,20 +3049,42 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-semibold">Cliente</label>
-                <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-semibold">Collega cliente registrato</label>
-                <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
-                  <option value="">— Nessuno —</option>
-                  {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
-                    <option key={u.uid} value={u.uid}>
-                      {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+                <label className="text-[12px] font-semibold">Cliente (rubrica)</label>
+                <select
+                  value={pClientRecordId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__new__') { setNewRubricaOpen(true); return; }
+                    setPClientRecordId(v);
+                    applyClientRecord(clients[v] || null);
+                  }}
+                  className="select mt-1"
+                >
+                  <option value="">— Nessuno (digita a fianco) —</option>
+                  {Object.values(clients).sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.type === 'azienda' && c.companyName ? c.companyName : c.name}{c.partitaIva ? ` · P.IVA ${c.partitaIva}` : c.codiceFiscale ? ` · ${c.codiceFiscale}` : ''}
                     </option>
                   ))}
+                  <option value="__new__">➕ Nuovo cliente…</option>
                 </select>
               </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">Nome cliente {pClientRecordId && <span className="text-emerald-600 normal-case font-normal">(da rubrica)</span>}</label>
+                <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" placeholder="Es. Mario Rossi" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Collega account portale <span className="text-gray-400 normal-case font-normal">(facoltativo)</span></label>
+              <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
+                <option value="">— Nessuno —</option>
+                {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -3092,20 +3244,42 @@ export default function App() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Cliente</label>
-              <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Collega cliente registrato</label>
-              <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
-                <option value="">— Scollegati —</option>
-                {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
-                  <option key={u.uid} value={u.uid}>
-                    {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+              <label className="text-[12px] font-semibold">Cliente (rubrica)</label>
+              <select
+                value={pClientRecordId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__new__') { setNewRubricaOpen(true); return; }
+                  setPClientRecordId(v);
+                  applyClientRecord(clients[v] || null);
+                }}
+                className="select mt-1"
+              >
+                <option value="">— Nessuno (digita a fianco) —</option>
+                {Object.values(clients).sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.type === 'azienda' && c.companyName ? c.companyName : c.name}{c.partitaIva ? ` · P.IVA ${c.partitaIva}` : c.codiceFiscale ? ` · ${c.codiceFiscale}` : ''}
                   </option>
                 ))}
+                <option value="__new__">➕ Nuovo cliente…</option>
               </select>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Nome cliente {pClientRecordId && <span className="text-emerald-600 normal-case font-normal">(da rubrica)</span>}</label>
+              <input value={pClient} onChange={(e) => setPClient(e.target.value)} className="input mt-1" />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[12px] font-semibold">Collega account portale <span className="text-gray-400 normal-case font-normal">(facoltativo)</span></label>
+            <select value={pClientUid} onChange={(e) => setPClientUid(e.target.value)} className="select mt-1">
+              <option value="">— Scollegati —</option>
+              {Object.values(users).filter((u: any) => u.role === 'cliente').map((u: any) => (
+                <option key={u.uid} value={u.uid}>
+                  {u.accountType === 'azienda' && u.companyName ? `${u.companyName} — ` : ''}{u.name}{u.email ? ` · ${u.email}` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -3507,6 +3681,90 @@ export default function App() {
 
           <button onClick={handleCreateUser} className="btn bg-[#1b1b1b] text-white hover:bg-black w-full mt-4 justify-center font-bold leading-normal">
             Registra Account Collaboratore
+          </button>
+        </div>
+      </Modal>
+
+      {/* Nuovo cliente in rubrica (inline dal form progetto) */}
+      <Modal title="Nuovo cliente (rubrica)" isOpen={newRubricaOpen} onClose={() => setNewRubricaOpen(false)}>
+        <div className="flex flex-col gap-3.5 text-left">
+          <div className="flex gap-2">
+            {(['privato', 'azienda'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setNcDraft((d) => ({ ...d, type: t }))}
+                className={`flex-1 py-2 rounded-xl text-[13px] font-bold border transition-all ${
+                  (ncDraft.type || 'privato') === t ? 'bg-[#1b1b1b] text-white border-[#1b1b1b]' : 'bg-white text-[#333] border-[#e2e2e2] hover:bg-[#fafafa]'
+                }`}
+              >
+                {t === 'privato' ? 'Privato' : 'Azienda'}
+              </button>
+            ))}
+          </div>
+
+          {ncDraft.type === 'azienda' ? (
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Ragione sociale</label>
+              <input value={ncDraft.companyName || ''} onChange={(e) => setNcDraft((d) => ({ ...d, companyName: e.target.value }))} className="input mt-1" placeholder="Es. Costruzioni Rossi S.r.l." />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">Nome</label>
+                <input value={ncDraft.firstName || ''} onChange={(e) => setNcDraft((d) => ({ ...d, firstName: e.target.value }))} className="input mt-1" placeholder="Mario" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">Cognome</label>
+                <input value={ncDraft.lastName || ''} onChange={(e) => setNcDraft((d) => ({ ...d, lastName: e.target.value }))} className="input mt-1" placeholder="Rossi" />
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Email</label>
+              <input type="email" value={ncDraft.email || ''} onChange={(e) => setNcDraft((d) => ({ ...d, email: e.target.value }))} className="input mt-1" placeholder="nome@email.it" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Telefono</label>
+              <input value={ncDraft.phone || ''} onChange={(e) => setNcDraft((d) => ({ ...d, phone: e.target.value }))} className="input mt-1" placeholder="+39 …" />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[12px] font-semibold">{ncDraft.type === 'azienda' ? 'Sede legale' : 'Residenza'}</label>
+            <input value={ncDraft.address || ''} onChange={(e) => setNcDraft((d) => ({ ...d, address: e.target.value }))} className="input mt-1" placeholder="Via, civico, città" />
+          </div>
+
+          {ncDraft.type === 'azienda' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">P. IVA</label>
+                <input value={ncDraft.partitaIva || ''} onChange={(e) => setNcDraft((d) => ({ ...d, partitaIva: e.target.value }))} className="input mt-1 font-mono" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">Codice Fiscale</label>
+                <input value={ncDraft.codiceFiscale || ''} onChange={(e) => setNcDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="input mt-1 font-mono" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">PEC</label>
+                <input value={ncDraft.pec || ''} onChange={(e) => setNcDraft((d) => ({ ...d, pec: e.target.value }))} className="input mt-1" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-semibold">Codice SDI</label>
+                <input value={ncDraft.sdi || ''} onChange={(e) => setNcDraft((d) => ({ ...d, sdi: e.target.value }))} className="input mt-1 font-mono" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Codice Fiscale</label>
+              <input value={ncDraft.codiceFiscale || ''} onChange={(e) => setNcDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="input mt-1 font-mono" />
+            </div>
+          )}
+
+          <button onClick={handleSaveInlineClient} className="btn bg-[#1b1b1b] text-white hover:bg-black w-full mt-2 justify-center font-bold leading-normal">
+            Salva in rubrica e seleziona
           </button>
         </div>
       </Modal>

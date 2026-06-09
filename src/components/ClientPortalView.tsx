@@ -33,12 +33,14 @@ import {
   Smartphone,
   Target,
   Sofa,
-  HardHat
+  HardHat,
+  Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
+import { ImpresaArea } from './cantiere/ImpresaArea';
 import { eur, fmtDay, isoDate } from '../utils';
 import { watchNode } from '../firebase';
 import { ThreeDProgress } from './ThreeDProgress';
@@ -305,8 +307,16 @@ interface ClientPortalViewProps {
   cantChecklist?: Record<string, Record<string, ChecklistItem>>;
   cantDocumenti?: Record<string, Record<string, CantiereDoc>>;
   cantSal?: Record<string, Record<string, CantiereSal>>;
+  cantRecords?: Record<string, Record<string, CantiereRecord>>;
+  cantMessages?: Record<string, Record<string, CantiereMessage>>;
+  cantLog?: Record<string, Record<string, CantiereLog>>;
+  impresaDocs?: Record<string, Record<string, ImpresaDoc>>;
+  impresaRecords?: Record<string, Record<string, ImpresaRecord>>;
   onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
+  onSendCantiereMessage?: (cid: string, text: string) => void;
+  onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
+  onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
 }
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
@@ -344,8 +354,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   cantChecklist = {},
   cantDocumenti = {},
   cantSal = {},
+  cantRecords = {},
+  cantMessages = {},
+  cantLog = {},
+  impresaDocs = {},
+  impresaRecords = {},
   onSaveCantEntity,
-  onDeleteCantEntity
+  onDeleteCantEntity,
+  onSendCantiereMessage,
+  onSaveImpresaEntity,
+  onDeleteImpresaEntity
 }) => {
   const [msgInput, setMsgInput] = useState('');
   const [apptReqOpen, setApptReqOpen] = useState(false);
@@ -703,8 +721,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
             checklist={cantChecklist}
             documenti={cantDocumenti}
             sal={cantSal}
+            log={cantLog}
+            records={cantRecords}
+            messages={cantMessages}
+            impresaDocs={impresaDocs}
+            impresaRecords={impresaRecords}
             onSaveEntity={onSaveCantEntity}
             onDeleteEntity={onDeleteCantEntity}
+            onSendMessage={onSendCantiereMessage}
+            onSaveImpresaEntity={onSaveImpresaEntity}
+            onDeleteImpresaEntity={onDeleteImpresaEntity}
           />
         </div>
       </div>
@@ -756,6 +782,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         return [
           { id: 'lavori', label: 'Posa in Cantiere', icon: ClipboardList },
           { id: 'cantiere', label: 'Cantieri', icon: HardHat },
+          { id: 'impresa', label: 'La mia impresa', icon: Building2 },
           { id: 'b2b_preventivi', label: 'Offerte B2B', icon: ClipboardList },
           { id: 'documenti', label: 'Tavole & Disegni', icon: FileText },
           { id: 'b2b_chat', label: 'Coordinamento Cantiere', icon: MessageSquare }
@@ -1985,8 +2012,30 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 checklist={cantChecklist}
                 documenti={cantDocumenti}
                 sal={cantSal}
+                log={cantLog}
+                records={cantRecords}
+                messages={cantMessages}
+                impresaDocs={impresaDocs}
+                impresaRecords={impresaRecords}
                 onSaveEntity={onSaveCantEntity}
                 onDeleteEntity={onDeleteCantEntity}
+                onSendMessage={onSendCantiereMessage}
+                onSaveImpresaEntity={onSaveImpresaEntity}
+                onDeleteImpresaEntity={onDeleteImpresaEntity}
+              />
+            </div>
+          )}
+
+          {currentTab === 'impresa' && (
+            <div className="animate-[riseIn_0.22s_ease_both]">
+              <ImpresaArea
+                uid={profile.uid}
+                canWrite={true}
+                docs={Object.values(impresaDocs[profile.uid] || {})}
+                records={Object.values(impresaRecords[profile.uid] || {})}
+                folderName={`Onirico Impresa - ${profile.name}`}
+                onSaveEntity={(coll, item) => onSaveImpresaEntity?.(coll, profile.uid, item)}
+                onDeleteEntity={(coll, id) => onDeleteImpresaEntity?.(coll, profile.uid, id)}
               />
             </div>
           )}
