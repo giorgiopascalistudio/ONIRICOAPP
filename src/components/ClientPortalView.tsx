@@ -40,6 +40,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
+import { ChatDeleteButton } from './ChatDeleteButton';
 import { ImpresaArea } from './cantiere/ImpresaArea';
 import { eur, fmtDay, isoDate } from '../utils';
 import { watchNode } from '../firebase';
@@ -280,6 +281,7 @@ interface ClientPortalViewProps {
   onSetActivePid: (pid: string) => void;
   onSetOpenPh: (phId: string | undefined) => void;
   onSendClientMessage: (projId: string, text: string) => void;
+  onDeleteMessage?: (projId: string, msgId: string) => void;   // unsend entro 60s
   onUploadDocument: (projId: string, file: File) => void;
   studioMembers?: UserProfile[];
   onRequestAppointment?: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
@@ -317,6 +319,7 @@ interface ClientPortalViewProps {
   onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
   onSendCantiereMessage?: (cid: string, text: string) => void;
+  onDeleteCantiereMessage?: (cid: string, id: string) => void;
   onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
   onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
 }
@@ -330,6 +333,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onSetActivePid,
   onSetOpenPh,
   onSendClientMessage,
+  onDeleteMessage,
   onUploadDocument,
   studioMembers,
   onRequestAppointment,
@@ -366,6 +370,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onSaveCantEntity,
   onDeleteCantEntity,
   onSendCantiereMessage,
+  onDeleteCantiereMessage,
   onSaveImpresaEntity,
   onDeleteImpresaEntity
 }) => {
@@ -733,6 +738,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
             onSaveEntity={onSaveCantEntity}
             onDeleteEntity={onDeleteCantEntity}
             onSendMessage={onSendCantiereMessage}
+            onDeleteMessage={onDeleteCantiereMessage}
             onSaveImpresaEntity={onSaveImpresaEntity}
             onDeleteImpresaEntity={onDeleteImpresaEntity}
           />
@@ -1484,13 +1490,18 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         return (
                           <div key={m.id} className={`flex flex-col max-w-[85%] ${isMine ? 'self-end items-end' : 'self-start items-start'}`}>
                             <div className={`p-3 rounded-[20px] text-[13px] leading-relaxed font-semibold shadow-xs ${
-                              isMine 
-                                ? 'bg-[#1b1b1b] text-white rounded-tr-none' 
+                              isMine
+                                ? 'bg-[#1b1b1b] text-white rounded-tr-none'
                                 : 'bg-[#fafafa] text-[#161616] rounded-tl-none border border-[#e2e2e2]'
                             }`}>
                               {m.text}
                             </div>
-                            <span className="text-[9.5px] font-bold text-[#8a8a8a] mt-1 px-1">{m.name}</span>
+                            <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-[#8a8a8a] mt-1 px-1">
+                              {m.name}
+                              {m.from === profile.uid && onDeleteMessage && (
+                                <ChatDeleteButton at={m.at || 0} onDelete={() => onDeleteMessage(p.id, m.id)} />
+                              )}
+                            </span>
                           </div>
                         );
                       })
@@ -2024,6 +2035,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 onSaveEntity={onSaveCantEntity}
                 onDeleteEntity={onDeleteCantEntity}
                 onSendMessage={onSendCantiereMessage}
+                onDeleteMessage={onDeleteCantiereMessage}
                 onSaveImpresaEntity={onSaveImpresaEntity}
                 onDeleteImpresaEntity={onDeleteImpresaEntity}
               />

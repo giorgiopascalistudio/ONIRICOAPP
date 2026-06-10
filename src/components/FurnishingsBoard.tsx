@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { Furnishing, Project } from '../types';
-import { todayISO, eur } from '../utils';
+import { todayISO, eur, safeUrl } from '../utils';
 import { arrediTotals, STUDIO_FEE_PCT, ARREDI_MOBILI_FEE_PCT } from '../finance';
 import { Box, Maximize2, Loader2 } from 'lucide-react';
 import { MoodboardErrorBoundary } from './moodboard3d/MoodboardErrorBoundary';
@@ -267,7 +267,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
         {item.note && <p className="text-[11.5px] text-[#5b5b5b] leading-snug">{item.note}</p>}
         <div className="flex items-center gap-3 text-[11px] font-semibold">
           {item.link && (
-            <a href={item.link} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-1">
+            <a href={safeUrl(item.link) || '#'} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-1">
               <LinkIcon className="w-3 h-3" /> Riferimento
             </a>
           )}

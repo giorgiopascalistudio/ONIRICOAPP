@@ -45,7 +45,8 @@ import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, Invoi
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
-import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
+import { ChatDeleteButton } from './ChatDeleteButton';
+import { eur, fmtDay, isoDate, todayISO, numIt, safeUrl } from '../utils';
 import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
 import { MatericoView } from './MatericoView';
@@ -76,6 +77,7 @@ interface ProjectsViewProps {
   onUploadDocument: (projId: string, file: File) => void;
   onDeleteDocument: (projId: string, docId: string, path?: string) => void;
   onSendClientMessage: (projId: string, text: string) => void;
+  onDeleteMessage?: (projId: string, msgId: string) => void;   // unsend entro 60s
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   furnishings?: Record<string, Record<string, Furnishing>>;
@@ -139,6 +141,7 @@ interface ProjectsViewProps {
   onSaveCantEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteCantEntity?: (coll: string, cid: string, id: string) => void;
   onSendCantiereMessage?: (cid: string, text: string) => void;
+  onDeleteCantiereMessage?: (cid: string, id: string) => void;
   onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
   onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
   onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
@@ -167,6 +170,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onUploadDocument,
   onDeleteDocument,
   onSendClientMessage,
+  onDeleteMessage,
   projectMessages,
   documents,
   furnishings = {},
@@ -224,6 +228,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onSaveCantEntity,
   onDeleteCantEntity,
   onSendCantiereMessage,
+  onDeleteCantiereMessage,
   onSaveImpresaEntity,
   onDeleteImpresaEntity,
   onApproveRapportino,
@@ -822,8 +827,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                           <div className={`p-3 rounded-[18px] text-[13px] leading-relaxed shadow-xs ${isMine ? 'bg-[#161616] text-white rounded-tr-none' : 'bg-gray-100/80 text-[#161616] rounded-tl-none'}`}>
                             {m.text}
                           </div>
-                          <span className="text-[9.5px] text-[#8a8a8a] mt-1 px-1 font-bold font-mono">
+                          <span className="inline-flex items-center gap-1 text-[9.5px] text-[#8a8a8a] mt-1 px-1 font-bold font-mono">
                             {m.name} · {m.at ? fmtDay(isoDate(m.at)) : ''}
+                            {m.from === myUid && onDeleteMessage && (
+                              <ChatDeleteButton at={m.at || 0} onDelete={() => onDeleteMessage(p.id, m.id)} />
+                            )}
                           </span>
                         </div>
                       );
@@ -1517,7 +1525,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                         </div>
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           <a
-                            href={doc.url}
+                            href={safeUrl(doc.url) || '#'}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-[#8a8a8a] hover:text-[#161616] transition-colors"
@@ -1596,6 +1604,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               onSaveEntity={onSaveCantEntity}
               onDeleteEntity={onDeleteCantEntity}
               onSendMessage={onSendCantiereMessage}
+              onDeleteMessage={onDeleteCantiereMessage}
               onSaveImpresaEntity={onSaveImpresaEntity}
               onDeleteImpresaEntity={onDeleteImpresaEntity}
               onApproveRapportino={onApproveRapportino}

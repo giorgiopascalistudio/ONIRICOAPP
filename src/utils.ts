@@ -74,6 +74,19 @@ export function relDay(s: string): string {
 
 export const DOW = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
+/**
+ * Sanifica gli URL inseriti dagli utenti prima di usarli come href
+ * (whitelist di schema: blocca javascript:, data:, vbscript: → XSS).
+ * Ritorna '' se l'URL non è sicuro: usare `safeUrl(u) || '#'` nei render.
+ */
+export function safeUrl(u?: string | null): string {
+  const s = (u || '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^(mailto:|tel:)/i.test(s)) return s;
+  return '';
+}
+
 export function eur(n: number | string | null | undefined): string {
   const val = typeof n === 'string' ? parseFloat(n) : (n || 0);
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val);

@@ -1770,6 +1770,11 @@ export default function App() {
     if (!s) return;
     const next: CantiereSal = { ...s, status: 'approvato', approvedBy: currentUser?.uid };
     handleSaveCantEntity('cantiereSal', cid, next);
+    // l'avanzamento del cantiere si allinea alla % del SAL approvato
+    const cant = cantieri[cid];
+    if (cant && s.progressPct != null && s.progressPct !== (cant.progressPct || 0)) {
+      handleSaveCantiere({ ...cant, progressPct: Math.min(100, s.progressPct) });
+    }
     logCantiere(cid, 'sal.approvato', 'sal', `SAL ${s.number}`);
     showToast('SAL approvato. Emetti la bozza fattura da Finanze → SAL.', 'ok');
   };
@@ -1789,6 +1794,14 @@ export default function App() {
       name: currentUser.name, text: text.trim(), at: Date.now()
     };
     handleSaveCantEntity('cantiereMessages', cid, msg);
+  };
+  // Elimina un proprio messaggio di cantiere entro 60s ("unsend"): rimozione
+  // diretta senza doppia conferma/cestino (vedi handleDeleteProjectMessage).
+  const handleDeleteCantiereMessage = (cid: string, id: string) => {
+    const m = cantMessages[cid]?.[id];
+    if (!m || m.from !== currentUser?.uid) return;
+    setCantMessages((mm) => { const sub = { ...(mm[cid] || {}) }; delete sub[id]; return { ...mm, [cid]: sub }; });
+    removeNode(`cantiereMessages/${cid}/${id}`).catch(() => showToast('Messaggio non più eliminabile.', 'err'));
   };
   // Area Impresa: save/delete generici keyed per uid del partner
   const handleSaveImpresaEntity = (coll: string, uid: string, item: any) => {
@@ -1939,6 +1952,19 @@ export default function App() {
     });
     // Scrittura mirata del singolo messaggio (regole: create consentito anche al cliente)
     writeNode(`projectMessages/${projId}/${mId}`, newMsg).catch(() => {});
+  };
+
+  // Elimina un proprio messaggio entro 60s dall'invio ("unsend"; finestra imposta
+  // anche dalle regole per cliente/partner). Niente cestino: rimozione diretta.
+  const handleDeleteProjectMessage = (projId: string, msgId: string) => {
+    const m = projectMessages[projId]?.[msgId];
+    if (!m || m.from !== currentUser?.uid) return;
+    setProjectMessages(prev => {
+      const prjMsgs = { ...(prev[projId] || {}) };
+      delete prjMsgs[msgId];
+      return { ...prev, [projId]: prjMsgs };
+    });
+    removeNode(`projectMessages/${projId}/${msgId}`).catch(() => showToast('Messaggio non più eliminabile.', 'err'));
   };
 
   // 5. User accounts additions
@@ -2340,6 +2366,7 @@ export default function App() {
         onSetActivePid={setClientActivePid}
         onSetOpenPh={setClientOpenPh}
         onSendClientMessage={handleSendClientMessage}
+        onDeleteMessage={handleDeleteProjectMessage}
         onUploadDocument={handleUploadDocument}
         studioMembers={
           Object.keys(directory).length > 0
@@ -2378,6 +2405,7 @@ export default function App() {
         onSaveCantEntity={handleSaveCantEntity}
         onDeleteCantEntity={handleDeleteCantEntity}
         onSendCantiereMessage={handleSendCantiereMessage}
+        onDeleteCantiereMessage={handleDeleteCantiereMessage}
         onSaveImpresaEntity={handleSaveImpresaEntity}
         onDeleteImpresaEntity={handleDeleteImpresaEntity}
       />
@@ -2577,6 +2605,7 @@ export default function App() {
             onUploadDocument={handleUploadDocument}
             onDeleteDocument={handleDeleteDocument}
             onSendClientMessage={handleSendClientMessage}
+            onDeleteMessage={handleDeleteProjectMessage}
             projectMessages={projectMessages}
             documents={documents}
             furnishings={furnishings}
@@ -2632,6 +2661,7 @@ export default function App() {
             onSaveCantEntity={handleSaveCantEntity}
             onDeleteCantEntity={handleDeleteCantEntity}
             onSendCantiereMessage={handleSendCantiereMessage}
+            onDeleteCantiereMessage={handleDeleteCantiereMessage}
             onSaveImpresaEntity={handleSaveImpresaEntity}
             onDeleteImpresaEntity={handleDeleteImpresaEntity}
             onApproveRapportino={handleApproveRapportino}
