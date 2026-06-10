@@ -8,7 +8,7 @@
  */
 import React, { useState } from 'react';
 import { FileText, Trash2, AlertTriangle } from 'lucide-react';
-import { fmtDay } from '../../utils';
+import { fmtDay, safeUrl } from '../../utils';
 import { DriveUploader } from './DriveUploader';
 
 export interface DocItem {
@@ -87,7 +87,7 @@ export const DocRegistry: React.FC<DocRegistryProps> = ({ items, folderName, can
         <div className="flex flex-col gap-1.5">
           {list.map((d) => (
             <div key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[#eee]">
-              <a href={d.driveUrl || d.link || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[12.5px] font-medium text-[#161616] min-w-0">
+              <a href={safeUrl(d.driveUrl || d.link) || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[12.5px] font-medium text-[#161616] min-w-0">
                 <FileText className="w-4 h-4 text-[#9a9a9a] shrink-0" />
                 <span className="truncate">{d.name}</span>
                 {d.category && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#f1f1f1] text-[#6b6b6b] font-bold shrink-0">{d.category}</span>}

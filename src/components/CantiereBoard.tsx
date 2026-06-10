@@ -23,8 +23,9 @@ import {
   ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, UserProfile,
   CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord
 } from '../types';
-import { eur, todayISO, fmtDay } from '../utils';
+import { eur, todayISO, fmtDay, safeUrl } from '../utils';
 import { DriveUploader } from './cantiere/DriveUploader';
+import { ChatDeleteButton } from './ChatDeleteButton';
 import { DocRegistry, DocItem } from './cantiere/DocRegistry';
 import { RecordRegistry, GenericRecord, RecordColumn } from './cantiere/RecordRegistry';
 import { SectionPlaceholder } from './cantiere/SectionPlaceholder';
@@ -59,6 +60,7 @@ export interface CantiereBoardProps {
   onSaveEntity?: (coll: string, cid: string, item: any) => void;
   onDeleteEntity?: (coll: string, cid: string, id: string) => void;
   onSendMessage?: (cid: string, text: string) => void;
+  onDeleteMessage?: (cid: string, id: string) => void;         // unsend entro 60s (proprio messaggio)
   onSaveImpresaEntity?: (coll: string, uid: string, item: any) => void;
   onDeleteImpresaEntity?: (coll: string, uid: string, id: string) => void;
   onApproveRapportino?: (cid: string, id: string, approve: boolean) => void;
@@ -592,7 +594,7 @@ const FotoTab: React.FC<TabProps> = (p) => {
       {list.length === 0 ? sectionEmpty('Nessuna foto.') : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {list.map((f) => {
-            const url = f.driveUrl || f.link || '';
+            const url = safeUrl(f.driveUrl || f.link);
             return (
               <div key={f.id} className="relative group rounded-2xl border border-[#eee] overflow-hidden bg-[#fafafa] aspect-square flex items-center justify-center">
                 <a href={url} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 text-[11px] text-[#6b6b6b] p-2 text-center">
@@ -716,7 +718,12 @@ const ChatTab: React.FC<TabProps> = (p) => {
           return (
             <div key={m.id} className={`max-w-[80%] ${mine ? 'self-end' : 'self-start'}`}>
               <div className={`px-3 py-2 rounded-2xl text-[12.5px] ${mine ? 'bg-[#161616] text-white' : 'bg-[#f3f3f3] text-[#161616]'}`}>{m.text}</div>
-              <div className={`text-[10px] text-[#9a9a9a] mt-0.5 ${mine ? 'text-right' : ''}`}>{m.name} · {new Date(m.at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+              <div className={`flex items-center gap-1 text-[10px] text-[#9a9a9a] mt-0.5 ${mine ? 'justify-end' : ''}`}>
+                {m.name} · {new Date(m.at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                {mine && p.onDeleteMessage && (
+                  <ChatDeleteButton at={m.at} onDelete={() => p.onDeleteMessage!(c.id, m.id)} />
+                )}
+              </div>
             </div>
           );
         })}
@@ -811,64 +818,131 @@ const LabeledInput: React.FC<{ label: string; value: string; onChange: (v: strin
 const SalTab: React.FC<TabProps> = (p) => {
   const { cantiere: c, isStudio, saveEntity, delEntity } = p;
   const list = vals(p.sal?.[c.id]).sort((a, b) => a.number - b.number);
+  const [formOpen, setFormOpen] = useState(false);
   const [descr, setDescr] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [importo, setImporto] = useState('');
   const [prog, setProg] = useState('');
+  // lo slider salva solo al rilascio (niente write a ogni pixel di drag)
+  const [progDraft, setProgDraft] = useState<number | null>(null);
+
+  const progress = progDraft ?? (c.progressPct || 0);
+  const lastApproved = [...list].reverse().find((s) => s.status === 'approvato');
+  const approvati = list.filter((s) => s.status === 'approvato');
+  const totApprovato = approvati.reduce((sum, s) => sum + (s.importo || 0), 0);
+  const fatturati = list.filter((s) => s.linkedInvoiceId).length;
+
+  const commitProgress = () => {
+    if (progDraft != null && progDraft !== (c.progressPct || 0)) {
+      p.onSaveCantiere?.({ ...c, progressPct: progDraft, updatedAt: Date.now() });
+    }
+    setProgDraft(null);
+  };
 
   const add = () => {
     const s: CantiereSal = {
       id: newId('sal'), number: list.length + 1, descrizione: descr || null,
+      periodFrom: from || null, periodTo: to || null,
       importo: importo ? parseFloat(importo.replace(',', '.')) || null : null,
       progressPct: prog ? parseFloat(prog) || null : c.progressPct ?? null,
       status: 'bozza', at: Date.now()
     };
     saveEntity('cantiereSal', s);
-    setDescr(''); setImporto(''); setProg('');
+    setDescr(''); setFrom(''); setTo(''); setImporto(''); setProg('');
+    setFormOpen(false);
   };
 
   return (
     <div className="flex flex-col gap-3">
-      {/* avanzamento globale */}
-      <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee]">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[12px] font-bold text-[#161616]">Avanzamento cantiere</span>
-          <span className="text-[13px] font-extrabold text-[#161616]">{c.progressPct || 0}%</span>
+      {/* avanzamento lavori */}
+      <div className="p-3.5 rounded-2xl bg-[#fafafa] border border-[#eee]">
+        <div className="flex items-center justify-between mb-0.5">
+          <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#161616]"><TrendingUp className="w-4 h-4" /> Avanzamento lavori</span>
+          <span className="text-[15px] font-extrabold text-[#161616]">{progress}%</span>
         </div>
-        <div className="h-2 rounded-full bg-[#eaeaea] overflow-hidden">
-          <div className="h-full bg-[#161616]" style={{ width: `${Math.min(100, c.progressPct || 0)}%` }} />
+        <p className="text-[11px] text-[#9a9a9a] mb-2">
+          {isStudio
+            ? 'Percentuale di completamento del cantiere, aggiornata dallo studio. Si allinea automaticamente alla % dell\'ultimo SAL approvato; puoi anche regolarla a mano col cursore.'
+            : 'Percentuale di completamento del cantiere, aggiornata dallo studio (sola lettura).'}
+        </p>
+        <div className="relative h-2 rounded-full bg-[#eaeaea] overflow-hidden">
+          <div className="h-full bg-[#161616] transition-[width]" style={{ width: `${Math.min(100, progress)}%` }} />
         </div>
         {isStudio && (
-          <input
-            type="range" min={0} max={100} value={c.progressPct || 0}
-            onChange={(e) => p.onSaveCantiere?.({ ...c, progressPct: parseInt(e.target.value, 10), updatedAt: Date.now() })}
-            className="w-full mt-2"
-          />
+          <>
+            <input
+              type="range" min={0} max={100} value={progress}
+              onChange={(e) => setProgDraft(parseInt(e.target.value, 10))}
+              onPointerUp={commitProgress}
+              onKeyUp={commitProgress}
+              className="w-full mt-2 accent-[#161616]"
+            />
+            {lastApproved?.progressPct != null && lastApproved.progressPct !== (c.progressPct || 0) && (
+              <button
+                onClick={() => p.onSaveCantiere?.({ ...c, progressPct: Math.min(100, lastApproved.progressPct!), updatedAt: Date.now() })}
+                className="mt-1.5 px-2.5 py-1 rounded-full bg-white border border-[#e2e2e2] text-[11px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f3]"
+              >
+                Allinea all'ultimo SAL approvato ({lastApproved.progressPct}%)
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      {isStudio && (
-        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-wrap gap-2 items-center">
-          <input value={descr} onChange={(e) => setDescr(e.target.value)} placeholder="Descrizione SAL" className="flex-1 min-w-[140px] px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none" />
-          <input value={importo} onChange={(e) => setImporto(e.target.value)} placeholder="Importo €" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-28" />
-          <input value={prog} onChange={(e) => setProg(e.target.value)} placeholder="% avanz." className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-24" />
-          <button onClick={add} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold">Crea SAL</button>
+      {/* riepilogo SAL */}
+      {list.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+          <span className="px-2.5 py-1 rounded-full bg-[#f3f3f3] text-[#6b6b6b]">{list.length} SAL</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">{approvati.length} approvati{totApprovato > 0 ? ` · ${eur(totApprovato)}` : ''}</span>
+          {fatturati > 0 && <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">{fatturati} fatturati</span>}
         </div>
       )}
 
-      {list.length === 0 ? sectionEmpty('Nessun SAL.') : (
+      {/* nuovo SAL (studio) */}
+      {isStudio && !formOpen && (
+        <button onClick={() => setFormOpen(true)} className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#161616] text-white text-[12px] font-bold">
+          <Plus className="w-4 h-4" /> Nuovo SAL
+        </button>
+      )}
+      {isStudio && formOpen && (
+        <div className="p-3.5 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-col gap-3">
+          <span className="text-[12.5px] font-extrabold text-[#161616]">SAL {list.length + 1} — Stato Avanzamento Lavori</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <LabeledInput label="Descrizione (lavorazioni contabilizzate)" value={descr} onChange={setDescr} />
+            <div className="grid grid-cols-2 gap-2.5">
+              <LabeledInput label="Periodo dal" type="date" value={from} onChange={setFrom} />
+              <LabeledInput label="al" type="date" value={to} onChange={setTo} />
+            </div>
+            <LabeledInput label="Importo lavori (€, imponibile)" value={importo} onChange={setImporto} />
+            <LabeledInput label={`Avanzamento raggiunto % (ora ${c.progressPct || 0}%)`} value={prog} onChange={setProg} />
+          </div>
+          <p className="text-[11px] text-[#9a9a9a]">
+            Il SAL nasce in <b>bozza</b>. Con l'approvazione l'avanzamento del cantiere si allinea alla % indicata
+            e il SAL diventa fatturabile da <b>Finanze → SAL</b>.
+          </p>
+          <div className="flex items-center gap-2">
+            <button onClick={add} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold">Crea SAL (bozza)</button>
+            <button onClick={() => setFormOpen(false)} className="px-4 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] font-bold text-[#6b6b6b]">Annulla</button>
+          </div>
+        </div>
+      )}
+
+      {list.length === 0 ? sectionEmpty('Nessun SAL emesso. Il SAL contabilizza i lavori eseguiti in un periodo e, una volta approvato, genera la fattura.') : (
         <div className="flex flex-col gap-2">
           {list.map((s) => (
-            <div key={s.id} className="p-3 rounded-2xl border border-[#eee]">
-              <div className="flex items-center justify-between gap-2">
+            <div key={s.id} className="p-3.5 rounded-2xl border border-[#eee]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[13px] font-bold text-[#161616]">SAL {s.number}{s.descrizione ? ` — ${s.descrizione}` : ''}</span>
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.status === 'approvato' ? 'bg-emerald-50 text-emerald-700' : s.status === 'inviato' ? 'bg-amber-50 text-amber-700' : 'bg-[#f1f1f1] text-[#6b6b6b]'}`}>{s.status}</span>
                   {s.linkedInvoiceId && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700">fatturato</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-3 mt-1 text-[11.5px] text-[#9a9a9a]">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[11.5px] text-[#9a9a9a]">
+                {(s.periodFrom || s.periodTo) && <span className="inline-flex items-center gap-1"><CalIcon className="w-3 h-3" /> {s.periodFrom ? fmtDay(s.periodFrom) : '…'} → {s.periodTo ? fmtDay(s.periodTo) : '…'}</span>}
                 {s.importo != null && <span className="font-bold text-[#161616]">{eur(s.importo)}</span>}
-                {s.progressPct != null && <span>{s.progressPct}%</span>}
+                {s.progressPct != null && <span className="inline-flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {s.progressPct}% avanzamento</span>}
               </div>
               {isStudio && s.status !== 'approvato' && (
                 <div className="flex items-center gap-2 mt-2">

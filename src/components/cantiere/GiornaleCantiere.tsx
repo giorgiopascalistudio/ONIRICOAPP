@@ -17,7 +17,7 @@ import {
   Users, Truck, ImageIcon, Boxes, Clock, BookOpen
 } from 'lucide-react';
 import { Cantiere, Rapportino, RapportinoManodopera, Presenza, CantiereFoto, CantiereMateriale } from '../../types';
-import { DOW, isoDate, todayISO, addDays, startOfMonth, startOfWeek, fmtMonthYear, fmtDayLong, parseISO, fmtDay } from '../../utils';
+import { DOW, isoDate, todayISO, addDays, startOfMonth, startOfWeek, fmtMonthYear, fmtDayLong, parseISO, fmtDay, safeUrl } from '../../utils';
 import { DriveUploader } from './DriveUploader';
 
 const newId = (p: string) => `${p}-${Date.now()}-${Math.floor(Math.random() * 900)}`;
@@ -451,7 +451,7 @@ export const GiornaleCantiere: React.FC<GiornaleCantiereProps> = (p) => {
               <div className="inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-[#9a9a9a] mb-1.5"><ImageIcon className="w-3.5 h-3.5" /> Foto ({dayFoto.length})</div>
               <div className="flex flex-col gap-1">
                 {dayFoto.map((x) => (
-                  <a key={x.id} href={x.driveUrl || x.link || '#'} target="_blank" rel="noreferrer" className="text-[12px] text-[#161616] font-medium underline truncate">
+                  <a key={x.id} href={safeUrl(x.driveUrl || x.link) || '#'} target="_blank" rel="noreferrer" className="text-[12px] text-[#161616] font-medium underline truncate">
                     {x.caption || 'Foto'}
                   </a>
                 ))}

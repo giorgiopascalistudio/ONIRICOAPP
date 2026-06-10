@@ -14,7 +14,7 @@ import {
   X, ChevronLeft, FileSpreadsheet, Mail, FileSignature
 } from 'lucide-react';
 import type { Project, UserProfile } from '../types';
-import { initials } from '../utils';
+import { initials, safeUrl } from '../utils';
 
 interface DocItem {
   id: string;
@@ -270,7 +270,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                       </div>
                       {d.url && (
                         <a
-                          href={d.url}
+                          href={safeUrl(d.url) || '#'}
                           target="_blank"
                           rel="noreferrer"
                           className="w-8 h-8 rounded-lg border border-[#e2e2e2] bg-white hover:bg-gray-100 flex items-center justify-center text-gray-600 shrink-0"
@@ -468,7 +468,7 @@ const ClientDocuments: React.FC<{
                       </div>
                       {d.url && (
                         <a
-                          href={d.url}
+                          href={safeUrl(d.url) || '#'}
                           target="_blank"
                           rel="noreferrer"
                           className="w-8 h-8 rounded-lg border border-[#e2e2e2] bg-white hover:bg-gray-100 flex items-center justify-center text-gray-600 shrink-0"

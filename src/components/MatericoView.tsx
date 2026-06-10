@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { MatericoRequest, MatericoOffer } from '../types';
 import type { Supplier } from './CrmView';
-import { eur } from '../utils';
+import { eur, safeUrl } from '../utils';
 
 interface MatericoViewProps {
   requests: MatericoRequest[];
@@ -179,7 +179,7 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
             {(active.links || []).length > 0 && (
               <div className="mb-4 flex flex-col gap-1">
                 {active.links!.map((l, i) => (
-                  <a key={i} href={l} target="_blank" rel="noreferrer" className="text-[12px] text-sky-700 hover:underline flex items-center gap-1.5 truncate"><LinkIcon className="w-3.5 h-3.5 shrink-0" />{l}</a>
+                  <a key={i} href={safeUrl(l) || '#'} target="_blank" rel="noreferrer" className="text-[12px] text-sky-700 hover:underline flex items-center gap-1.5 truncate"><LinkIcon className="w-3.5 h-3.5 shrink-0" />{l}</a>
                 ))}
               </div>
             )}

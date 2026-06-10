@@ -228,6 +228,16 @@ regole** e ricordare all'utente di ripubblicarle.
   backdrop-blur-sm`.
 - **Mai** reintrodurre dati seed finti o account di test (l'admin ora ripulisce i
   vecchi account `isTest`/`test-*`).
+- **App-like**: il sito è **non zoomabile** (viewport meta in `index.html` + blocco
+  ctrl+rotella/±/gesture in `main.tsx`) e **non selezionabile** (`user-select:none`
+  su body in `index.css`), con **eccezione** per `input/textarea/select/
+  [contenteditable]`. Non rimuovere queste regole; i nuovi campi testo nativi sono
+  già coperti.
+- **Sicurezza link**: ogni URL inserito dall'utente (campi `link`/`url` di documenti,
+  foto, arredi, richieste Materico…) va renderizzato come `href={safeUrl(u) || '#'}`
+  (`safeUrl` in `utils.ts`, whitelist http/https/mailto/tel — blocca `javascript:`).
+  Sempre `rel="noreferrer"` sui link `target="_blank"`. Niente
+  `dangerouslySetInnerHTML`.
 
 ## 11. Artefatti React/Vite — vincoli
 - Niente `localStorage`/`sessionStorage` per i dati (tutto su Firebase).
@@ -286,6 +296,10 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunto il nodo **`trash`** (Cestino, §20 — read/write team attivo non-cliente):
   **ripubblicare le regole**, altrimenti il Cestino resta vuoto e i ripristini falliscono
   (le eliminazioni continuano a funzionare ma senza copia di sicurezza).
+  ⚠️ Aggiornate le regole di **`projectMessages` e `cantiereMessages`** (chat): cliente/partner
+  possono **eliminare un proprio messaggio entro 60s** dall'invio (unsend) e il create richiede
+  `from == auth.uid` (niente spoofing autore). **Ripubblicare le regole**, altrimenti l'unsend
+  fallisce lato portale (per lo studio funziona comunque).
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -326,7 +340,12 @@ reporting/redditività, integrazioni esterne
   `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni per-cantiere si scrivono **per-elemento**
   (handler generici `handleSaveCantEntity`/`handleDeleteCantEntity`); l'Area Impresa (keyed per uid)
   usa `handleSaveImpresaEntity`/`handleDeleteImpresaEntity` in `App.tsx`. La chat usa
-  `handleSendCantiereMessage`.
+  `handleSendCantiereMessage`; **unsend entro 60s** del proprio messaggio
+  (`handleDeleteCantiereMessage`/`handleDeleteProjectMessage` in App + `ChatDeleteButton`,
+  componente che si nasconde da solo allo scadere — rimozione diretta, senza doppia
+  conferma/cestino: eccezione documentata al pattern `askDelete` di §20). Nella tab SAL
+  l'**avanzamento** si allinea automaticamente alla % dell'ultimo SAL approvato
+  (`handleApproveSal`) e lo slider salva solo al rilascio.
 - **Permessi** (`firebase-rules.json`): cantiere/sotto-collezioni leggibili da studio attivo
   **o** partner assegnato; rapportini/presenze/foto/materiali/documenti/records/messages scrivibili
   dal partner assegnato solo per **propri** elementi (`by`/`partnerUid`/`from == auth.uid`);
