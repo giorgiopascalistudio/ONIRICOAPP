@@ -34,10 +34,15 @@ import {
   SlidersHorizontal,
   Clock,
   Sofa,
-  HardHat
+  HardHat,
+  Archive,
+  ArchiveRestore,
+  FileSignature,
+  Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord } from '../types';
-import { computoTotal, arrediTotals, studioParcella, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote } from '../types';
+import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
+import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
 import { eur, fmtDay, isoDate, todayISO, numIt } from '../utils';
@@ -89,6 +94,17 @@ interface ProjectsViewProps {
   finScadenze?: ScadenzaItem[];
   onSaveFinanceItem?: (node: 'finInvoicesActive' | 'finInvoicesPassive' | 'finScadenze', item: any) => void;
   onDeleteFinanceItem?: (node: 'finInvoicesActive' | 'finInvoicesPassive' | 'finScadenze', id: string) => void;
+  // Preventivi & Parcelle della commessa (nodo quotes, condiviso con Finanze → Preventivi)
+  quotes?: Record<string, Quote>;
+  onSaveQuote?: (q: Quote) => void;
+  onDeleteQuote?: (id: string) => void;
+  onSetQuoteStatus?: (id: string, status: Quote['status']) => void;
+  onEmitMilestone?: (quoteId: string, milestoneId: string) => void;
+  // Archiviazione progetti
+  onToggleArchiveProject?: (pid: string) => void;
+  // Doppia conferma + Cestino (modale/nodo condivisi in App; usati dalle sotto-viste)
+  askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
+  onTrashItem?: (section: string, label: string, payload: any, meta?: Record<string, string>, detail?: string) => void;
   estimates?: MatericoEstimate[];
   onSaveEstimate?: (est: MatericoEstimate) => void;
   onDeleteEstimate?: (id: string) => void;
@@ -168,6 +184,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   finScadenze = [],
   onSaveFinanceItem,
   onDeleteFinanceItem,
+  quotes = {},
+  onSaveQuote,
+  onDeleteQuote,
+  onSetQuoteStatus,
+  onEmitMilestone,
+  onToggleArchiveProject,
+  askDelete,
+  onTrashItem,
   estimates = [],
   onSaveEstimate,
   onDeleteEstimate,
@@ -216,6 +240,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [clientMessageInput, setClientMessageInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [projTab, setProjTab] = useState<string>('vista');
+  // Editor preventivo/parcella della commessa (tab Contabilità)
+  const [quoteDraft, setQuoteDraft] = useState<Quote | null>(null);
   const [matericoTab, setMatericoTab] = useState<'progetti' | 'richieste'>('progetti');
   const [unicoTab, setUnicoTab] = useState<'progetti' | 'studio'>('progetti');
   
@@ -344,6 +370,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     const projInvPassive = (finInvoicesPassive || []).filter((i: any) => i.projectId === p.id);
     const projScadenze = (finScadenze || []).filter((s: any) => s.projectId === p.id);
 
+    // --- Preventivi & Parcelle della commessa (nodo quotes, condiviso con Finanze) ---
+    const projQuotes = Object.values(quotes)
+      .filter((q) => q.projectId === p.id)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
     const ricaviFatturati = projInvActive.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
     const incassato = projInvActive.filter((i: any) => i.status === 'pagata').reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
     const daIncassare = Math.max(0, ricaviFatturati - incassato);
@@ -446,6 +477,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {p.archived && (
+              <span className="py-1 px-3.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-200 inline-flex items-center gap-1.5">
+                <Archive className="w-3.5 h-3.5" /> Archiviato
+              </span>
+            )}
             <span
               className={`py-1 px-3.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider border ${
                 p.status === 'attivo'
@@ -457,6 +493,15 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             >
               {p.status}
             </span>
+            {isInternalBoss && (
+              <button
+                onClick={() => onToggleArchiveProject?.(p.id)}
+                className="w-9 h-9 border border-[#e2e2e2] hover:border-black rounded-full flex items-center justify-center text-[#8a8a8a] hover:text-[#161616] bg-transparent cursor-pointer transition-colors"
+                title={p.archived ? 'Ripristina dall\'archivio' : 'Archivia progetto'}
+              >
+                {p.archived ? <ArchiveRestore className="w-4.5 h-4.5" /> : <Archive className="w-4.5 h-4.5" />}
+              </button>
+            )}
             {isInternalBoss && (
               <button
                 onClick={() => onEditProject(p.id)}
@@ -1633,7 +1678,86 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               <span className="text-[11.5px] font-black text-amber-900">Totale parcella a SAL: {eur(parcellaTeorica)}</span>
             </div>
 
-            {/* B. AZIONI RAPIDE — Registra */}
+            {/* B. PREVENTIVI & PARCELLE della commessa (collegati a Finanze → Preventivi) */}
+            <div className="bg-stone-50/50 border border-stone-200 rounded-2xl p-4 mb-6">
+              <div className="flex flex-wrap justify-between items-center gap-2 border-b border-stone-150 pb-2 mb-3">
+                <span className="text-[12px] font-black text-stone-800 uppercase tracking-wide inline-flex items-center gap-1.5">
+                  <FileSignature className="w-3.5 h-3.5" /> Preventivi &amp; Parcelle
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setQuoteDraft(emptyQuoteDraft('studio', p, 'parcella'))}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-[#e2e2e2] text-[#161616] bg-white rounded-full px-3 py-1.5 hover:border-black transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Parcella
+                  </button>
+                  <button
+                    onClick={() => setQuoteDraft(emptyQuoteDraft('studio', p, 'preventivo'))}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-bold bg-[#1b1b1b] hover:bg-black text-white border-none rounded-full px-3 py-1.5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Preventivo
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                {projQuotes.length === 0 ? (
+                  <p className="text-[11.5px] text-stone-400 italic py-3 text-center">Nessun preventivo o parcella per questa commessa. Aggiungine uno: comparirà anche in Finanze → Preventivi.</p>
+                ) : projQuotes.map((q) => {
+                  const totals = quoteTotals(q);
+                  const plan = q.paymentPlan || [];
+                  const daEmettere = plan.filter((m) => m.status === 'da_emettere');
+                  return (
+                    <div key={q.id} className="bg-white p-3 rounded-xl border border-stone-150 text-[12px] flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                          <b className="text-stone-900">{q.number || '(senza numero)'}</b>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider ${q.docKind === 'parcella' ? 'bg-indigo-50 text-indigo-700' : 'bg-stone-100 text-stone-600'}`}>
+                            {q.docKind === 'parcella' ? 'Parcella' : 'Preventivo'}
+                          </span>
+                          <span className="text-[10.5px] text-stone-500">
+                            imponibile {eur(totals.imponibile)}{totals.totale !== totals.imponibile ? <> · tot. doc. <b className="text-stone-800">{eur(totals.totale)}</b></> : null}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            value={q.status}
+                            onChange={(e) => onSetQuoteStatus?.(q.id, e.target.value as Quote['status'])}
+                            className="px-2 py-1 rounded-lg border border-stone-200 text-[11px] font-bold outline-none bg-white cursor-pointer"
+                          >
+                            <option value="elaborato">Elaborato</option>
+                            <option value="in_attesa">In attesa</option>
+                            <option value="accettato">Accettato</option>
+                            <option value="rifiutato">Rifiutato</option>
+                          </select>
+                          <button onClick={() => setQuoteDraft(q)} className="px-2.5 py-1 rounded-lg bg-[#161616] hover:bg-black text-white text-[11px] font-bold border-none cursor-pointer">Modifica</button>
+                          <button onClick={() => onDeleteQuote?.(q.id)} className="w-7 h-7 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-600 cursor-pointer" title="Elimina (nel Cestino)"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                      {plan.length > 0 && (
+                        <div className="flex flex-col gap-1 pt-1.5 border-t border-stone-100">
+                          {plan.map((m) => (
+                            <div key={m.id} className="flex items-center justify-between gap-2 text-[11.5px]">
+                              <span className="truncate text-stone-600">{m.label}{m.dueDate ? ` · ${m.dueDate}` : ''}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="font-bold text-stone-800">{eur(m.amount)}</span>
+                                {m.status === 'da_emettere' ? (
+                                  <button onClick={() => onEmitMilestone?.(q.id, m.id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold border-none cursor-pointer"><Receipt className="w-3 h-3" /> Emetti</button>
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700">{m.status === 'incassato' ? 'Incassato' : 'Fatturato'}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {daEmettere.length > 0 && <span className="text-[10px] text-stone-400">"Emetti" genera bozza fattura + scadenza in Finanze.</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* C. AZIONI RAPIDE — Registra */}
             <div className="flex flex-wrap items-center gap-2 mb-5">
               <span className="text-[11px] font-bold text-[#8a8a8a] mr-1">Registra:</span>
               <button onClick={() => { setQaKind('ricavo'); setQaDate(todayISO()); }} className="inline-flex items-center gap-1 text-[11.5px] font-bold border border-emerald-200 text-emerald-700 bg-emerald-50/50 rounded-full px-3 py-1.5 hover:bg-emerald-100 transition-colors">
@@ -1793,6 +1917,19 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               </div>
             </div>
 
+            {/* EDITOR preventivo/parcella della commessa */}
+            {quoteDraft && (
+              <QuoteEditor
+                initial={quoteDraft}
+                isNew={!quotes[quoteDraft.id]}
+                clients={clients}
+                projects={[p]}
+                lockProject={p}
+                onSave={(q) => onSaveQuote?.(q)}
+                onClose={() => setQuoteDraft(null)}
+              />
+            )}
+
             {/* MODALE Registra costo/ricavo/scadenza */}
             {qaKind && (
               <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQaKind(null)}>
@@ -1846,9 +1983,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     const projDiv = p.division || 'studio';
     if (projDiv !== divisionFilter) return false;
 
+    // I progetti archiviati compaiono SOLO nel filtro "Archivio".
+    if (filter === 'archivio') {
+      if (!p.archived && p.status !== 'sospeso' && p.status !== 'annullato') return false;
+    } else if (p.archived) {
+      return false;
+    }
     if (filter === 'attivi' && p.status !== 'attivo') return false;
     if (filter === 'completati' && p.status !== 'completato') return false;
-    if (filter === 'archivio' && p.status !== 'sospeso' && p.status !== 'annullato') return false;
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       return p.name.toLowerCase().includes(q) || (p.client && p.client.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q));
@@ -2078,6 +2220,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onSave={onSaveUnicoDeals || (() => {})}
           projects={projects}
           canEdit={isInternalBoss}
+          askDelete={askDelete}
+          onTrashItem={onTrashItem}
         />
       ) : showMatericoInbox ? (
         <MatericoView
@@ -2128,6 +2272,11 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                       >
                         {p.status}
                       </span>
+                      {p.archived && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] uppercase font-extrabold tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                          Archiviato
+                        </span>
+                      )}
                     </div>
                   </div>
 

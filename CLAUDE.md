@@ -77,7 +77,9 @@ presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; inclu
 `DriveUploader` con fallback link), `AccessRequests`
 (approvazione accessi), `GoogleLogin`, `Modal`, `ThreeDProgress` (GLB a 13 step),
 `SmartText`, `AppleSwitch`, `MotionTabsMenu`, `PinnedList`, `StatusCard`,
-`InteractiveView`.
+`InteractiveView`, `QuotesView`+`QuoteEditor` (preventivi/parcelle, vedi §16 — vivono
+dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §20),
+`ConfirmDeleteModal` (doppia conferma eliminazione, vedi §20).
 
 ## 5. Autenticazione & ruoli (IMPORTANTE)
 - Accesso con **email+password** *oppure* **Google** (`src/components/AuthFlow.tsx`:
@@ -151,8 +153,12 @@ presenze, foto, materiali, checklist, documenti, SAL/avanzamento, storico; inclu
   read/write solo del proprio uid (write anche da studio attivo per notificare colleghi).
 - `teamLeave/<id>` — **ferie/assenze team** (`TeamLeave`): pannello in `CalendarView`; all'inserimento
   notifica in-app a tutto il team (il reminder 7gg prima è una Cloud Function).
-- `quotes/<id>` — **Preventivi studio** (`Quote`, vedi §16): macro-voci, stati, piano pagamenti;
-  admin/manager. La rata "emessa" genera fattura attiva + scadenza nei nodi finanza (consolidato).
+- `quotes/<id>` — **Preventivi & Parcelle** (`Quote`, vedi §16): macro-voci, stati, piano pagamenti,
+  `docKind` (preventivo|parcella), **IVA/cassa spuntabili** (`vatEnabled/vatPct/cassaEnabled/cassaPct`,
+  calcolo `quoteTotals` in finance.ts); admin/manager. La rata "emessa" genera fattura attiva +
+  scadenza nei nodi finanza (eredita IVA/cassa).
+- `trash/<id>` — **Cestino condiviso** (`TrashItem`, vedi §20): elementi eliminati da ogni sezione,
+  conservati 60 giorni poi purge automatico client-side; read/write team attivo non-cliente.
 - **Modulo Cantiere** (vedi §15): `cantieri/<cid>` (record cantiere, `partnerUids:{uid:true}`) +
   sotto-collezioni granulari per-elemento `cantiereRapportini|cantierePresenze|cantiereFoto|
   cantiereMateriali|cantiereChecklist|cantiereDocumenti|cantiereSal|cantiereLog|cantiereRecords|
@@ -277,6 +283,9 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunti infine `notifications/$uid` (read/write proprio uid; write da studio attivo),
   `teamLeave` (read studio; write proprio o admin/manager), `quotes` (admin/manager) e
   `projectMoodboard3d` (come `projectFurnishings`): **ripubblicare le regole** dopo il deploy.
+  ⚠️ Aggiunto il nodo **`trash`** (Cestino, §20 — read/write team attivo non-cliente):
+  **ripubblicare le regole**, altrimenti il Cestino resta vuoto e i ripristini falliscono
+  (le eliminazioni continuano a funzionare ma senza copia di sicurezza).
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -349,10 +358,20 @@ reporting/redditività, integrazioni esterne
   ricavi** (niente costi/margine dello studio).
 
 ## 16. Preventivi & Amministrazione (CRM esteso)
-- **`QuotesView`** + voce menu **"Preventivi"** (admin/manager). Nodo `quotes/<id>` (`Quote`):
-  righe per **macro-voce** (Progettazione/Consulenza/Opere edili/Impiantistica/Materiali/Altro),
-  **stati** (Elaborato/In attesa/Accettato/Rifiutato), **piano pagamenti** (`PaymentMilestone`:
-  acconto/rate/saldo con % o importo + scadenza). Cliente dalla rubrica `clients`.
+- **`QuotesView`** vive in **Finanze → tab "Preventivi & Parcelle"** (la voce sidebar "Preventivi"
+  è stata rimossa; la route `#preventivi` redirige a Finanze col tab aperto). **Sempre differenziato
+  per società**: segue il selettore Società di FinanzeView; con "Tutte/Consolidato" la lista è
+  raggruppata per divisione con i colori settore. Nodo `quotes/<id>` (`Quote`):
+  `docKind` **preventivo|parcella**, righe per **macro-voce** (Progettazione/Consulenza/Opere edili/
+  Impiantistica/Materiali/Altro), **stati** (Elaborato/In attesa/Accettato/Rifiutato), **IVA e Cassa
+  previdenziale spuntabili** (default IVA 22% on, cassa 4% off; totali con `quoteTotals`), **piano
+  pagamenti** (`PaymentMilestone`: acconto/rate/saldo con % o importo + scadenza, importi imponibili).
+  Cliente dalla rubrica `clients`. Editor riusabile **`QuoteEditor`**: usato anche dal fascicolo
+  progetto (`ProjectsView` tab "Contabilità & Bilancio" → pannello "Preventivi & Parcelle", con
+  progetto/divisione bloccati) — stesso nodo, stessa lista in Finanze.
+- Anche le **fatture attive** (`InvoiceActive`) hanno IVA (`taxRate`, 0 = niente IVA) e
+  **`cassaPct`** spuntabili nel form di FinanzeView; helper `docTotals`/`invoiceTotals` in
+  `finance.ts` (la cassa concorre alla base imponibile IVA).
 - **Collegamento a finanza**: `handleEmitMilestone` (App) genera da una rata una **bozza fattura
   attiva** (`finInvoicesActive`) + **scadenza** (`finScadenze`) via `handleSaveFinanceItem`
   (con `projectId`/`sector=division`) → consolidato `FinanzeView`; la milestone tiene `invoiceId`.
@@ -399,3 +418,25 @@ reporting/redditività, integrazioni esterne
   (chiaro + dark). Funzionalità del prototipo **invariate** (rimosso solo lo share-link `#board=`
   che confliggeva col router a hash).
 - ⚠️ Regole: aggiunto `projectMoodboard3d` in `firebase-rules.json` → **ripubblicare**.
+
+## 20. Cestino, doppia conferma, archiviazione
+- **Cestino** (`TrashView`, voce sidebar admin/manager, route `#cestino`; nodo `trash/<id>`,
+  tipo `TrashItem`): OGNI eliminazione passa da qui per **60 giorni** (`TRASH_RETENTION_DAYS`),
+  poi purge automatico client-side (effetto in App). Helper in App: `moveToTrash(section,label,
+  payload,meta?,detail?)` (no-op per cliente/partner: niente write su trash), `handleRestoreTrash`
+  (switch per `section` → riscrive nel nodo di origine), `handleTrashDeleteForever`.
+  Sezioni coperte: progetti, task, preventivi, fatture attive/passive, scadenze, movimenti,
+  documenti, arredi, appuntamenti, richieste/preventivi Materico, rubrica, lead/fornitori CRM,
+  operazioni Unico, cantieri + voci cantiere, Area Impresa, ferie.
+- **Doppia conferma**: `ConfirmDeleteModal` (stato `confirmDel` in App, helper
+  `askDelete(title,message,onConfirm,permanent?)`): il primo click su "Elimina" arma il pulsante,
+  il secondo conferma. Renderizzata sia nel layout studio sia nel portale cliente/partner.
+  TUTTI gli handler di delete in App passano da `askDelete`; i componenti che eliminano
+  internamente (CrmView, UnicoStudioView, FinanzeView-computi) ricevono `askDelete`/`onTrashItem`
+  come prop (con fallback `confirm()`). **Niente più `window.confirm` diretti** nelle eliminazioni.
+- **Archiviazione progetti**: `Project.archived` + `handleToggleArchiveProject` (App). Pulsante
+  archivia/ripristina nell'header del fascicolo e nel modale "Modifica pratica". Gli archiviati
+  escono da tutte le liste di default (Dashboard, filtri Attivi/Completati/Tutti) e compaiono solo
+  nel filtro **"Archivio"** di ProjectsView (insieme a sospesi/annullati), con badge ambra.
+- **Colori società**: `COMPANY_COLOR` in `finance.ts` (unica fonte; usato da Dashboard, Preventivi,
+  liste progetti). Non ridefinire i colori inline nei nuovi componenti.

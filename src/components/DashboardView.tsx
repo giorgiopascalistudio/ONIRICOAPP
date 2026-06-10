@@ -7,6 +7,7 @@ import React from 'react';
 import { Clock, CheckSquare, Folder, Calendar, AlertTriangle, Plus, MoreHorizontal, Check, X } from 'lucide-react';
 import { Project, Task, UserProfile, Appointment } from '../types';
 import { eur, fmtDayLong, initials } from '../utils';
+import { Company, COMPANY_LABEL, COMPANY_COLOR } from '../finance';
 import { SmartText } from './SmartText';
 
 interface DashboardViewProps {
@@ -80,7 +81,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return { done, tot };
   };
 
-  const activeProjects = projects.filter(p => p.status === 'attivo');
+  const activeProjects = projects.filter(p => p.status === 'attivo' && !p.archived);
 
   // Overdue single-instance tasks
   const overdueCount = tasks.filter(t => t.frequency === 'once' && !t.done && t.date && t.date < today).length;
@@ -314,14 +315,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               activeProjects.slice(0, 5).map(p => {
                 const { done, tot } = projTaskCounts(p);
                 const pc = tot ? Math.round((done / tot) * 100) : 0;
+                const company = ((p.division as Company) || 'studio');
+                const col = COMPANY_COLOR[company];
 
                 return (
                   <div
                     key={p.id}
                     onClick={() => onNav(`progetto/${p.id}`)}
-                    className="flex items-center gap-3.5 p-3 rounded-xl border border-[#f5f5f5] hover:bg-[#fcfcfc] transition-all cursor-pointer hover:-translate-y-0.5 hover:shadow-xs"
+                    className="flex items-center gap-3.5 p-3 rounded-xl border border-[#f5f5f5] hover:bg-[#fcfcfc] transition-all cursor-pointer hover:-translate-y-0.5 hover:shadow-xs border-l-[4px]"
+                    style={{ borderLeftColor: col }}
                   >
-                    <div className="w-[38px] h-[38px] rounded-xl bg-[#1b1b1b] text-white flex items-center justify-center flex-shrink-0">
+                    <div className="w-[38px] h-[38px] rounded-xl text-white flex items-center justify-center flex-shrink-0" style={{ background: col }}>
                       <Folder className="w-4 h-4" />
                     </div>
 
@@ -330,7 +334,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {p.name}
                       </b>
                       <small className="block text-[11.5px] text-[#8a8a8a] truncate mt-0.5">
-                        {p.client || '—'} · {tot} task
+                        <span className="font-extrabold" style={{ color: col }}>{COMPANY_LABEL[company]}</span> · {p.client || '—'} · {tot} task
                       </small>
                     </div>
 

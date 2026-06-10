@@ -11,15 +11,17 @@ import {
   Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info,
   Upload, Building2, Percent
 } from 'lucide-react';
-import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal } from '../types';
+import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal, Quote, ClientRecord } from '../types';
 import { eur, fmtDay, numIt, todayISO } from '../utils';
 import { watchNode, writeNode } from '../firebase';
 import {
   Company, COMPANY_LABEL, COMPANY_INVOICE_PREFIX,
   Computo, ComputoItem, InvoiceActive, InvoicePassive, ScadenzaItem,
   computoTotal, arrediTotals, studioParcella, matericoMargin, unicoMargin, consolidato,
-  parseCsv, guessMapping, rowsToComputoItems, ColumnMapping, ParsedSheet
+  parseCsv, guessMapping, rowsToComputoItems, ColumnMapping, ParsedSheet,
+  invoiceTotals, CASSA_PCT_DEFAULT
 } from '../finance';
+import { QuotesView } from './QuotesView';
 
 interface FinanzeViewProps {
   finance: FinanceMovement[];
@@ -33,6 +35,18 @@ interface FinanzeViewProps {
   cantieri?: Record<string, Cantiere>;
   cantSal?: Record<string, Record<string, CantiereSal>>;
   onLinkCantiereSal?: (cid: string, salId: string, invoiceId: string) => void;
+  // Preventivi & Parcelle (tab "Preventivi": QuotesView vive qui, non più in sidebar)
+  quotes?: Record<string, Quote>;
+  clientRecords?: Record<string, ClientRecord>;
+  myUid?: string;
+  onSaveQuote?: (q: Quote) => void;
+  onDeleteQuote?: (id: string) => void;
+  onSetQuoteStatus?: (id: string, status: Quote['status']) => void;
+  onEmitMilestone?: (quoteId: string, milestoneId: string) => void;
+  /** Tab iniziale (es. 'preventivi' quando si arriva da #preventivi). */
+  initialTab?: string | null;
+  /** Doppia conferma eliminazione (modale condivisa in App). */
+  askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
 }
 
 interface BankMovementSim {
@@ -54,10 +68,25 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   onDeleteMovement,
   cantieri = {},
   cantSal = {},
-  onLinkCantiereSal
+  onLinkCantiereSal,
+  quotes = {},
+  clientRecords = {},
+  myUid = '',
+  onSaveQuote,
+  onDeleteQuote,
+  onSetQuoteStatus,
+  onEmitMilestone,
+  initialTab = null,
+  askDelete
 }) => {
   // --- SUB-TABS STATE ---
-  const [activeTab, setActiveTab] = useState<'panoramica' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico'>('panoramica');
+  type FinTab = 'panoramica' | 'preventivi' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico';
+  const [activeTab, setActiveTab] = useState<FinTab>((initialTab as FinTab) || 'panoramica');
+
+  // Arrivo da #preventivi (o link notifica): apre il tab richiesto.
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab as FinTab);
+  }, [initialTab]);
 
   // --- TOP BAR FILTERS (società) ---
   type SectorFilter = 'all' | Company | 'consolidato';
@@ -173,6 +202,9 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   const [invProjId, setInvProjId] = useState('');
   const [invAmount, setInvAmount] = useState('');
   const [invTax, setInvTax] = useState(22);
+  const [invVatOn, setInvVatOn] = useState(true);        // IVA spuntabile
+  const [invCassaOn, setInvCassaOn] = useState(false);   // Cassa previdenziale spuntabile
+  const [invCassaPct, setInvCassaPct] = useState(CASSA_PCT_DEFAULT);
   const [invSdi, setInvSdi] = useState('M5UXCR1');
 
   // Passive Invoice form states
@@ -322,14 +354,19 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   };
 
   const handleDeleteComputoItem = (idComputo: string, idItem: string) => {
-    const updated = computi.map(c => {
-      if (c.id === idComputo) {
-        return { ...c, items: c.items.filter(it => it.id !== idItem) };
-      }
-      return c;
-    });
-    saveComputi(updated);
-    triggerToast("🗑️ Riga cancellata con successo.");
+    const doDelete = () => {
+      const updated = computi.map(c => {
+        if (c.id === idComputo) {
+          return { ...c, items: c.items.filter(it => it.id !== idItem) };
+        }
+        return c;
+      });
+      saveComputi(updated);
+      triggerToast("🗑️ Riga del computo eliminata.");
+    };
+    const item = computi.find(c => c.id === idComputo)?.items.find(it => it.id === idItem);
+    if (askDelete) askDelete('Eliminare la riga del computo?', item ? `"${item.desc}" verrà rimossa dal computo metrico.` : null, doDelete);
+    else doDelete();
   };
 
   const handleCreateNewComputo = () => {
@@ -430,7 +467,8 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
       projectId: invProjId,
       projectName: relatedProj ? relatedProj.name : 'Bespoke Project',
       amount: val,
-      taxRate: invTax,
+      taxRate: invVatOn ? invTax : 0,
+      cassaPct: invCassaOn ? invCassaPct : null,
       status: 'bozza',
       sdiCode: invSdi || 'M5UXCR1',
       date: todayISO(),
@@ -855,12 +893,20 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <Activity className="w-4 h-4" /> Panoramica & Banca
         </button>
         <button
+          onClick={() => setActiveTab('preventivi')}
+          className={`flex items-center gap-1.5 py-3 px-4 text-[12.5px] font-black tracking-tight border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'preventivi' ? 'border-[#1b1b1b] text-[#1b1b1b]' : 'border-transparent text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <FileCheck className="w-4 h-4" /> Preventivi & Parcelle
+        </button>
+        <button
           onClick={() => setActiveTab('computi')}
           className={`flex items-center gap-1.5 py-3 px-4 text-[12.5px] font-black tracking-tight border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'computi' ? 'border-[#1b1b1b] text-[#1b1b1b]' : 'border-transparent text-stone-500 hover:text-stone-900'
           }`}
         >
-          <Calculator className="w-4 h-4" /> Preventivi / Computi
+          <Calculator className="w-4 h-4" /> Computi metrici
         </button>
         <button
           onClick={() => setActiveTab('parcella')}
@@ -903,6 +949,21 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
           <TrendingUp className="w-4 h-4" /> Conto Economico
         </button>
       </div>
+
+      {/* --- TAB CONTENT: PREVENTIVI & PARCELLE (per società, ex voce sidebar) --- */}
+      {activeTab === 'preventivi' && (
+        <QuotesView
+          quotes={quotes}
+          clients={clientRecords}
+          projects={projects}
+          myUid={myUid}
+          company={selectedSector}
+          onSaveQuote={onSaveQuote || (() => {})}
+          onDeleteQuote={onDeleteQuote || (() => {})}
+          onSetStatus={onSetQuoteStatus || (() => {})}
+          onEmitMilestone={onEmitMilestone || (() => {})}
+        />
+      )}
 
       {/* --- TAB CONTENT 1: PANORAMICA & BANCA SYSTEM --- */}
       {activeTab === 'panoramica' && (
@@ -1581,13 +1642,16 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                       </div>
 
                       <div className="mt-2 text-[10.5px] text-zinc-500 font-bold text-left">
-                        Cod. SDI: <span className="font-mono bg-stone-100 text-[#121212] px-1 rounded">{inv.sdiCode}</span> | IVA: {inv.taxRate}%
+                        Cod. SDI: <span className="font-mono bg-stone-100 text-[#121212] px-1 rounded">{inv.sdiCode}</span> | IVA: {inv.taxRate > 0 ? `${inv.taxRate}%` : 'no'}{(inv.cassaPct || 0) > 0 ? ` | Cassa: ${inv.cassaPct}%` : ''}
                       </div>
                     </div>
 
                     <div className="flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-stone-200/60 w-full sm:w-auto">
                       <div className="text-left sm:text-right">
                         <div className="text-[15px] font-black text-[#1b1b1b] sm:mb-0.5">{eur(inv.amount)}</div>
+                        {(inv.taxRate > 0 || (inv.cassaPct || 0) > 0) && (
+                          <div className="text-[10px] font-bold text-stone-500 sm:mb-0.5">tot. doc. {eur(invoiceTotals(inv).totale)}</div>
+                        )}
                         <span className={`text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full inline-block ${badgeClass}`}>
                           {inv.status}
                         </span>
@@ -1676,16 +1740,40 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4 mt-4">
-                <div className="flex gap-2 text-[11px] text-stone-500 font-semibold items-center">
-                  <span>Aliquota IVA standard:</span>
-                  <select value={invTax} onChange={(e) => setInvTax(Number(e.target.value))} className="bg-transparent font-extrabold focus:ring-0 cursor-pointer">
+              {/* IVA & Cassa previdenziale spuntabili */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3.5">
+                <label className="flex items-center gap-2.5 rounded-xl border border-stone-200 bg-white px-3 py-2 cursor-pointer">
+                  <input type="checkbox" checked={invVatOn} onChange={(e) => setInvVatOn(e.target.checked)} className="w-4 h-4 accent-[#161616] cursor-pointer" />
+                  <span className="text-[12px] font-bold text-stone-800 flex-1">IVA</span>
+                  <select value={invTax} onChange={(e) => setInvTax(Number(e.target.value))} disabled={!invVatOn} className="bg-transparent text-[11.5px] font-extrabold focus:ring-0 cursor-pointer disabled:opacity-40">
                     <option value="22">22% Ordinario</option>
-                    <option value="4">4% Agevolato prima casa</option>
                     <option value="10">10% Ristrutturazioni</option>
-                    <option value="0">0% Regime Forfettario</option>
+                    <option value="4">4% Agevolato prima casa</option>
                   </select>
-                </div>
+                </label>
+                <label className="flex items-center gap-2.5 rounded-xl border border-stone-200 bg-white px-3 py-2 cursor-pointer">
+                  <input type="checkbox" checked={invCassaOn} onChange={(e) => setInvCassaOn(e.target.checked)} className="w-4 h-4 accent-[#161616] cursor-pointer" />
+                  <span className="text-[12px] font-bold text-stone-800 flex-1">Cassa previdenziale</span>
+                  <input
+                    value={invCassaPct}
+                    onChange={(e) => setInvCassaPct(Number(String(e.target.value).replace(',', '.')) || 0)}
+                    disabled={!invCassaOn}
+                    inputMode="decimal"
+                    className="w-[52px] text-right text-[11.5px] font-extrabold bg-transparent border border-stone-200 rounded-lg px-1.5 py-0.5 outline-none disabled:opacity-40"
+                  />
+                  <span className="text-[11px] font-bold text-stone-500">%</span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 mt-4">
+                <span className="text-[11px] text-stone-500 font-semibold">
+                  {(() => {
+                    const val = parseFloat(invAmount) || 0;
+                    if (!val) return 'Totale documento: —';
+                    const t = invoiceTotals({ amount: val, taxRate: invVatOn ? invTax : 0, cassaPct: invCassaOn ? invCassaPct : null });
+                    return <>Totale documento: <b className="text-stone-800">{eur(t.totale)}</b>{t.cassa > 0 && <> (cassa {eur(t.cassa)})</>}{t.iva > 0 && <> (IVA {eur(t.iva)})</>}</>;
+                  })()}
+                </span>
 
                 <button
                   type="submit"

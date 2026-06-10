@@ -41,9 +41,13 @@ interface Props {
   onSave: (deals: UnicoDeal[]) => void;
   projects: Project[];
   canEdit: boolean;
+  /** Doppia conferma eliminazione (modale condivisa in App). */
+  askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
+  /** Sposta l'elemento eliminato nel Cestino condiviso. */
+  onTrashItem?: (section: string, label: string, payload: any, meta?: Record<string, string>, detail?: string) => void;
 }
 
-export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canEdit }) => {
+export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canEdit, askDelete, onTrashItem }) => {
   const [tab, setTab] = useState<'operazioni' | 'investitori'>('operazioni');
   const [editing, setEditing] = useState<UnicoDeal | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -76,8 +80,13 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
     setEditing(null); setIsNew(false);
   };
   const deleteDeal = (id: string) => {
-    if (!confirm('Eliminare questa operazione immobiliare?')) return;
-    onSave(deals.filter((d) => d.id !== id));
+    const deal = deals.find((d) => d.id === id);
+    const doDelete = () => {
+      if (deal) onTrashItem?.('unico', deal.title || 'Operazione immobiliare', deal, undefined, deal.location);
+      onSave(deals.filter((d) => d.id !== id));
+    };
+    if (askDelete) askDelete('Eliminare questa operazione immobiliare?', deal ? `"${deal.title}"` : null, doDelete);
+    else if (confirm('Eliminare questa operazione immobiliare?')) doDelete();
   };
 
   return (

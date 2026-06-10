@@ -60,6 +60,10 @@ interface CrmViewProps {
   members?: UserProfile[];
   finInvoicesActive?: any[];
   finScadenze?: any[];
+  /** Doppia conferma eliminazione (modale condivisa in App). */
+  askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
+  /** Sposta l'elemento eliminato nel Cestino condiviso. */
+  onTrashItem?: (section: string, label: string, payload: any, meta?: Record<string, string>, detail?: string) => void;
 }
 
 const STAGES: { id: string; label: string }[] = [
@@ -97,7 +101,9 @@ export const CrmView: React.FC<CrmViewProps> = ({
   projects = [],
   members = [],
   finInvoicesActive = [],
-  finScadenze = []
+  finScadenze = [],
+  askDelete,
+  onTrashItem
 }) => {
   const [tab, setTab] = useState<'pipeline' | 'fornitori' | 'clienti'>('pipeline');
   const [openLead, setOpenLead] = useState<string | null>(null);
@@ -161,9 +167,14 @@ export const CrmView: React.FC<CrmViewProps> = ({
     );
   };
   const deleteLead = (id: string) => {
-    if (!confirm('Eliminare questo lead?')) return;
-    onSaveLeads(leads.filter((l) => l.id !== id));
-    setOpenLead(null);
+    const lead = leads.find((l) => l.id === id);
+    const doDelete = () => {
+      if (lead) onTrashItem?.('crm_lead', lead.name, lead, undefined, lead.company);
+      onSaveLeads(leads.filter((l) => l.id !== id));
+      setOpenLead(null);
+    };
+    if (askDelete) askDelete('Eliminare questo lead?', lead ? `"${lead.name}"` : null, doDelete);
+    else if (confirm('Eliminare questo lead?')) doDelete();
   };
   const addLeadNote = (id: string) => {
     if (!noteDraft.trim()) return;
@@ -193,9 +204,14 @@ export const CrmView: React.FC<CrmViewProps> = ({
     setNewSupplierOpen(false);
   };
   const deleteSupplier = (id: string) => {
-    if (!confirm('Eliminare questo fornitore?')) return;
-    onSaveSuppliers(suppliers.filter((s) => s.id !== id));
-    setOpenSupplier(null);
+    const sup = suppliers.find((s) => s.id === id);
+    const doDelete = () => {
+      if (sup) onTrashItem?.('crm_supplier', sup.name, sup, undefined, sup.category);
+      onSaveSuppliers(suppliers.filter((s) => s.id !== id));
+      setOpenSupplier(null);
+    };
+    if (askDelete) askDelete('Eliminare questo fornitore?', sup ? `"${sup.name}"` : null, doDelete);
+    else if (confirm('Eliminare questo fornitore?')) doDelete();
   };
   const addSupplierNote = (id: string) => {
     if (!noteDraft.trim()) return;
@@ -530,7 +546,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
 
           <div className="flex items-center gap-2 mt-5">
             <button onClick={() => { openEditClient(activeClient.id); setOpenClient(null); }} className="flex-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">Modifica</button>
-            <button onClick={() => { if (confirm('Eliminare il cliente dalla rubrica?')) { onDeleteClient?.(activeClient.id); setOpenClient(null); } }} className="py-2.5 px-3 rounded-xl border border-[#e2e2e2] text-rose-600 font-bold text-[13px] cursor-pointer bg-white"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={() => { onDeleteClient?.(activeClient.id); setOpenClient(null); }} className="py-2.5 px-3 rounded-xl border border-[#e2e2e2] text-rose-600 font-bold text-[13px] cursor-pointer bg-white" title="Elimina (nel Cestino)"><Trash2 className="w-4 h-4" /></button>
           </div>
         </Overlay>
         );

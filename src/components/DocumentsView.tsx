@@ -11,7 +11,7 @@
 import React, { useMemo, useState, useRef } from 'react';
 import {
   FileText, Download, Trash2, Upload, FolderOpen, Sparkles,
-  X, ChevronLeft, FileSpreadsheet, Mail
+  X, ChevronLeft, FileSpreadsheet, Mail, FileSignature
 } from 'lucide-react';
 import type { Project, UserProfile } from '../types';
 import { initials } from '../utils';
@@ -33,7 +33,7 @@ interface DocumentsViewProps {
   projects: Project[];
   users: Record<string, UserProfile>;
   canEdit: boolean;
-  onUploadDocument: (pid: string, file: File) => void;
+  onUploadDocument: (pid: string, file: File, kind?: string) => void;
   onDeleteDocument: (pid: string, docId: string) => void;
 }
 
@@ -65,12 +65,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   onUploadDocument,
   onDeleteDocument
 }) => {
+  const [mainTab, setMainTab] = useState<'pratiche' | 'contratti'>('pratiche');
   const [sector, setSector] = useState<'tutti' | 'studio' | 'strategico' | 'materico'>('tutti');
   const [openClient, setOpenClient] = useState<string | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
   const [search, setSearch] = useState('');
+  const [contractProjId, setContractProjId] = useState('');
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadPidRef = useRef<string | null>(null);
+  const uploadKindRef = useRef<string>('allegato');
 
   const clients = useMemo(
     () =>
@@ -90,18 +93,31 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const docsCount = (uid: string) =>
     projectsOf(uid).reduce((sum, p) => sum + Object.keys(documents[p.id] || {}).length, 0);
 
-  const triggerUpload = (pid: string) => {
+  const triggerUpload = (pid: string, kind: string = 'allegato') => {
     uploadPidRef.current = pid;
+    uploadKindRef.current = kind;
     uploadRef.current?.click();
   };
   const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const pid = uploadPidRef.current;
-    if (file && pid) onUploadDocument(pid, file);
+    if (file && pid) onUploadDocument(pid, file, uploadKindRef.current);
     if (uploadRef.current) uploadRef.current.value = '';
   };
 
   const activeClient = openClient ? users[openClient] : null;
+
+  // --- Contratti: documenti con kind 'contratto' raggruppati per pratica ---
+  const contractsByProject = useMemo(() => {
+    return projects
+      .map((p) => ({
+        project: p,
+        docs: Object.values(documents[p.id] || {})
+          .filter((d) => d.kind === 'contratto')
+          .sort((a, b) => (b.at || 0) - (a.at || 0))
+      }))
+      .filter((g) => g.docs.length > 0);
+  }, [projects, documents]);
 
   return (
     <div className="flex flex-col gap-6 text-left">
@@ -142,37 +158,144 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         <span className="text-[12px] font-bold text-white/70 group-hover:text-white shrink-0 hidden sm:block">Apri →</span>
       </button>
 
-      {/* Barra settori + ricerca */}
+      {/* Barra principale: Pratiche | Contratti */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
-          {(['tutti', 'studio', 'strategico', 'materico'] as const).map((sec) => {
-            const active = sector === sec;
+        <div className="flex items-center bg-[#161616] border border-neutral-800 p-[3px] rounded-full gap-[2px]">
+          {([['pratiche', 'Pratiche & Archivio'], ['contratti', 'Contratti']] as const).map(([id, lbl]) => {
+            const active = mainTab === id;
             return (
               <button
-                key={sec}
-                onClick={() => { setSector(sec); setOpenClient(null); }}
-                className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full cursor-pointer border-none transition-all ${
-                  active ? 'bg-[#161616] text-white shadow-xs font-extrabold' : 'text-[#8a8a8a] bg-transparent hover:text-[#161616]'
+                key={id}
+                onClick={() => { setMainTab(id); setOpenClient(null); }}
+                className={`text-[12px] font-extrabold px-4 py-1.5 rounded-full cursor-pointer border-none transition-all ${
+                  active ? 'bg-white text-[#161616] shadow-xs' : 'text-[#a3a3a3] bg-transparent hover:text-white'
                 }`}
               >
-                {sec === 'tutti' ? 'Tutti' : sectorLabel(sec)}
+                {lbl}
               </button>
             );
           })}
         </div>
 
-        {!openClient && (
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca cliente…"
-            className="input text-[13px] h-9 w-full sm:w-[220px] rounded-xl border border-[#e2e2e2] px-3"
-          />
+        {mainTab === 'pratiche' && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+              {(['tutti', 'studio', 'strategico', 'materico'] as const).map((sec) => {
+                const active = sector === sec;
+                return (
+                  <button
+                    key={sec}
+                    onClick={() => { setSector(sec); setOpenClient(null); }}
+                    className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full cursor-pointer border-none transition-all ${
+                      active ? 'bg-[#161616] text-white shadow-xs font-extrabold' : 'text-[#8a8a8a] bg-transparent hover:text-[#161616]'
+                    }`}
+                  >
+                    {sec === 'tutti' ? 'Tutti' : sectorLabel(sec)}
+                  </button>
+                );
+              })}
+            </div>
+
+            {!openClient && (
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cerca cliente…"
+                className="input text-[13px] h-9 w-full sm:w-[220px] rounded-xl border border-[#e2e2e2] px-3"
+              />
+            )}
+          </div>
         )}
       </div>
 
-      {/* Dettaglio cliente OPPURE griglia clienti */}
-      {activeClient ? (
+      {/* TAB CONTRATTI: registro contratti per pratica */}
+      {mainTab === 'contratti' ? (
+        <div className="flex flex-col gap-5">
+          {canEdit && (
+            <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm flex flex-col sm:flex-row sm:items-end gap-3">
+              <label className="flex flex-col gap-1 flex-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Carica un contratto sulla pratica</span>
+                <select
+                  value={contractProjId}
+                  onChange={(e) => setContractProjId(e.target.value)}
+                  className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[13px] bg-white outline-none focus:border-[#161616]"
+                >
+                  <option value="">— seleziona pratica —</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}{p.client ? ` · ${p.client}` : ''}</option>)}
+                </select>
+              </label>
+              <button
+                onClick={() => contractProjId && triggerUpload(contractProjId, 'contratto')}
+                disabled={!contractProjId}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer border-none disabled:opacity-40 transition-all"
+              >
+                <Upload className="w-4 h-4" /> Carica contratto
+              </button>
+            </div>
+          )}
+
+          {contractsByProject.length === 0 ? (
+            <div className="bg-white border border-dashed border-[#e2e2e2] rounded-[24px] p-10 text-center">
+              <FileSignature className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+              <p className="text-[13.5px] text-[#8a8a8a] font-semibold">Nessun contratto archiviato.</p>
+            </div>
+          ) : (
+            contractsByProject.map(({ project: p, docs }) => (
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="min-w-0">
+                    <b className="text-[15px] text-[#161616] block truncate">{p.name}</b>
+                    <span className="text-[11px] text-[#8a8a8a]">{p.client || '—'}{p.code ? ` · ${p.code}` : ''}</span>
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={() => triggerUpload(p.id, 'contratto')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#e2e2e2] hover:border-black hover:bg-gray-50 text-[12px] font-bold text-[#161616] cursor-pointer shrink-0 bg-white"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Carica
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  {docs.map((d) => (
+                    <div key={d.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-[#f0f0f0] hover:bg-gray-50 transition-colors">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                        <FileSignature className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <div className="min-w-0 flex-grow">
+                        <b className="text-[13px] text-[#161616] block truncate">{d.name}</b>
+                        <span className="text-[11px] text-[#8a8a8a]">
+                          {['Contratto', d.byName, fmtWhen(d.at), fmtSize(d.size)].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                      {d.url && (
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-8 h-8 rounded-lg border border-[#e2e2e2] bg-white hover:bg-gray-100 flex items-center justify-center text-gray-600 shrink-0"
+                          title="Apri / scarica"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => onDeleteDocument(p.id, d.id)}
+                          className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 shrink-0 cursor-pointer"
+                          title="Elimina (nel Cestino)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : activeClient ? (
         <ClientDocuments
           client={activeClient}
           projects={projectsOf(activeClient.uid)}
@@ -333,7 +456,12 @@ const ClientDocuments: React.FC<{
                         <FileText className="w-4 h-4 text-gray-500" />
                       </div>
                       <div className="min-w-0 flex-grow">
-                        <b className="text-[13px] text-[#161616] block truncate">{d.name}</b>
+                        <b className="text-[13px] text-[#161616] block truncate">
+                          {d.name}
+                          {d.kind === 'contratto' && (
+                            <span className="ml-2 text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full align-middle">Contratto</span>
+                          )}
+                        </b>
                         <span className="text-[11px] text-[#8a8a8a]">
                           {[d.byName, fmtWhen(d.at), fmtSize(d.size)].filter(Boolean).join(' · ')}
                         </span>

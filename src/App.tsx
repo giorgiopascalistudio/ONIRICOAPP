@@ -54,7 +54,8 @@ import {
   Notification,
   TeamLeave,
   Quote,
-  PaymentMilestone
+  PaymentMilestone,
+  TrashItem
 } from './types';
 
 import {
@@ -108,7 +109,8 @@ import { AuthFlow } from './components/AuthFlow';
 import { AccessRequests } from './components/AccessRequests';
 import { DocumentsView } from './components/DocumentsView';
 import { CrmView, type Lead, type Supplier } from './components/CrmView';
-import { QuotesView } from './components/QuotesView';
+import { ConfirmDeleteModal, type ConfirmDeleteRequest } from './components/ConfirmDeleteModal';
+import { TrashView, TRASH_RETENTION_DAYS } from './components/TrashView';
 import {
   watchAuth,
   logoutGoogle,
@@ -216,6 +218,12 @@ export default function App() {
   const [clients, setClients] = useState<Record<string, ClientRecord>>({});
   // Preventivi studio
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
+  // Cestino condiviso (elementi eliminati, conservati 60 giorni)
+  const [trash, setTrash] = useState<Record<string, TrashItem>>({});
+  // Doppia conferma eliminazione (modale condivisa)
+  const [confirmDel, setConfirmDel] = useState<ConfirmDeleteRequest | null>(null);
+  // Tab iniziale di Finanze (es. 'preventivi' arrivando da #preventivi)
+  const [finStartTab, setFinStartTab] = useState<string | null>(null);
 
   // CRM (pipeline lead + fornitori)
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
@@ -293,6 +301,13 @@ export default function App() {
       if (r === 'materico') {
         r = 'progetti';
         setActiveDivision('materico');
+      }
+      // Preventivi non è più una sezione a sé: ora vive dentro "Finanze".
+      if (r === 'preventivi') {
+        r = 'finanze';
+        setFinStartTab('preventivi');
+      } else {
+        setFinStartTab(null);
       }
       setRoute(r);
       setRouteParam(hash[1] || null);
@@ -443,10 +458,11 @@ export default function App() {
       .catch(() => showToast('Errore di scrittura.', 'err'));
   };
   const handleRemoveAccount = (uid: string) => {
-    if (!confirm('Eliminare definitivamente questo account?')) return;
-    removeAccount(uid)
-      .then(() => showToast('Account eliminato.', 'err'))
-      .catch(() => showToast('Errore di scrittura.', 'err'));
+    askDelete('Eliminare questo account?', 'L\'account verrà eliminato definitivamente (non passa dal Cestino).', () => {
+      removeAccount(uid)
+        .then(() => showToast('Account eliminato.', 'err'))
+        .catch(() => showToast('Errore di scrittura.', 'err'));
+    }, true);
   };
 
   // Mappa chiave-stato -> nodo del Database (le tue regole usano "studioFinance")
@@ -517,12 +533,17 @@ export default function App() {
     showToast('Appuntamento rifiutato.', 'err');
   };
   const handleDeleteAppointment = (id: string) => {
-    setAppointments((prev) => {
-      const n = { ...prev };
-      delete n[id];
-      return n;
+    const a = appointments[id];
+    askDelete('Eliminare l\'appuntamento?', a ? `"${a.title}" · ${a.date}` : null, () => {
+      if (a) moveToTrash('appuntamenti', a.title || 'Appuntamento', a, undefined, a.date);
+      setAppointments((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+      removeNode(`appointments/${id}`).catch(() => {});
+      showToast('Appuntamento spostato nel Cestino.', 'err');
     });
-    removeNode(`appointments/${id}`).catch(() => {});
   };
 
   const handleOpenNewAppointment = (presetDate?: string) => {
@@ -597,12 +618,17 @@ export default function App() {
     saveMatericoRequest({ ...req, updatedAt: Date.now() });
   };
   const handleDeleteMatericoRequest = (id: string) => {
-    setMatericoRequests((prev) => {
-      const n = { ...prev };
-      delete n[id];
-      return n;
+    const r = matericoRequests[id];
+    askDelete('Eliminare la richiesta Materico?', r ? `"${r.title}" di ${r.clientName}` : null, () => {
+      if (r) moveToTrash('materico', r.title || 'Richiesta', r, undefined, r.clientName);
+      setMatericoRequests((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+      removeNode(`matericoRequests/${id}`).catch(() => {});
+      showToast('Richiesta spostata nel Cestino.', 'err');
     });
-    removeNode(`matericoRequests/${id}`).catch(() => {});
   };
   const handleSubmitMatericoOffer = (reqId: string, amount: number, note: string) => {
     const r = matericoRequests[reqId];
@@ -707,6 +733,8 @@ export default function App() {
       add('clients', setClients);
       // Ferie/assenze team
       add('teamLeave', setTeamLeave);
+      // Cestino condiviso (elementi eliminati, 60 giorni)
+      add('trash', setTrash);
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
@@ -759,6 +787,138 @@ export default function App() {
 
     return () => subs.forEach((u) => u());
   }, [currentUser?.uid, currentUser?.role]);
+
+  // ----------------------------------------------------
+  // CESTINO (nodo trash) + DOPPIA CONFERMA ELIMINAZIONE
+  // ----------------------------------------------------
+  // Purge automatico: gli elementi più vecchi di 60 giorni vengono eliminati definitivamente.
+  const purgedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentUser || !isStudioRole(currentUser.role)) return;
+    const cutoff = Date.now() - TRASH_RETENTION_DAYS * 86400000;
+    Object.values(trash).forEach((t) => {
+      if (t.deletedAt < cutoff && !purgedRef.current.has(t.id)) {
+        purgedRef.current.add(t.id);
+        removeNode(`trash/${t.id}`).catch(() => {});
+      }
+    });
+  }, [trash, currentUser?.uid]);
+
+  /** Sposta un elemento eliminato nel Cestino (solo ruoli studio: i portali non hanno write su trash). */
+  const moveToTrash = (section: string, label: string, payload: any, meta?: Record<string, string>, detail?: string) => {
+    if (!currentUser || !isStudioRole(currentUser.role)) return;
+    const tid = `tr-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    const item: TrashItem = {
+      id: tid, section, label, detail: detail || null, payload, meta: meta || null,
+      deletedAt: Date.now(), deletedBy: currentUser.uid, deletedByName: currentUser.name || null
+    };
+    setTrash((prev) => ({ ...prev, [tid]: item }));
+    writeNode(`trash/${tid}`, item).catch(() => {});
+  };
+
+  /** Doppia conferma: apre la modale condivisa; l'azione parte solo dopo la seconda conferma. */
+  const askDelete = (title: string, message: string | null, onConfirm: () => void, permanent = false) =>
+    setConfirmDel({ title, message, onConfirm, permanent });
+
+  /** Ripristino dal Cestino: riscrive l'elemento nella sua collezione di origine. */
+  const handleRestoreTrash = (item: TrashItem) => {
+    const pl = item.payload;
+    const id = pl?.id;
+    try {
+      switch (item.section) {
+        case 'progetti':
+          setProjects((prev) => { const n = { ...prev, [id]: pl }; syncState('projects', n); return n; });
+          break;
+        case 'task':
+          setTasks((prev) => { const n = { ...prev, [id]: pl }; syncState('tasks', n); return n; });
+          break;
+        case 'preventivi':
+          setQuotes((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`quotes/${id}`, pl).catch(() => {});
+          break;
+        case 'fatture_attive':
+          handleSaveFinanceItem('finInvoicesActive', pl);
+          break;
+        case 'fatture_passive':
+          handleSaveFinanceItem('finInvoicesPassive', pl);
+          break;
+        case 'scadenze':
+          handleSaveFinanceItem('finScadenze', pl);
+          break;
+        case 'movimenti':
+          setFinances((prev) => { const n = { ...prev, [id]: pl }; syncState('finance', n); return n; });
+          break;
+        case 'documenti':
+          if (item.meta?.pid) {
+            setDocuments((prev) => ({ ...prev, [item.meta!.pid]: { ...(prev[item.meta!.pid] || {}), [id]: pl } }));
+            writeNode(`documents/${item.meta.pid}/${id}`, pl).catch(() => {});
+          }
+          break;
+        case 'arredi':
+          if (item.meta?.pid) {
+            setFurnishings((prev) => ({ ...prev, [item.meta!.pid]: { ...(prev[item.meta!.pid] || {}), [id]: pl } }));
+            writeNode(`projectFurnishings/${item.meta.pid}/${id}`, pl).catch(() => {});
+          }
+          break;
+        case 'appuntamenti':
+          setAppointments((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`appointments/${id}`, pl).catch(() => {});
+          break;
+        case 'materico':
+          setMatericoRequests((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`matericoRequests/${id}`, pl).catch(() => {});
+          break;
+        case 'estimates':
+          setEstimates((prev) => { const n = { ...prev, [id]: pl }; syncState('estimates', n); return n; });
+          break;
+        case 'rubrica':
+          setClients((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`clients/${id}`, pl).catch(() => {});
+          break;
+        case 'crm_lead':
+          saveLeads([...crmLeads.filter((l) => l.id !== id), pl]);
+          break;
+        case 'crm_supplier':
+          saveSuppliers([...crmSuppliers.filter((s) => s.id !== id), pl]);
+          break;
+        case 'unico':
+          saveUnicoDeals([...unicoDeals.filter((d) => d.id !== id), pl]);
+          break;
+        case 'cantieri':
+          setCantieri((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`cantieri/${id}`, pl).catch(() => {});
+          Object.keys(pl?.partnerUids || {}).forEach((uid) => writeNode(`partnerCantieri/${uid}/${id}`, true).catch(() => {}));
+          break;
+        case 'cantiere':
+          if (item.meta?.coll && item.meta?.cid) writeNode(`${item.meta.coll}/${item.meta.cid}/${id}`, pl).catch(() => {});
+          break;
+        case 'impresa':
+          if (item.meta?.coll && item.meta?.uid) writeNode(`${item.meta.coll}/${item.meta.uid}/${id}`, pl).catch(() => {});
+          break;
+        case 'ferie':
+          setTeamLeave((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`teamLeave/${id}`, pl).catch(() => {});
+          break;
+        default:
+          showToast('Sezione non ripristinabile automaticamente.', 'err');
+          return;
+      }
+      setTrash((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+      removeNode(`trash/${item.id}`).catch(() => {});
+      showToast('Elemento ripristinato.');
+    } catch {
+      showToast('Errore nel ripristino.', 'err');
+    }
+  };
+
+  /** Eliminazione definitiva dal Cestino (con doppia conferma). */
+  const handleTrashDeleteForever = (item: TrashItem) => {
+    askDelete('Eliminare definitivamente?', `"${item.label}" verrà rimosso per sempre dal Cestino.`, () => {
+      setTrash((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+      removeNode(`trash/${item.id}`).catch(() => {});
+      showToast('Elemento eliminato definitivamente.', 'err');
+    }, true);
+  };
 
   // Riconciliazione rubrica: ogni cliente/partner registrato viene salvato in automatico
   // in `clients` (diviso per categoria). Gira lato studio (admin/manager hanno write su clients).
@@ -1077,15 +1237,19 @@ export default function App() {
 
   const handleDeleteTask = () => {
     if (editTaskId) {
-      setTasks(prev => {
-        const nextTasks = { ...prev };
-        delete nextTasks[editTaskId];
-        syncState('tasks', nextTasks);
-        return nextTasks;
+      const t = tasks[editTaskId];
+      askDelete('Eliminare il task?', t ? `"${t.title}" · ${t.date}` : null, () => {
+        if (t) moveToTrash('task', t.title || 'Task', t, undefined, t.date);
+        setTasks(prev => {
+          const nextTasks = { ...prev };
+          delete nextTasks[editTaskId];
+          syncState('tasks', nextTasks);
+          return nextTasks;
+        });
+        showToast('Task spostato nel Cestino.', 'err');
+        setTaskEditorOpen(false);
+        setEditTaskId(null);
       });
-      showToast('Task rimosso dall’agenda.', 'err');
-      setTaskEditorOpen(false);
-      setEditTaskId(null);
     }
   };
 
@@ -1371,15 +1535,31 @@ export default function App() {
   };
 
   const handleDeleteProject = (id: string) => {
+    const p = projects[id];
+    askDelete('Eliminare la pratica?', p ? `"${p.name}" e il suo fascicolo finiranno nel Cestino per ${TRASH_RETENTION_DAYS} giorni.` : null, () => {
+      if (p) moveToTrash('progetti', p.name, p, undefined, p.client || undefined);
+      setProjects(prev => {
+        const next = { ...prev };
+        delete next[id];
+        syncState('projects', next);
+        return next;
+      });
+      setEditProjOpen(false);
+      showToast('Pratica spostata nel Cestino.', 'err');
+      window.location.hash = '#progetti';
+    });
+  };
+
+  // Archivia/ripristina una pratica (esce dalle liste di default, filtro "Archivio")
+  const handleToggleArchiveProject = (id: string) => {
     setProjects(prev => {
-      const next = { ...prev };
-      delete next[id];
+      const p = prev[id];
+      if (!p) return prev;
+      const next = { ...prev, [id]: { ...p, archived: !p.archived, updatedAt: Date.now() } };
       syncState('projects', next);
+      showToast(p.archived ? 'Pratica ripristinata dall\'archivio.' : 'Pratica archiviata.');
       return next;
     });
-    setEditProjOpen(false);
-    showToast('Pratica eliminata definitivamente.', 'err');
-    window.location.hash = '#progetti';
   };
 
   const handleSaveEstimate = (est: MatericoEstimate) => {
@@ -1392,23 +1572,27 @@ export default function App() {
   };
 
   const handleDeleteEstimate = (id: string) => {
-    setEstimates(prev => {
-      const next = { ...prev };
-      delete next[id];
-      syncState('estimates', next);
-      return next;
+    const est = estimates[id];
+    askDelete('Eliminare il preventivo Materico?', est ? `"${est.itemName || est.itemDescription || est.partnerName}"` : null, () => {
+      if (est) moveToTrash('estimates', est.itemName || est.itemDescription || 'Preventivo Materico', est, undefined, est.partnerName);
+      setEstimates(prev => {
+        const next = { ...prev };
+        delete next[id];
+        syncState('estimates', next);
+        return next;
+      });
+      showToast('Preventivo spostato nel Cestino.', 'err');
     });
-    showToast('Preventivo eliminato.', 'err');
   };
 
   // 3. Document manager
-  const handleUploadDocument = (projId: string, file: File) => {
+  const handleUploadDocument = (projId: string, file: File, kind: string = 'allegato') => {
     // Generate mock visual path mapping on local system
     const docId = `doc-${Date.now()}-${Math.floor(Math.random() * 900)}`;
     const newDoc = {
       id: docId,
       name: file.name,
-      kind: 'allegato',
+      kind,
       type: file.type || 'application/octet-stream',
       size: file.size,
       url: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=1200',
@@ -1429,14 +1613,18 @@ export default function App() {
   };
 
   const handleDeleteDocument = (projId: string, docId: string) => {
-    setDocuments(prev => {
-      const prjDocs = { ...(prev[projId] || {}) };
-      delete prjDocs[docId];
-      const next = { ...prev, [projId]: prjDocs };
-      return next;
+    const doc = (documents[projId] || {})[docId];
+    askDelete(doc?.kind === 'contratto' ? 'Eliminare il contratto?' : 'Eliminare il documento?', doc ? `"${doc.name}"` : null, () => {
+      if (doc) moveToTrash('documenti', doc.name || 'Documento', doc, { pid: projId }, projects[projId]?.name);
+      setDocuments(prev => {
+        const prjDocs = { ...(prev[projId] || {}) };
+        delete prjDocs[docId];
+        const next = { ...prev, [projId]: prjDocs };
+        return next;
+      });
+      removeNode(`documents/${projId}/${docId}`).catch(() => {});
+      showToast('Documento spostato nel Cestino.', 'err');
     });
-    removeNode(`documents/${projId}/${docId}`).catch(() => {});
-    showToast('Documento rimosso.', 'err');
   };
 
   // 3b. Arredi & Moodboard (scrittura mirata per-elemento, come i documenti)
@@ -1456,14 +1644,18 @@ export default function App() {
   };
 
   const handleDeleteFurnishing = (projId: string, itemId: string) => {
-    setFurnishings((prev) => {
-      const prj = { ...(prev[projId] || {}) };
-      delete prj[itemId];
-      return { ...prev, [projId]: prj };
+    const item = (furnishings[projId] || {})[itemId];
+    askDelete('Eliminare l\'arredo?', item ? `"${item.title}"` : null, () => {
+      if (item) moveToTrash('arredi', item.title || 'Arredo', item, { pid: projId }, projects[projId]?.name);
+      setFurnishings((prev) => {
+        const prj = { ...(prev[projId] || {}) };
+        delete prj[itemId];
+        return { ...prev, [projId]: prj };
+      });
+      removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() =>
+        showToast('Errore eliminazione arredo (controlla regole/permessi).', 'err')
+      );
     });
-    removeNode(`projectFurnishings/${projId}/${itemId}`).catch(() =>
-      showToast('Errore eliminazione arredo (controlla regole/permessi).', 'err')
-    );
   };
 
   // 3b-bis. Moodboard 3D: salva la scena per-progetto (nodo intero)
@@ -1521,10 +1713,14 @@ export default function App() {
   };
   const handleDeleteCantiere = (cid: string) => {
     const c = cantieri[cid];
-    setCantieri((prev) => { const n = { ...prev }; delete n[cid]; return n; });
-    removeNode(`cantieri/${cid}`).catch(cantErr);
-    // ripulisce l'indice inverso dei partner assegnati
-    Object.keys(c?.partnerUids || {}).forEach((uid) => removeNode(`partnerCantieri/${uid}/${cid}`).catch(() => {}));
+    askDelete('Eliminare il cantiere?', c ? `"${c.name}" finirà nel Cestino per ${TRASH_RETENTION_DAYS} giorni.` : null, () => {
+      if (c) moveToTrash('cantieri', c.name || 'Cantiere', c);
+      setCantieri((prev) => { const n = { ...prev }; delete n[cid]; return n; });
+      removeNode(`cantieri/${cid}`).catch(cantErr);
+      // ripulisce l'indice inverso dei partner assegnati
+      Object.keys(c?.partnerUids || {}).forEach((uid) => removeNode(`partnerCantieri/${uid}/${cid}`).catch(() => {}));
+      showToast('Cantiere spostato nel Cestino.', 'err');
+    });
   };
   const handleAssignPartner = (cid: string, uid: string, name: string, on: boolean) => {
     setCantieri((prev) => {
@@ -1548,8 +1744,18 @@ export default function App() {
     writeNode(`${coll}/${cid}/${item.id}`, item).catch(cantErr);
   };
   const handleDeleteCantEntity = (coll: string, cid: string, id: string) => {
-    cantSetters[coll]?.((m) => { const sub = { ...(m[cid] || {}) }; delete sub[id]; return { ...m, [cid]: sub }; });
-    removeNode(`${coll}/${cid}/${id}`).catch(cantErr);
+    const getter: Record<string, any> = {
+      cantiereRapportini: cantRapportini, cantierePresenze: cantPresenze, cantiereFoto: cantFoto,
+      cantiereMateriali: cantMateriali, cantiereChecklist: cantChecklist, cantiereDocumenti: cantDocumenti,
+      cantiereSal: cantSal, cantiereRecords: cantRecords, cantiereMessages: cantMessages
+    };
+    const item = getter[coll]?.[cid]?.[id];
+    const label = item?.name || item?.title || item?.descrizione || item?.desc || item?.caption || 'Voce di cantiere';
+    askDelete('Eliminare questa voce di cantiere?', `"${label}"`, () => {
+      if (item) moveToTrash('cantiere', label, item, { coll, cid }, cantieri[cid]?.name);
+      cantSetters[coll]?.((m) => { const sub = { ...(m[cid] || {}) }; delete sub[id]; return { ...m, [cid]: sub }; });
+      removeNode(`${coll}/${cid}/${id}`).catch(cantErr);
+    });
   };
   const handleApproveRapportino = (cid: string, id: string, approve: boolean) => {
     const r = cantRapportini[cid]?.[id];
@@ -1590,8 +1796,13 @@ export default function App() {
     writeNode(`${coll}/${uid}/${item.id}`, item).catch(() => showToast('Errore impresa (controlla regole/permessi).', 'err'));
   };
   const handleDeleteImpresaEntity = (coll: string, uid: string, id: string) => {
-    impresaSetters[coll]?.((m) => { const sub = { ...(m[uid] || {}) }; delete sub[id]; return { ...m, [uid]: sub }; });
-    removeNode(`${coll}/${uid}/${id}`).catch(() => showToast('Errore impresa (controlla regole/permessi).', 'err'));
+    const item = (coll === 'impresaDocs' ? impresaDocs : impresaRecords)[uid]?.[id] as any;
+    const label = item?.name || item?.title || 'Voce impresa';
+    askDelete('Eliminare questa voce dell\'impresa?', `"${label}"`, () => {
+      if (item) moveToTrash('impresa', label, item, { coll, uid });
+      impresaSetters[coll]?.((m) => { const sub = { ...(m[uid] || {}) }; delete sub[id]; return { ...m, [uid]: sub }; });
+      removeNode(`${coll}/${uid}/${id}`).catch(() => showToast('Errore impresa (controlla regole/permessi).', 'err'));
+    });
   };
   // Rubrica clienti (admin/manager)
   const handleSaveClient = (rec: ClientRecord) => {
@@ -1600,8 +1811,13 @@ export default function App() {
     writeNode(`clients/${rec.id}`, enriched).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
   };
   const handleDeleteClient = (id: string) => {
-    setClients((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    removeNode(`clients/${id}`).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
+    const rec = clients[id];
+    askDelete('Eliminare il cliente dalla rubrica?', rec ? `"${rec.name}"` : null, () => {
+      if (rec) moveToTrash('rubrica', rec.name || 'Cliente', rec);
+      setClients((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`clients/${id}`).catch(() => showToast('Errore rubrica clienti (controlla regole).', 'err'));
+      showToast('Cliente spostato nel Cestino.', 'err');
+    });
   };
 
   // ---- Notifiche persistenti (notifications/<uid>) ----
@@ -1655,8 +1871,12 @@ export default function App() {
       .catch(() => showToast('Errore ferie (controlla regole/permessi).', 'err'));
   };
   const handleDeleteLeave = (id: string) => {
-    setTeamLeave((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    removeNode(`teamLeave/${id}`).catch(() => showToast('Errore ferie (controlla regole/permessi).', 'err'));
+    const lv = teamLeave[id];
+    askDelete('Eliminare l\'assenza?', lv ? `${lv.name}: ${lv.type} dal ${lv.dateFrom}` : null, () => {
+      if (lv) moveToTrash('ferie', `${lv.name} · ${lv.type}`, lv, undefined, `${lv.dateFrom} → ${lv.dateTo}`);
+      setTeamLeave((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`teamLeave/${id}`).catch(() => showToast('Errore ferie (controlla regole/permessi).', 'err'));
+    });
   };
   // Auto-compila i campi del progetto dall'anagrafica selezionata (committente solo se vuoto;
   // pIndirizzo NON viene toccato: è l'indirizzo dell'immobile, non la residenza del cliente)
@@ -1819,13 +2039,17 @@ export default function App() {
   };
 
   const handleDeleteMovement = (id: string) => {
-    setFinances(prev => {
-      const next = { ...prev };
-      delete next[id];
-      syncState('finance', next);
-      return next;
+    const m = finances[id];
+    askDelete('Eliminare il movimento?', m ? `"${m.desc}" · ${eur(m.amount)}` : null, () => {
+      if (m) moveToTrash('movimenti', m.desc || 'Movimento', m, undefined, `${m.kind} · ${eur(m.amount)}`);
+      setFinances(prev => {
+        const next = { ...prev };
+        delete next[id];
+        syncState('finance', next);
+        return next;
+      });
+      showToast('Movimento spostato nel Cestino.', 'err');
     });
-    showToast('Movimento rimosso.', 'err');
   };
 
   // ----------------------------------------------------
@@ -1851,10 +2075,20 @@ export default function App() {
 
   const handleDeleteFinanceItem = (node: FinNode, id: string) => {
     const [arr, setArr] = finStateFor(node);
-    const next = arr.filter((x: any) => x.id !== id);
-    setArr(next);
-    writeNode(node, next).catch(() => {});
-    showToast('Voce rimossa.', 'err');
+    const item = arr.find((x: any) => x.id === id);
+    const section = node === 'finInvoicesActive' ? 'fatture_attive' : node === 'finInvoicesPassive' ? 'fatture_passive' : 'scadenze';
+    const label = item
+      ? (node === 'finInvoicesActive' ? `Fattura ${item.id} · ${item.clientName || ''}`
+        : node === 'finInvoicesPassive' ? `Fattura ${item.id} · ${item.supplierName || ''}`
+        : `${item.desc || 'Scadenza'} · ${item.clientOrSupplier || ''}`)
+      : 'Voce contabile';
+    askDelete('Eliminare la voce contabile?', `${label} (${eur(Number(item?.amount) || 0)})`, () => {
+      if (item) moveToTrash(section, label, item, undefined, eur(Number(item.amount) || 0));
+      const next = arr.filter((x: any) => x.id !== id);
+      setArr(next);
+      writeNode(node, next).catch(() => {});
+      showToast('Voce spostata nel Cestino.', 'err');
+    });
   };
 
   // ----------------------------------------------------
@@ -1866,8 +2100,14 @@ export default function App() {
     writeNode(`quotes/${q.id}`, enriched).catch(() => showToast('Errore preventivi (controlla regole).', 'err'));
   };
   const handleDeleteQuote = (id: string) => {
-    setQuotes((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    removeNode(`quotes/${id}`).catch(() => showToast('Errore preventivi (controlla regole).', 'err'));
+    const q = quotes[id];
+    const kindLbl = q?.docKind === 'parcella' ? 'la parcella' : 'il preventivo';
+    askDelete(`Eliminare ${kindLbl}?`, q ? `"${q.number}" · ${q.clientName} · ${eur(q.total)}` : null, () => {
+      if (q) moveToTrash('preventivi', `${q.docKind === 'parcella' ? 'Parcella' : 'Preventivo'} ${q.number}`, q, undefined, q.clientName);
+      setQuotes((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`quotes/${id}`).catch(() => showToast('Errore preventivi (controlla regole).', 'err'));
+      showToast('Documento spostato nel Cestino.', 'err');
+    });
   };
   const handleSetQuoteStatus = (id: string, status: Quote['status']) => {
     const q = quotes[id];
@@ -1887,7 +2127,11 @@ export default function App() {
     const invId = `inv-${Date.now()}-${Math.floor(Math.random() * 900)}`;
     const inv: InvoiceActive = {
       id: invId, clientName: q.clientName, projectId: q.projectId || '', projectName: q.projectId ? (projects[q.projectId]?.name || '') : '',
-      amount: m.amount, taxRate: 22, status: 'bozza', sdiCode: '', date: todayISO(), dueDate: m.dueDate || todayISO(), sector: q.division as any
+      amount: m.amount,
+      // IVA/cassa ereditate dal preventivo (spuntabili nell'editor)
+      taxRate: (q.vatEnabled ?? true) ? (q.vatPct ?? 22) : 0,
+      cassaPct: q.cassaEnabled ? (q.cassaPct ?? 4) : null,
+      status: 'bozza', sdiCode: '', date: todayISO(), dueDate: m.dueDate || todayISO(), sector: q.division as any
     };
     handleSaveFinanceItem('finInvoicesActive', inv);
     const sca: ScadenzaItem = {
@@ -1925,7 +2169,10 @@ export default function App() {
   };
 
   const handleDeletePhase = (projId: string, phId: string) => {
-    if (!confirm('Vuoi eliminare questa fase e tutti i suoi task?')) return;
+    const phName = projects[projId]?.phases?.[phId]?.name;
+    askDelete('Eliminare la fase?', `"${phName || 'Fase'}" e tutti i suoi task verranno rimossi dal fascicolo.`, () => doDeletePhase(projId, phId), true);
+  };
+  const doDeletePhase = (projId: string, phId: string) => {
     setProjects(prev => {
       const p = prev[projId];
       if (!p || !p.phases[phId]) return prev;
@@ -1962,16 +2209,19 @@ export default function App() {
   };
 
   const handleDeletePtask = (projId: string, phId: string, tId: string) => {
-    setProjects(prev => {
-      const p = prev[projId];
-      if (!p || !p.phases[phId] || !p.phases[phId].tasks[tId]) return prev;
-      const next = { ...prev };
-      delete next[projId].phases[phId].tasks[tId];
-      const updated = autoUpdateProjectsCompletion(next);
-      syncState('projects', updated);
-      return updated;
-    });
-    showToast('Attività rimossa.', 'err');
+    const tTitle = projects[projId]?.phases?.[phId]?.tasks?.[tId]?.title;
+    askDelete('Eliminare l\'attività?', `"${tTitle || 'Attività'}" verrà rimossa dalla fase.`, () => {
+      setProjects(prev => {
+        const p = prev[projId];
+        if (!p || !p.phases[phId] || !p.phases[phId].tasks[tId]) return prev;
+        const next = { ...prev };
+        delete next[projId].phases[phId].tasks[tId];
+        const updated = autoUpdateProjectsCompletion(next);
+        syncState('projects', updated);
+        return updated;
+      });
+      showToast('Attività rimossa.', 'err');
+    }, true);
   };
 
   // ----------------------------------------------------
@@ -2080,6 +2330,7 @@ export default function App() {
   const isPortalRole = currentUser.role === 'cliente' || currentUser.role === 'partner';
   if (isPortalRole) {
     return (
+      <>
       <ClientPortalView
         profile={currentUser}
         projects={Object.values(projects)}
@@ -2130,6 +2381,9 @@ export default function App() {
         onSaveImpresaEntity={handleSaveImpresaEntity}
         onDeleteImpresaEntity={handleDeleteImpresaEntity}
       />
+      {/* Doppia conferma eliminazione anche nel portale cliente/partner */}
+      {confirmDel && <ConfirmDeleteModal request={confirmDel} onClose={() => setConfirmDel(null)} />}
+      </>
     );
   }
 
@@ -2300,21 +2554,25 @@ export default function App() {
               setFinOpen(true);
             }}
             onDeleteProjectFinance={(pid, finId) => {
-              setFinances(prev => {
-                const next = { ...prev };
-                delete next[finId];
-                syncState('finance', next);
-                return next;
+              const m = finances[finId] || (projects[pid]?.finance ? (projects[pid] as any).finance[finId] : null);
+              askDelete('Eliminare il movimento?', m ? `"${m.desc}" · ${eur(Number(m.amount) || 0)}` : null, () => {
+                if (m) moveToTrash('movimenti', m.desc || 'Movimento', { ...m, id: finId }, undefined, projects[pid]?.name);
+                setFinances(prev => {
+                  const next = { ...prev };
+                  delete next[finId];
+                  syncState('finance', next);
+                  return next;
+                });
+                setProjects(prev => {
+                  const p = prev[pid];
+                  if (!p || !p.finance) return prev;
+                  const next = { ...prev };
+                  if (next[pid].finance) delete next[pid].finance[finId];
+                  syncState('projects', next);
+                  return next;
+                });
+                showToast('Movimento spostato nel Cestino.', 'err');
               });
-              setProjects(prev => {
-                const p = prev[pid];
-                if (!p || !p.finance) return prev;
-                const next = { ...prev };
-                if (next[pid].finance) delete next[pid].finance[finId];
-                syncState('projects', next);
-                return next;
-              });
-              showToast('Movimento rimosso.', 'err');
             }}
             onUploadDocument={handleUploadDocument}
             onDeleteDocument={handleDeleteDocument}
@@ -2336,6 +2594,14 @@ export default function App() {
             finScadenze={finScadenze}
             onSaveFinanceItem={handleSaveFinanceItem}
             onDeleteFinanceItem={handleDeleteFinanceItem}
+            quotes={quotes}
+            onSaveQuote={handleSaveQuote}
+            onDeleteQuote={handleDeleteQuote}
+            onSetQuoteStatus={handleSetQuoteStatus}
+            onEmitMilestone={handleEmitMilestone}
+            onToggleArchiveProject={handleToggleArchiveProject}
+            askDelete={askDelete}
+            onTrashItem={moveToTrash}
             estimates={Object.values(estimates)}
             onSaveEstimate={handleSaveEstimate}
             onDeleteEstimate={handleDeleteEstimate}
@@ -2373,20 +2639,6 @@ export default function App() {
           />
         );
 
-      case 'preventivi':
-        return (
-          <QuotesView
-            quotes={quotes}
-            clients={clients}
-            projects={Object.values(projects)}
-            myUid={currentUser.uid}
-            onSaveQuote={handleSaveQuote}
-            onDeleteQuote={handleDeleteQuote}
-            onSetStatus={handleSetQuoteStatus}
-            onEmitMilestone={handleEmitMilestone}
-          />
-        );
-
       case 'finanze':
         return (
           <FinanzeView
@@ -2409,6 +2661,25 @@ export default function App() {
             cantieri={cantieri}
             cantSal={cantSal}
             onLinkCantiereSal={handleLinkCantiereSalInvoice}
+            quotes={quotes}
+            clientRecords={clients}
+            myUid={currentUser.uid}
+            onSaveQuote={handleSaveQuote}
+            onDeleteQuote={handleDeleteQuote}
+            onSetQuoteStatus={handleSetQuoteStatus}
+            onEmitMilestone={handleEmitMilestone}
+            initialTab={finStartTab}
+            askDelete={askDelete}
+          />
+        );
+
+      case 'cestino':
+        if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
+        return (
+          <TrashView
+            trash={trash}
+            onRestore={handleRestoreTrash}
+            onDeleteForever={handleTrashDeleteForever}
           />
         );
 
@@ -2444,6 +2715,8 @@ export default function App() {
             members={Object.values(users).filter((u: any) => u && (u.role === 'admin' || u.role === 'manager' || u.role === 'staff'))}
             finInvoicesActive={finInvoicesActive}
             finScadenze={finScadenze}
+            askDelete={askDelete}
+            onTrashItem={moveToTrash}
           />
         );
 
@@ -3550,10 +3823,18 @@ export default function App() {
             <textarea value={pNotes} onChange={(e) => setPNotes(e.target.value)} className="textarea mt-1 min-h-[80px]" placeholder="Appunti segreti..." />
           </div>
 
-          <div className="flex justify-between mt-4">
-            <button onClick={() => handleDeleteProject(editProjId!)} className="btn bg-red-100 hover:bg-red-200 border-none text-red-800 font-bold">
-              Elimina pratica
-            </button>
+          <div className="flex justify-between gap-2 mt-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <button onClick={() => handleDeleteProject(editProjId!)} className="btn bg-red-100 hover:bg-red-200 border-none text-red-800 font-bold">
+                Elimina pratica
+              </button>
+              <button
+                onClick={() => { handleToggleArchiveProject(editProjId!); setEditProjOpen(false); }}
+                className="btn bg-amber-50 hover:bg-amber-100 border-none text-amber-800 font-bold"
+              >
+                {projects[editProjId!]?.archived ? 'Ripristina da archivio' : 'Archivia pratica'}
+              </button>
+            </div>
             <input type="button" value="Salva" onClick={handleSaveEditProject} className="btn bg-[#1b1b1b] text-white hover:bg-black font-semibold ml-auto cursor-pointer px-6" />
           </div>
         </div>
@@ -4064,6 +4345,9 @@ export default function App() {
           </button>
         </div>
       </Modal>
+
+      {/* Doppia conferma eliminazione (condivisa da tutte le sezioni) */}
+      {confirmDel && <ConfirmDeleteModal request={confirmDel} onClose={() => setConfirmDel(null)} />}
 
       {/* Render Toast notification */}
       <div className="toast-wrap fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] pointer-events-none flex flex-col gap-2.5 items-center">
