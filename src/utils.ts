@@ -5,6 +5,10 @@
 
 import { Task } from './types';
 
+// Giorni di permanenza nel Cestino prima del purge automatico (vive qui — e non
+// in TrashView — così App può importarlo senza tirare il chunk lazy della vista).
+export const TRASH_RETENTION_DAYS = 60;
+
 // Italian locale formatter helper
 const df = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('it-IT', options);
 

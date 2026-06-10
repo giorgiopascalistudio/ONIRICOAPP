@@ -361,7 +361,7 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
                     className="group text-left bg-white border border-[#e6e6e6] rounded-[22px] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col"
                   >
                     <div className="h-44 w-full overflow-hidden relative">
-                      <img src={p.image} alt={p.title} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={p.image} alt={p.title} loading="lazy" decoding="async" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       <span className={`absolute top-3 left-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
                       <span className="absolute top-3 right-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#161616] border border-white/60 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" /> {p.targetRoi}%/anno

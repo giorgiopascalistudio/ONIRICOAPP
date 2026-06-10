@@ -44,7 +44,7 @@ import { ChatDeleteButton } from './ChatDeleteButton';
 import { ImpresaArea } from './cantiere/ImpresaArea';
 import { eur, fmtDay, isoDate } from '../utils';
 import { watchNode } from '../firebase';
-import { ThreeDProgress } from './ThreeDProgress';
+import { ThreeDProgress } from './ThreeDProgressLazy';
 import { StatusCard } from './StatusCard';
 
 interface BlogPost {
@@ -1795,7 +1795,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         return (
                           <div key={post.id} className="border border-[#ececec] rounded-2xl p-4 flex flex-col md:flex-row gap-4 hover:shadow-xs transition-shadow">
                             <div className="w-full md:w-[130px] h-[130px] rounded-xl overflow-hidden bg-[#fafafa] flex-shrink-0 relative border border-[#f0f0f0]">
-                              <img src={post.src} alt={post.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <img src={post.src} alt={post.title} loading="lazy" decoding="async" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               <span className="absolute bottom-1.5 left-1.5 bg-black/75 text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md uppercase tracking-tight">
                                 {post.type}
                               </span>

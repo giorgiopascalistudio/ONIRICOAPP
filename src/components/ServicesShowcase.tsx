@@ -117,7 +117,7 @@ const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> =
       className="group w-full text-left bg-white border border-indigo-200 rounded-[28px] overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer mb-5"
     >
       <div className="h-44 md:h-52 w-full overflow-hidden relative">
-        <img src={unico.image} alt="Unico" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <img loading="lazy" decoding="async" src={unico.image} alt="Unico" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute left-5 bottom-4 text-white">
           <span className="inline-flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-wide bg-[#4338ca] px-2.5 py-1 rounded-full">
@@ -154,7 +154,7 @@ const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> =
             className="group text-left bg-white border border-[#e6e6e6] rounded-[26px] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer"
           >
             <div className="h-36 w-full overflow-hidden relative">
-              <img src={s.image} alt={s.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <img loading="lazy" decoding="async" src={s.image} alt={s.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
               <div className="absolute left-4 bottom-3 flex items-center gap-2 text-white">
                 <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: s.color }}>
@@ -190,7 +190,7 @@ const ServicePage: React.FC<{ service: typeof SHOWCASE_SERVICES[number]; onBack:
 
       <div className="bg-white border border-[#e6e6e6] rounded-[28px] overflow-hidden">
         <div className="h-52 md:h-64 w-full relative overflow-hidden">
-          <img src={service.image} alt={service.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={service.image} alt={service.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/10" />
           <div className="absolute left-6 bottom-5 text-white">
             <span className="inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide">
@@ -279,7 +279,7 @@ const UnicoVetrina: React.FC<{ onBackHub: () => void; onOpenProperty: (p: Invest
             className="group text-left bg-white border border-[#e6e6e6] rounded-[24px] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col"
           >
             <div className="h-40 w-full overflow-hidden relative">
-              <img src={p.image} alt={p.title} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <img loading="lazy" decoding="async" src={p.image} alt={p.title} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               <span className={`absolute top-3 left-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
               <span className="absolute top-3 right-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#161616] border border-white/60 flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" /> {p.targetRoi}% / anno
@@ -339,7 +339,7 @@ const PropertyDetail: React.FC<{ property: InvestProperty; onClose: () => void }
         className="bg-white w-full sm:max-w-[640px] max-h-[92vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] shadow-2xl"
       >
         <div className="h-56 w-full relative overflow-hidden">
-          <img src={p.image} alt={p.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={p.image} alt={p.title} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
           <button onClick={onClose} className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-[#161616]">
             <X className="w-4.5 h-4.5" />

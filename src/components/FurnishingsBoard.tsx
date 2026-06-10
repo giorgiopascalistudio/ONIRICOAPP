@@ -213,7 +213,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
       <div key={item.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-4 shadow-sm flex flex-col gap-3">
         <div className="flex items-start gap-3">
           {item.imageUrl ? (
-            <img src={item.imageUrl} alt={item.title} className="w-16 h-16 rounded-[14px] object-cover border border-[#ececec] flex-shrink-0" />
+            <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" className="w-16 h-16 rounded-[14px] object-cover border border-[#ececec] flex-shrink-0" />
           ) : item.color ? (
             <div className="w-16 h-16 rounded-[14px] border border-[#ececec] flex-shrink-0" style={{ background: item.color }} />
           ) : (

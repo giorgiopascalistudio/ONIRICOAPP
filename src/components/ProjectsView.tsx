@@ -47,7 +47,6 @@ import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
 import { ChatDeleteButton } from './ChatDeleteButton';
 import { eur, fmtDay, isoDate, todayISO, numIt, safeUrl } from '../utils';
-import { ThreeDProgress } from './ThreeDProgress';
 import { StatusCard } from './StatusCard';
 import { MatericoView } from './MatericoView';
 import { UnicoStudioView } from './UnicoStudioView';

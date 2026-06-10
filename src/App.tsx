@@ -76,7 +76,8 @@ import {
   eur,
   initials,
   avColor,
-  sameDay
+  sameDay,
+  TRASH_RETENTION_DAYS
 } from './utils';
 
 import {
@@ -90,14 +91,20 @@ import {
   DEFAULT_INTERVENTO
 } from './studioConfig';
 
-// Subviews
+// Subviews — code-splitting per route (React.lazy): ogni vista pesante vive in
+// un chunk separato scaricato solo alla prima navigazione → bundle iniziale
+// molto più leggero (prestazioni mobile / PageSpeed). DashboardView resta
+// statica perché è la landing di default del team.
 import { DashboardView } from './components/DashboardView';
-import { CalendarView } from './components/CalendarView';
-import { ProjectsView } from './components/ProjectsView';
-import { ClientPortalView } from './components/ClientPortalView';
-import { FinanzeView } from './components/FinanzeView';
-import { TeamView } from './components/TeamView';
-import { InteractiveView } from './components/InteractiveView';
+const CalendarView = React.lazy(() => import('./components/CalendarView').then((m) => ({ default: m.CalendarView })));
+const ProjectsView = React.lazy(() => import('./components/ProjectsView').then((m) => ({ default: m.ProjectsView })));
+const ClientPortalView = React.lazy(() => import('./components/ClientPortalView').then((m) => ({ default: m.ClientPortalView })));
+const FinanzeView = React.lazy(() => import('./components/FinanzeView').then((m) => ({ default: m.FinanzeView })));
+const TeamView = React.lazy(() => import('./components/TeamView').then((m) => ({ default: m.TeamView })));
+const InteractiveView = React.lazy(() => import('./components/InteractiveView').then((m) => ({ default: m.InteractiveView })));
+const DocumentsView = React.lazy(() => import('./components/DocumentsView').then((m) => ({ default: m.DocumentsView })));
+const CrmView = React.lazy(() => import('./components/CrmView').then((m) => ({ default: m.CrmView })));
+const TrashView = React.lazy(() => import('./components/TrashView').then((m) => ({ default: m.TrashView })));
 
 // Subcomponents
 import { Sidebar } from './components/Sidebar';
@@ -107,10 +114,8 @@ import { AppleSwitch } from './components/AppleSwitch';
 import { injectSmartTextStyles } from './components/SmartText';
 import { AuthFlow } from './components/AuthFlow';
 import { AccessRequests } from './components/AccessRequests';
-import { DocumentsView } from './components/DocumentsView';
-import { CrmView, type Lead, type Supplier } from './components/CrmView';
+import type { Lead, Supplier } from './components/CrmView';
 import { ConfirmDeleteModal, type ConfirmDeleteRequest } from './components/ConfirmDeleteModal';
-import { TrashView, TRASH_RETENTION_DAYS } from './components/TrashView';
 import {
   watchAuth,
   logoutGoogle,
@@ -140,6 +145,13 @@ interface Toast {
   msg: string;
   type?: 'ok' | 'err';
 }
+
+// Fallback Suspense per le viste lazy (code-splitting per route)
+const ViewLoader: React.FC = () => (
+  <div className="w-full flex items-center justify-center py-24">
+    <span className="text-[13px] font-bold text-[#8a8a8a] animate-pulse">Caricamento…</span>
+  </div>
+);
 
 // Metadati divisioni (settori): il modale "nuova commessa" si adatta al settore selezionato in Progetti.
 const DIVISION_META: Record<'studio' | 'strategico' | 'materico' | 'unico', { label: string; color: string; desc: string; cta: string }> = {
@@ -2357,6 +2369,13 @@ export default function App() {
   if (isPortalRole) {
     return (
       <>
+      <React.Suspense
+        fallback={
+          <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center">
+            <span className="text-[13px] font-bold text-[#8a8a8a] animate-pulse">Caricamento…</span>
+          </div>
+        }
+      >
       <ClientPortalView
         profile={currentUser}
         projects={Object.values(projects)}
@@ -2409,6 +2428,7 @@ export default function App() {
         onSaveImpresaEntity={handleSaveImpresaEntity}
         onDeleteImpresaEntity={handleDeleteImpresaEntity}
       />
+      </React.Suspense>
       {/* Doppia conferma eliminazione anche nel portale cliente/partner */}
       {confirmDel && <ConfirmDeleteModal request={confirmDel} onClose={() => setConfirmDel(null)} />}
       </>
@@ -2710,6 +2730,8 @@ export default function App() {
             trash={trash}
             onRestore={handleRestoreTrash}
             onDeleteForever={handleTrashDeleteForever}
+            projects={projects}
+            cantieri={cantieri}
           />
         );
 
@@ -3211,7 +3233,10 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.997 }}
               transition={{ duration: 0.16, ease: 'easeOut' }}
             >
-              {renderView()}
+              {/* Le viste sono lazy (code-splitting per route): Suspense mostra il loader al primo accesso */}
+              <React.Suspense fallback={<ViewLoader />}>
+                {renderView()}
+              </React.Suspense>
             </motion.div>
           </AnimatePresence>
         </div>
