@@ -398,8 +398,9 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
               <Users className="w-4 h-4" /> Partner
             </button>
             <button
-              onClick={() => { if (confirm('Eliminare il cantiere?')) p.onDeleteCantiere?.(cid); }}
+              onClick={() => p.onDeleteCantiere?.(cid)}
               className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-[#e2e2e2] text-rose-600"
+              title="Elimina (nel Cestino)"
             >
               <Trash2 className="w-4 h-4" />
             </button>

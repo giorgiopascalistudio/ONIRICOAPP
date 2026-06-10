@@ -71,6 +71,7 @@ export interface Project {
   dueDate?: string | null;
   notes?: string | null;
   status: 'attivo' | 'completato' | 'sospeso' | 'annullato';
+  archived?: boolean;            // archiviato: escluso dalle liste di default (filtro "Archivio")
   icon?: string;
   templateId?: string | null;
   templateName?: string | null;
@@ -181,19 +182,38 @@ export type QuoteStatus = 'elaborato' | 'in_attesa' | 'accettato' | 'rifiutato';
 export interface Quote {
   id: string;
   number: string;            // numero preventivo (es. PRV-2026-001)
+  docKind?: 'preventivo' | 'parcella';  // tipo documento (default 'preventivo')
   clientRecordId?: string | null;
   clientName: string;
   projectId?: string | null;
   division: 'studio' | 'strategico' | 'materico' | 'unico';
   status: QuoteStatus;
   lines: QuoteLine[];
-  total: number;
+  total: number;             // imponibile = Σ righe (IVA/cassa escluse)
+  // IVA e Cassa previdenziale spuntabili (il totale documento si calcola con quoteTotals in finance.ts)
+  vatEnabled?: boolean;      // default true
+  vatPct?: number;           // default 22
+  cassaEnabled?: boolean;    // default false (Inarcassa/cassa previdenziale)
+  cassaPct?: number;         // default 4
   paymentPlan?: PaymentMilestone[];
   validUntil?: string | null;
   notes?: string | null;
   createdAt: number;
   updatedAt?: number;
   createdBy?: string;
+}
+
+/** Elemento nel Cestino (nodo trash/<id>): conservato 60 giorni, poi eliminato definitivamente. */
+export interface TrashItem {
+  id: string;
+  section: string;               // sezione di provenienza (es. 'progetti','preventivi','fatture_attive'…)
+  label: string;                 // nome leggibile dell'elemento
+  detail?: string | null;
+  payload: any;                  // l'elemento eliminato (per il ripristino)
+  meta?: Record<string, string> | null; // info extra per il ripristino (es. pid del documento)
+  deletedAt: number;
+  deletedBy: string;
+  deletedByName?: string | null;
 }
 
 /** Ferie/assenze del team (nodo teamLeave/<id>). */

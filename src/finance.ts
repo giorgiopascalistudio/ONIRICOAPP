@@ -31,10 +31,20 @@ export const COMPANY_INVOICE_PREFIX: Record<Company, string> = {
   unico: 'FE-UNI'
 };
 
+/** Colore identificativo della società (schema grafico Onirico, vedi CLAUDE.md §10). */
+export const COMPANY_COLOR: Record<Company, string> = {
+  studio: '#161616',
+  strategico: '#b45309',
+  materico: '#c2410c',
+  unico: '#4338ca'
+};
+
 // --- Costanti di default (override-abili per progetto) ---
 export const STUDIO_FEE_PCT = 0.15;
 export const ARREDI_MOBILI_FEE_PCT = 0.20;
 export const MATERICO_MARKUP_PCT = 0.15;
+export const VAT_PCT_DEFAULT = 22;     // aliquota IVA ordinaria
+export const CASSA_PCT_DEFAULT = 4;    // cassa previdenziale (Inarcassa)
 
 // ============================================================
 // Interfacce finanza condivise (prima locali in FinanzeView)
@@ -61,8 +71,9 @@ export interface InvoiceActive {
   clientName: string;
   projectId: string;
   projectName: string;
-  amount: number;
-  taxRate: number; // e.g. 22
+  amount: number;  // imponibile
+  taxRate: number; // aliquota IVA (0 = IVA non applicata)
+  cassaPct?: number | null; // % cassa previdenziale (null/0 = non applicata)
   status: 'bozza' | 'inviata_sdi' | 'consegnata_sdi' | 'pagata' | 'scaduta';
   sdiCode: string;
   date: string;
@@ -101,6 +112,42 @@ export interface ScadenzaItem {
 // ============================================================
 // Funzioni di calcolo
 // ============================================================
+
+/**
+ * Totali di un documento fiscale con IVA e Cassa previdenziale spuntabili.
+ * La cassa (es. Inarcassa 4%) concorre alla base imponibile IVA:
+ * totale = (imponibile + cassa) × (1 + IVA%).
+ */
+export interface DocTotals {
+  imponibile: number;
+  cassa: number;
+  iva: number;
+  totale: number;
+}
+
+export function docTotals(imponibile: number, vatPct: number, cassaPct: number): DocTotals {
+  const base = Number(imponibile) || 0;
+  const cassa = base * ((Number(cassaPct) || 0) / 100);
+  const iva = (base + cassa) * ((Number(vatPct) || 0) / 100);
+  return { imponibile: base, cassa, iva, totale: base + cassa + iva };
+}
+
+/** Totali documento di un preventivo/parcella (nodo quotes). */
+export function quoteTotals(q: {
+  lines?: { amount: number }[];
+  vatEnabled?: boolean; vatPct?: number;
+  cassaEnabled?: boolean; cassaPct?: number;
+}): DocTotals {
+  const imponibile = (q.lines || []).reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  const vat = (q.vatEnabled ?? true) ? (q.vatPct ?? VAT_PCT_DEFAULT) : 0;
+  const cassa = q.cassaEnabled ? (q.cassaPct ?? CASSA_PCT_DEFAULT) : 0;
+  return docTotals(imponibile, vat, cassa);
+}
+
+/** Totali documento di una fattura attiva (amount = imponibile). */
+export function invoiceTotals(inv: { amount: number; taxRate?: number; cassaPct?: number | null }): DocTotals {
+  return docTotals(inv.amount, inv.taxRate ?? 0, inv.cassaPct ?? 0);
+}
 
 /** Totale del computo metrico = Σ(q.tà × prezzo unitario). */
 export function computoTotal(computo?: Computo | null): number {
