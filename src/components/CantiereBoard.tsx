@@ -12,10 +12,10 @@
 
 import React, { useState } from 'react';
 import {
-  HardHat, Plus, X, Trash2, Check, Clock, Users, ImageIcon, Boxes, ListChecks,
+  HardHat, Plus, Trash2, Check, Clock, Users, ImageIcon, Boxes, ListChecks,
   FileText, TrendingUp, History, MapPin, Calendar as CalIcon,
   CheckCircle2, CircleSlash, MessageSquare, Info, ShieldCheck, HardDrive, Truck,
-  ClipboardList, BadgeAlert, FolderOpen, Send, Layers
+  ClipboardList, BadgeAlert, FolderOpen, Send, Layers, LayoutDashboard, BookOpen
 } from 'lucide-react';
 
 import {
@@ -28,6 +28,8 @@ import { DriveUploader } from './cantiere/DriveUploader';
 import { DocRegistry, DocItem } from './cantiere/DocRegistry';
 import { RecordRegistry, GenericRecord, RecordColumn } from './cantiere/RecordRegistry';
 import { SectionPlaceholder } from './cantiere/SectionPlaceholder';
+import { GiornaleCantiere } from './cantiere/GiornaleCantiere';
+import { CantierePanoramica } from './cantiere/CantierePanoramica';
 
 type Mode = 'studio' | 'partner';
 
@@ -209,7 +211,7 @@ const AREAS: { id: AreaId; label: string }[] = [
 ];
 
 type SectionRender =
-  | { t: 'comp'; name: 'diario' | 'presenze' | 'foto' | 'materiali' | 'checklist' | 'sal' | 'storico' | 'chat' | 'dati' | 'localizzazione' | 'cliente' }
+  | { t: 'comp'; name: 'panoramica' | 'diario' | 'presenze' | 'foto' | 'materiali' | 'checklist' | 'sal' | 'storico' | 'chat' | 'dati' | 'localizzazione' | 'cliente' }
   | { t: 'cantdoc'; section: string; categories?: string[]; withExpiry?: boolean; partnerWrite?: boolean }
   | { t: 'cantrec'; section: string; columns: RecordColumn[]; statuses?: string[]; partnerWrite?: boolean }
   | { t: 'impdoc'; categories?: string[] }
@@ -220,10 +222,11 @@ interface SectionDef { area: AreaId; id: string; label: string; icon: React.Elem
 
 const SECTIONS: SectionDef[] = [
   // ---- Campi condivisi ----
+  { area: 'shared', id: 'panoramica', label: 'Panoramica', icon: LayoutDashboard, render: { t: 'comp', name: 'panoramica' } },
+  { area: 'shared', id: 'diario', label: 'Giornale di cantiere', icon: BookOpen, render: { t: 'comp', name: 'diario' } },
   { area: 'shared', id: 'dati', label: 'Dati generali', icon: Info, render: { t: 'comp', name: 'dati' } },
   { area: 'shared', id: 'localizzazione', label: 'Localizzazione', icon: MapPin, render: { t: 'comp', name: 'localizzazione' } },
   { area: 'shared', id: 'cliente', label: 'Cliente / Committente', icon: Users, render: { t: 'comp', name: 'cliente' } },
-  { area: 'shared', id: 'diario', label: 'Diario di cantiere', icon: FileText, render: { t: 'comp', name: 'diario' } },
   { area: 'shared', id: 'foto', label: 'Foto', icon: ImageIcon, render: { t: 'comp', name: 'foto' } },
   { area: 'shared', id: 'attivita', label: 'Attività & Scadenze', icon: ClipboardList, render: { t: 'cantrec', section: 'scadenze', partnerWrite: true, statuses: ['Da fare', 'In corso', 'Completata'], columns: [{ key: 'title', label: 'Attività / scadenza' }, { key: 'date', label: 'Scadenza', type: 'date' }, { key: 'status', label: 'Stato' }] } },
   { area: 'shared', id: 'documenti', label: 'Documenti', icon: FolderOpen, render: { t: 'cantdoc', section: 'documenti', partnerWrite: true, categories: ['Disegni', 'Verbali', 'Contratti', 'Foto', 'Altro'] } },
@@ -264,7 +267,7 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
   const cid = c.id;
   const [assignOpen, setAssignOpen] = useState(false);
   const [area, setArea] = useState<AreaId>('shared');
-  const [section, setSection] = useState<string>('dati');
+  const [section, setSection] = useState<string>('panoramica');
 
   // Impresa attiva per l'Area Impresa: partner = se stesso; studio = partner assegnato selezionato
   const assignedUids = Object.keys(c.partnerUids || {});
@@ -282,6 +285,14 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
     if (first) setSection(first.id);
   };
 
+  // salto diretto a una sezione (usato dai KPI della Panoramica)
+  const goSection = (id: string) => {
+    const d = SECTIONS.find((s) => s.id === id);
+    if (!d) return;
+    setArea(d.area);
+    setSection(d.id);
+  };
+
   // -- builder dati per i registri generici --
   const cantDocItems = (sec: string): DocItem[] =>
     vals(p.documenti?.[cid]).filter((d) => (d.section || 'documenti') === sec)
@@ -295,7 +306,37 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
     const r = def.render;
     if (r.t === 'comp') {
       switch (r.name) {
-        case 'diario': return <RapportiniTab {...p} />;
+        case 'panoramica': return (
+          <CantierePanoramica
+            cantiere={c}
+            isStudio={isStudio}
+            rapportini={vals(p.rapportini?.[cid])}
+            presenze={vals(p.presenze?.[cid])}
+            documenti={vals(p.documenti?.[cid])}
+            records={vals(p.records?.[cid])}
+            sal={vals(p.sal?.[cid])}
+            checklist={vals(p.checklist?.[cid])}
+            onGo={goSection}
+          />
+        );
+        case 'diario': return (
+          <GiornaleCantiere
+            cantiere={c}
+            isStudio={isStudio}
+            canWrite={isStudio || partnerAssigned}
+            myUid={myUid}
+            myName={myName}
+            myRole={myRole}
+            folderName={folderName}
+            rapportini={vals(p.rapportini?.[cid])}
+            presenze={vals(p.presenze?.[cid])}
+            foto={vals(p.foto?.[cid])}
+            materiali={vals(p.materiali?.[cid])}
+            saveEntity={saveEntity}
+            delEntity={delEntity}
+            onApprove={(id, ok) => p.onApproveRapportino?.(cid, id, ok)}
+          />
+        );
         case 'presenze': return <PresenzeTab {...p} />;
         case 'foto': return <FotoTab {...p} />;
         case 'materiali': return <MaterialiTab {...p} />;
@@ -492,77 +533,6 @@ type TabProps = CantiereBoardProps & {
 };
 
 const sectionEmpty = (txt: string) => <p className="text-[12.5px] italic text-[#9a9a9a] py-3">{txt}</p>;
-
-// -------------------- Rapportini --------------------
-const RapportiniTab: React.FC<TabProps> = (p) => {
-  const { cantiere: c, isStudio, myUid, myName, myRole, folderName, saveEntity, delEntity } = p;
-  const list = vals(p.rapportini?.[c.id]).sort((a, b) => b.at - a.at);
-  const [desc, setDesc] = useState('');
-  const [meteo, setMeteo] = useState('');
-  const [ore, setOre] = useState('');
-  const [foto, setFoto] = useState<string[]>([]);
-
-  const add = () => {
-    if (!desc.trim()) return;
-    const r: Rapportino = {
-      id: newId('rap'), date: todayISO(), partnerUid: myUid, partnerName: myName,
-      meteo: meteo || null, ore: ore ? parseFloat(ore.replace(',', '.')) || null : null,
-      descrizione: desc.trim(), fotoIds: foto.length ? foto : undefined, status: 'inviato', at: Date.now()
-    };
-    saveEntity('cantiereRapportini', r);
-    setDesc(''); setMeteo(''); setOre(''); setFoto([]);
-  };
-
-  return (
-    <div className="flex flex-col gap-3">
-      {!isStudio && (
-        <div className="p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
-            <input value={meteo} onChange={(e) => setMeteo(e.target.value)} placeholder="Meteo (sereno…)" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-36" />
-            <input value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Ore" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none w-20" />
-          </div>
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descrizione lavorazioni della giornata…" rows={3} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none resize-none" />
-          <DriveUploader folderName={folderName} onUploaded={(f) => {
-            const photo: CantiereFoto = { id: newId('foto'), driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, caption: 'Rapportino', by: myUid, role: myRole, at: Date.now() };
-            saveEntity('cantiereFoto', photo);
-            setFoto((arr) => [...arr, photo.id]);
-          }} />
-          <button onClick={add} disabled={!desc.trim()} className="self-start px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Invia rapportino</button>
-        </div>
-      )}
-
-      {list.length === 0 ? sectionEmpty('Nessun rapportino.') : (
-        <div className="flex flex-col gap-2">
-          {list.map((r) => (
-            <div key={r.id} className="p-3 rounded-2xl border border-[#eee]">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-[12.5px] font-bold text-[#161616]">{fmtDay(r.date)} · {r.partnerName || 'Partner'}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${r.status === 'approvato' ? 'bg-emerald-50 text-emerald-700' : r.status === 'rifiutato' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{r.status}</span>
-                  {isStudio && r.status === 'inviato' && (
-                    <>
-                      <button onClick={() => p.onApproveRapportino?.(c.id, r.id, true)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => p.onApproveRapportino?.(c.id, r.id, false)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-rose-50 text-rose-700"><X className="w-4 h-4" /></button>
-                    </>
-                  )}
-                  {(isStudio || r.partnerUid === myUid) && (
-                    <button onClick={() => delEntity('cantiereRapportini', r.id)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
-                  )}
-                </div>
-              </div>
-              <p className="text-[12.5px] text-[#3a3a3a] whitespace-pre-wrap">{r.descrizione}</p>
-              <div className="flex gap-3 mt-1 text-[11px] text-[#9a9a9a]">
-                {r.meteo && <span>☀ {r.meteo}</span>}
-                {r.ore != null && <span>⏱ {r.ore}h</span>}
-                {r.fotoIds?.length ? <span>📷 {r.fotoIds.length}</span> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // -------------------- Presenze --------------------
 const PresenzeTab: React.FC<TabProps> = (p) => {

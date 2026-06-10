@@ -395,14 +395,32 @@ export interface Cantiere {
   updatedAt?: number;
 }
 
+/** Riga manodopera del giornale di cantiere: qualifica e numero operai (D.M. 49/2018, art. 14). */
+export interface RapportinoManodopera {
+  qualifica: string;                           // es. 'Operaio specializzato'
+  n: number;                                   // numero operai
+}
+
+/**
+ * Voce del Giornale di cantiere (nodo `cantiereRapportini`). Campi strutturati
+ * sul modello del giornale dei lavori D.M. 49/2018: lavorazioni, manodopera
+ * (qualifica+numero), mezzi, meteo, eventi/annotazioni. Lo studio (DL) scrive
+ * voci auto-approvate; l'impresa invia rapportini da approvare.
+ */
 export interface Rapportino {
   id: string;
   date: string;                                // yyyy-mm-dd
-  partnerUid: string;
+  partnerUid: string;                          // uid autore (impresa O membro studio)
   partnerName?: string;
-  meteo?: string | null;
+  authorRole?: 'studio' | 'impresa' | null;    // chi ha compilato (voci storiche: impresa)
+  meteo?: string | null;                       // condizioni meteo
+  tempMin?: number | null;                     // °C
+  tempMax?: number | null;                     // °C
   ore?: number | null;                         // ore lavorate complessive
-  descrizione: string;
+  manodopera?: RapportinoManodopera[];         // qualifica e numero operai impiegati
+  mezzi?: string | null;                       // attrezzatura tecnica impiegata
+  descrizione: string;                         // lavorazioni eseguite
+  annotazioni?: string | null;                 // circostanze/eventi: visite, ordini di servizio, sospensioni, infortuni
   fotoIds?: string[];                          // riferimenti a cantiereFoto
   status: 'inviato' | 'approvato' | 'rifiutato';
   approvedBy?: string;                         // solo studio
