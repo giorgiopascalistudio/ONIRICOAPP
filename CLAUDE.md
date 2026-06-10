@@ -299,15 +299,28 @@ reporting/redditività, integrazioni esterne
   unico) lato studio; tab **"Cantieri"** + **"La mia impresa"** nel portale `materico_partner`
   (`ClientPortalView`) lato partner. Componente unico `CantiereBoard` con prop `mode:'studio'|'partner'`.
 - **Struttura (PDF `MODULI/CANTIERE.pdf`)**: navigazione a **3 aree** in `CantiereBoard` →
-  **Campi condivisi** (Dati generali, Localizzazione, Cliente/Committente, Diario, Foto, Attività &
-  Scadenze, Documenti, Comunicazioni/Chat), **Area Tecnici** (SAL, Cronoprogramma, Verifiche, Non
-  conformità, Verbali/Ordini di servizio, Sicurezza POS/PSC/DUVRI, Progettazione, Doc tecnica,
-  Controllo qualità, Storico) e **Area Impresa** (Documentazione, Squadre, Operai, Presenze, Mezzi,
-  Sicurezza impresa). Config dichiarativa `SECTIONS` in `CantiereBoard.tsx`: ogni sezione è `comp`
-  (componente dedicato), `cantdoc`/`cantrec` (registro generico), `impdoc`/`imprec` (Area Impresa) o
-  `soon` (placeholder `SectionPlaceholder` per le voci ancora da attivare — promuoverle è una riga di
-  config). Componenti riusabili in `src/components/cantiere/` (`DocRegistry`, `RecordRegistry`,
-  `DriveUploader`, `SectionPlaceholder`, `ImpresaArea`).
+  **Campi condivisi** (Panoramica, Giornale di cantiere, Dati generali, Localizzazione,
+  Cliente/Committente, Foto, Attività & Scadenze, Documenti, Comunicazioni/Chat), **Area Tecnici**
+  (SAL, Cronoprogramma, Verifiche, Non conformità, Verbali/Ordini di servizio, Sicurezza
+  POS/PSC/DUVRI, Progettazione, Doc tecnica, Controllo qualità, Storico) e **Area Impresa**
+  (Documentazione, Squadre, Operai, Presenze, Mezzi, Sicurezza impresa). Config dichiarativa
+  `SECTIONS` in `CantiereBoard.tsx`: ogni sezione è `comp` (componente dedicato), `cantdoc`/`cantrec`
+  (registro generico), `impdoc`/`imprec` (Area Impresa) o `soon` (placeholder `SectionPlaceholder`
+  per le voci ancora da attivare — promuoverle è una riga di config). Componenti riusabili in
+  `src/components/cantiere/` (`DocRegistry`, `RecordRegistry`, `DriveUploader`, `SectionPlaceholder`,
+  `ImpresaArea`, `GiornaleCantiere`, `CantierePanoramica`).
+- **Panoramica** (`CantierePanoramica`, landing della sezione): KPI cliccabili (avanzamento+SAL,
+  consegna, giornale, ore manodopera, documenti in scadenza ≤30gg, non conformità aperte, attività,
+  checklist qualità) che saltano alla sezione di dettaglio via `goSection`.
+- **Giornale di cantiere** (`GiornaleCantiere`, sostituisce il vecchio "Diario"/lista rapportini):
+  calendario mensile (dot di stato per voce + indicatore presenze/materiali/foto), click sul giorno
+  → voci del giorno + registrazioni collegate a quella data. Voce strutturata sul modello
+  **D.M. 49/2018 art. 14** (`Rapportino` esteso, retro-compatibile): meteo + temp min/max,
+  manodopera (qualifica×numero, `RapportinoManodopera`), mezzi, lavorazioni, annotazioni/eventi,
+  foto. Lo **studio (DL) compila voci auto-approvate** (`authorRole:'studio'`, `status:'approvato'`);
+  il partner invia rapportini `inviato` da approvare (come prima). Le regole esistenti coprono già
+  la write studio: **nessuna ripubblicazione necessaria**. Modifica voce = riscrittura stesso id
+  (il partner che modifica torna a `inviato`).
 - **Modello**: vedi §6. Ogni progetto può avere 1+ cantieri (`cantieri/<cid>`, `projectId`).
   Lo studio assegna imprese **partner** per-cantiere (`partnerUids` + indice inverso
   `partnerCantieri/<uid>/<cid>`). Le sotto-collezioni per-cantiere si scrivono **per-elemento**
