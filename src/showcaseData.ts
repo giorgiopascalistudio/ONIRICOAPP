@@ -95,8 +95,9 @@ export const SHOWCASE_SERVICES: ServiceShowcase[] = [
 // (vedi CLAUDE.md §13): video mp4 CONTINUO, le scene sono mappate sui secondi.
 export const LANDING_SHOWCASE: { videoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
   videoUrl: 'https://github.com/giorgiopascalistudio/ONIRICOAPP/releases/download/VIDEO_ONIRICO-APP/Clip.1.mp4',
-  // Sfondo di riserva se il video non carica (stessa estetica scura).
-  poster: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80',
+  // Niente immagine in caricamento: si resta su NERO con il titolo che lampeggia
+  // (CinematicShowcase) finché il video non è pronto.
+  poster: '',
   scenes: [
     {
       time: 0,
