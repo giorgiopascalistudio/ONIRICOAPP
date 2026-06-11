@@ -42,10 +42,6 @@ interface CinematicShowcaseProps {
   onClose?: () => void;
 }
 
-// Velocità di avanzamento del video durante la transizione tra scene:
-// >1 = la scena successiva si raggiunge più in fretta restando fluida.
-const TRANSITION_RATE = 2.5;
-
 export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   videoUrl, poster, scenes, brand, brandSub, discoverLabel, onDiscover, footer, onClose,
 }) => {
@@ -54,11 +50,10 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
-  const [ready, setReady] = useState(false); // primo frame disponibile → via il velo nero
+  const [ready, setReady] = useState(false); // il video ha iniziato a riprodurre → via il velo nero
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number | null>(null);
   const lastScrollTime = useRef<number>(0);
   const touchStartY = useRef<number>(0);
   const idxRef = useRef(0); // indice corrente leggibile dentro i listener nativi
@@ -67,58 +62,50 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   const posterSrc = safeUrl(poster || '');
   const hasVideo = !!src && !videoFailed;
 
-  const cancelRaf = () => { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } };
-
-  // Porta il video al secondo `target`: in avanti riproducendo (fluido),
-  // all'indietro/uguale con un solo seek. `instant` = seek diretto.
-  const applyTarget = (target: number, instant = false) => {
+  // Avvio robusto: forza muted (React a volte non setta la property → autoplay
+  // bloccato), poi prova a far partire. Il video gira SEMPRE in loop: tenerlo in
+  // riproduzione è l'unico modo affidabile per renderizzare i frame su iOS
+  // (un video in pausa, lì, resta nero). Lo scroll fa solo un seek istantaneo.
+  const kickPlay = () => {
     const v = videoRef.current;
-    if (!v || !v.duration || isNaN(v.duration)) return;
-    cancelRaf();
-    const tgt = Math.max(0, Math.min(target, v.duration - 0.05));
-    if (instant || tgt <= v.currentTime + 0.05) {
-      try { v.pause(); v.currentTime = tgt; } catch { /* seek non pronto */ }
-      return;
-    }
-    // Avanti → riproduci (decode lineare, niente seek per-frame) fino al target.
-    v.playbackRate = TRANSITION_RATE;
-    v.play().catch(() => {});
-    const tick = () => {
-      const vv = videoRef.current;
-      if (!vv) { rafRef.current = null; return; }
-      if (vv.currentTime >= tgt - 0.04 || vv.ended) {
-        try { vv.pause(); vv.currentTime = tgt; } catch { /* noop */ }
-        vv.playbackRate = 1;
-        rafRef.current = null;
-        return;
-      }
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
+    if (!v) return;
+    v.muted = true;
+    v.defaultMuted = true;
+    const p = v.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
   };
 
+  // Cambio scena: aggiorna il testo + salta al secondo della scena restando in
+  // play (un solo seek, niente scrubbing per-frame → fluido anche su mobile).
   const changeScene = (nextIdx: number) => {
     const clamped = Math.max(0, Math.min(nextIdx, SCENES.length - 1));
     setCurrentSceneIdx(clamped);
     idxRef.current = clamped;
     lastScrollTime.current = Date.now();
-    if (ready) applyTarget(SCENES[clamped].time);
+    const v = videoRef.current;
+    if (v && v.duration && !isNaN(v.duration)) {
+      try { v.currentTime = Math.min(SCENES[clamped].time, v.duration - 0.1); } catch { /* seek non pronto */ }
+    }
+    kickPlay();
   };
 
-  // Primo frame pronto: togli il velo nero e "innesca" il decode su mobile.
-  const handleLoaded = () => {
-    setReady(true);
-    const v = videoRef.current;
-    if (!v) return;
-    // play/pause muto per forzare il render del frame su iOS, poi posizionati.
-    const p = v.play();
-    if (p && typeof p.then === 'function') {
-      p.then(() => { v.pause(); applyTarget(SCENES[idxRef.current].time, true); })
-       .catch(() => applyTarget(SCENES[idxRef.current].time, true));
-    } else {
-      applyTarget(SCENES[idxRef.current].time, true);
-    }
-  };
+  // Setta muted + tenta il play appena il src è disponibile (e a ogni cambio).
+  useEffect(() => {
+    if (hasVideo) kickPlay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, hasVideo]);
+
+  // Sblocca l'autoplay al primo gesto utente (browser che lo bloccano a freddo).
+  useEffect(() => {
+    if (!hasVideo) return;
+    const kick = () => kickPlay();
+    document.addEventListener('touchstart', kick, { passive: true });
+    document.addEventListener('click', kick);
+    return () => {
+      document.removeEventListener('touchstart', kick);
+      document.removeEventListener('click', kick);
+    };
+  }, [hasVideo]);
 
   // Listener nativi (non-passivi) per rotella + swipe: così possiamo bloccare
   // lo scroll della pagina (pull-to-refresh incluso) → sensazione "app".
@@ -150,10 +137,8 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
     };
-    // ready: i listener devono iniziare a muovere il video appena è pronto.
-  }, [ready, SCENES.length]);
-
-  useEffect(() => () => cancelRaf(), []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [SCENES.length]);
 
   const isLast = currentSceneIdx === SCENES.length - 1;
   const scene = SCENES[currentSceneIdx];
@@ -180,11 +165,14 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             src={src}
             className="w-full h-full object-cover select-none"
             muted
+            loop
+            autoPlay
             playsInline
             preload="auto"
             disablePictureInPicture
-            onLoadedData={handleLoaded}
-            onCanPlay={() => { if (!ready) handleLoaded(); }}
+            onLoadedData={kickPlay}
+            onCanPlay={kickPlay}
+            onPlaying={() => setReady(true)}
             onError={() => setVideoFailed(true)}
           />
         ) : posterSrc ? (
