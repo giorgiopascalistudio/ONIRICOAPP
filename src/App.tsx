@@ -57,7 +57,8 @@ import {
   TeamLeave,
   Quote,
   PaymentMilestone,
-  TrashItem
+  TrashItem,
+  UserRole
 } from './types';
 
 import {
@@ -1104,6 +1105,10 @@ export default function App() {
   // MODAL SWITCH CONTROLS
   // ----------------------------------------------------
   const [profileOpen, setProfileOpen] = useState(false);
+  // Il mio profilo: campi modificabili (nome, telefono, residenza)
+  const [profName, setProfName] = useState('');
+  const [profPhone, setProfPhone] = useState('');
+  const [profRes, setProfRes] = useState('');
   
   // Tasks Form (Agenda)
   const [taskEditorOpen, setTaskEditorOpen] = useState(false);
@@ -1208,8 +1213,9 @@ export default function App() {
 
   const [nuName, setNuName] = useState('');
   const [nuEmail, setNuEmail] = useState('');
+  const [nuPhone, setNuPhone] = useState('');
   const [nuPass, setNuPass] = useState('');
-  const [nuRole, setNuRole] = useState<'admin' | 'manager' | 'staff' | 'cliente'>('staff');
+  const [nuRole, setNuRole] = useState<UserRole>('staff');
   const [nuTitle, setNuTitle] = useState('');
   const [nuFns, setNuFns] = useState<string[]>([]);
   const [nuActive, setNuActive] = useState(true);
@@ -1850,6 +1856,18 @@ export default function App() {
     showToast('Documento caricato!');
   };
 
+  /** Sposta un documento in una cartella del cliente: aggiorna folder + percorso leggibile. */
+  const handleMoveDocument = (projId: string, docId: string, folder: string | null) => {
+    const doc = (documents[projId] || {})[docId];
+    if (!doc) return;
+    const proj = projects[projId];
+    const path = [proj?.client, proj?.name, folder].filter(Boolean).join(' / ') || null;
+    const updated = { ...doc, folder: folder || null, path };
+    setDocuments(prev => ({ ...prev, [projId]: { ...(prev[projId] || {}), [docId]: updated } }));
+    writeNode(`documents/${projId}/${docId}`, updated).catch(() => {});
+    showToast(folder ? `Documento spostato in "${folder}".` : 'Documento fuori dalle cartelle.');
+  };
+
   const handleDeleteDocument = (projId: string, docId: string) => {
     const doc = (documents[projId] || {})[docId];
     askDelete(doc?.kind === 'contratto' ? 'Eliminare il contratto?' : 'Eliminare il documento?', doc ? `"${doc.name}"` : null, () => {
@@ -2240,6 +2258,74 @@ export default function App() {
 
     showToast('Nuovo collaboratore inserito!');
     setNewUserOpen(false);
+  };
+
+  /** Apre "Il mio profilo" precaricando i campi modificabili. */
+  const openProfile = () => {
+    setProfName(currentUser?.name || '');
+    setProfPhone(currentUser?.telefono || '');
+    setProfRes(currentUser?.residenza || '');
+    setProfileOpen(true);
+  };
+
+  /** Salva i dati personali del proprio profilo (nome, telefono, residenza). */
+  const handleSaveOwnProfile = () => {
+    if (!currentUser) return;
+    if (!profName.trim()) {
+      showToast('Il nome non può essere vuoto.', 'err');
+      return;
+    }
+    const updated: UserProfile = {
+      ...currentUser,
+      name: profName.trim(),
+      telefono: profPhone.trim() || undefined,
+      residenza: profRes.trim() || undefined
+    };
+    setUsers(prev => {
+      const next = { ...prev, [currentUser.uid]: { ...(prev[currentUser.uid] || updated), ...updated } };
+      syncState('users', next);
+      return next;
+    });
+    setCurrentUser(updated);
+    // aggiorna anche la directory pubblica (nome visibile nei portali)
+    if (isStudioRole(currentUser.role)) {
+      writeNode(`directory/${currentUser.uid}`, { name: updated.name, role: updated.role }).catch(() => {});
+    }
+    showToast('Profilo aggiornato.');
+    setProfileOpen(false);
+  };
+
+  /** Modifica iscritto da TeamView: dati anagrafici, mansioni e ruolo (il manager non può promuovere admin). */
+  const handleSaveEditUser = () => {
+    if (!editUserId) return;
+    const u = users[editUserId];
+    if (!u) return;
+    if (!nuName.trim()) {
+      showToast('Il nome non può essere vuoto.', 'err');
+      return;
+    }
+    // vincolo ruoli: solo l'admin può assegnare il ruolo admin (riflesso anche nelle regole DB)
+    const role: UserRole = nuRole === 'admin' && currentUser?.role !== 'admin' ? u.role : nuRole;
+    const isPortal = role === 'cliente' || role === 'partner';
+    const updated: UserProfile = {
+      ...u,
+      name: nuName.trim(),
+      telefono: nuPhone.trim() || undefined,
+      role,
+      title: nuTitle.trim() || undefined,
+      functions: nuFns.length ? nuFns : undefined,
+      active: isPortal ? false : nuActive
+    };
+    setUsers(prev => {
+      const next = { ...prev, [editUserId]: updated };
+      syncState('users', next);
+      return next;
+    });
+    // directory pubblica per i portali (nome/ruolo dei membri studio)
+    if (!isPortal) writeNode(`directory/${editUserId}`, { name: updated.name, role: updated.role }).catch(() => {});
+    showToast('Dati iscritto aggiornati.');
+    setEditUserOpen(false);
+    setEditUserId(null);
   };
 
   const handleCreateClient = () => {
@@ -3005,6 +3091,7 @@ export default function App() {
             canEdit={currentUser.role !== 'cliente' && currentUser.role !== 'partner'}
             onUploadDocument={handleUploadDocument}
             onDeleteDocument={handleDeleteDocument}
+            onMoveDocument={handleMoveDocument}
           />
         );
 
@@ -3060,6 +3147,7 @@ export default function App() {
               setEditUserId(uid);
               setNuName(u.name);
               setNuEmail(u.email);
+              setNuPhone(u.telefono || '');
               setNuRole(u.role);
               setNuTitle(u.title || '');
               setNuFns(u.functions || []);
@@ -3073,6 +3161,7 @@ export default function App() {
               setEditUserId(uid);
               setNuName(u.name);
               setNuEmail(u.email);
+              setNuPhone(u.telefono || '');
               setNuRole(u.role);
               setNuTitle(u.title || '');
               setNuFns(u.functions || []);
@@ -3244,7 +3333,7 @@ export default function App() {
           setRoute(r);
           window.location.hash = `#${r}`;
         }}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={openProfile}
       />
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
@@ -3256,7 +3345,7 @@ export default function App() {
             setRoute(r);
             window.location.hash = `#${r}`;
           }}
-          onOpenProfile={() => setProfileOpen(true)}
+          onOpenProfile={openProfile}
           title={formattedMobileTitle()}
           notificationsCount={liveNotifications.filter(n => !n.read).length}
           onNotificationsClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -3511,46 +3600,65 @@ export default function App() {
 
       {/* 1. Profile Manager Modal */}
       <Modal title="Il mio profilo" isOpen={profileOpen} onClose={() => setProfileOpen(false)}>
-        <div className="flex items-center gap-3 mb-6">
-          <span className="w-14 h-14 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-lg">
+        <div className="flex items-center gap-3 mb-5">
+          <span className="w-14 h-14 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-lg shrink-0">
             {initials(currentUser.name)}
           </span>
-          <div>
-            <b className="block text-[18px] font-black text-[#161616] leading-none">{currentUser.name}</b>
-            <small className="block text-[12px] text-[#8a8a8a] font-semibold mt-1">{currentUser.email}</small>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5 text-left">
-            <label className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ruolo nello Studio</label>
-            <span className="text-[14px] font-bold text-[#161616] uppercase tracking-wide">
+          <div className="min-w-0">
+            <b className="block text-[18px] font-black text-[#161616] leading-none truncate">{currentUser.name}</b>
+            <small className="block text-[12px] text-[#8a8a8a] font-semibold mt-1 truncate">{currentUser.email}</small>
+            <span className="inline-block mt-1.5 text-[9.5px] font-extrabold uppercase tracking-wider bg-[#f0f0f0] border border-[#e2e2e2] text-[#6b6b6b] px-2 py-0.5 rounded-full">
               {currentUser.role}
             </span>
           </div>
+        </div>
 
-          <div className="flex flex-col gap-1.5 text-left">
-            <label className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Mansioni associate</label>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {(currentUser.functions || MANSIONI.slice(0, 3)).map(f => (
+        <div className="flex flex-col gap-3 text-left">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Nome e cognome</span>
+            <input value={profName} onChange={(e) => setProfName(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Telefono</span>
+              <input value={profPhone} onChange={(e) => setProfPhone(e.target.value)} placeholder="+39…" className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Residenza</span>
+              <input value={profRes} onChange={(e) => setProfRes(e.target.value)} placeholder="Via, civico, città" className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Mansioni associate</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(currentUser.functions && currentUser.functions.length ? currentUser.functions : []).map(f => (
                 <span key={f} className="text-[10px] bg-slate-100 rounded-full py-0.5 px-2.5 font-extrabold text-gray-800">
                   {f}
                 </span>
               ))}
+              {(!currentUser.functions || currentUser.functions.length === 0) && (
+                <span className="text-[11.5px] italic text-[#9a9a9a]">Nessuna mansione assegnata (le gestisce l'amministrazione da Team).</span>
+              )}
             </div>
           </div>
+
+          <button onClick={handleSaveOwnProfile} className="py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none w-full mt-1">
+            Salva dati personali
+          </button>
 
           {canManageAccess && (
             <button
               onClick={() => { setProfileOpen(false); setAccessOpen(true); }}
-              className="btn bg-[#1b1b1b] hover:bg-black text-white font-bold justify-center mt-2 flex items-center gap-2"
+              className="py-2.5 rounded-xl bg-white border border-[#e2e2e2] hover:border-black text-[#161616] font-bold text-[13px] cursor-pointer w-full flex items-center justify-center gap-2"
             >
               <Users className="w-4 h-4" />
               Gestione accessi{pendingAccounts.length > 0 ? ` (${pendingAccounts.length})` : ''}
             </button>
           )}
 
-          <button onClick={handleLogout} className="btn bg-red-50 hover:bg-red-100 border border-red-200 text-red-800 font-bold justify-center mt-4">
+          <button onClick={handleLogout} className="py-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-800 font-bold text-[13px] cursor-pointer w-full mt-2">
             Esci dall'account
           </button>
         </div>
@@ -4620,6 +4728,76 @@ export default function App() {
 
           <button onClick={handleCreateUser} className="btn bg-[#1b1b1b] text-white hover:bg-black w-full mt-4 justify-center font-bold leading-normal">
             Registra Account Collaboratore
+          </button>
+        </div>
+      </Modal>
+
+      {/* Modifica iscritto (Team): dati, mansioni e ruolo */}
+      <Modal title="Modifica iscritto" isOpen={editUserOpen} onClose={() => { setEditUserOpen(false); setEditUserId(null); }}>
+        <div className="flex flex-col gap-3 text-left">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Nome e cognome *</span>
+            <input value={nuName} onChange={(e) => setNuName(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Email (accesso)</span>
+              <input value={nuEmail} readOnly disabled className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[13px] bg-[#f5f5f3] text-[#8a8a8a]" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Telefono</span>
+              <input value={nuPhone} onChange={(e) => setNuPhone(e.target.value)} placeholder="+39…" className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ruolo</span>
+              <select value={nuRole} onChange={(e: any) => setNuRole(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[13.5px]">
+                <option value="staff">Operatore Staff</option>
+                <option value="manager">Project Manager</option>
+                <option value="admin" disabled={currentUser.role !== 'admin'}>Amministratore{currentUser.role !== 'admin' ? ' (solo admin)' : ''}</option>
+                <option value="cliente">Cliente (portale)</option>
+                <option value="partner">Partner (portale)</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Titolo / Specializzazione</span>
+              <input value={nuTitle} onChange={(e) => setNuTitle(e.target.value)} placeholder="Ingegnere, Architetto…" className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Mansioni (per l'assegnazione automatica dei task)</span>
+            <div className="flex flex-wrap gap-1.5">
+              {MANSIONI.map((m) => {
+                const on = nuFns.includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setNuFns((prev) => (on ? prev.filter((x) => x !== m) : [...prev, m]))}
+                    className={`text-[11.5px] font-bold px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${on ? 'bg-[#161616] text-white border-[#161616]' : 'bg-white text-[#6b6b6b] border-[#e2e2e2] hover:border-[#b0b0b0]'}`}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {nuRole !== 'cliente' && nuRole !== 'partner' && (
+            <label className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[#e2e2e2] cursor-pointer">
+              <span className="text-[13px] font-bold text-[#161616]">Account attivo
+                <span className="block text-[11px] font-semibold text-[#8a8a8a]">Se disattivato, il membro non vede più i dati dello studio.</span>
+              </span>
+              <input type="checkbox" checked={nuActive} onChange={(e) => setNuActive(e.target.checked)} />
+            </label>
+          )}
+
+          <button onClick={handleSaveEditUser} className="py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none w-full mt-1">
+            Salva modifiche
           </button>
         </div>
       </Modal>

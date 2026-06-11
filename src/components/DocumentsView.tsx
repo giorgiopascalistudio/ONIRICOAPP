@@ -10,7 +10,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import {
-  FileText, Download, Trash2, Upload, FolderOpen, Sparkles,
+  FileText, Download, Trash2, Upload, FolderOpen, Folder, FolderPlus,
   X, ChevronLeft, FileSpreadsheet, Mail, FileSignature
 } from 'lucide-react';
 import type { Project, UserProfile } from '../types';
@@ -26,6 +26,8 @@ interface DocItem {
   byName?: string;
   by?: string;
   at?: number;
+  folder?: string | null;   // cartella del cliente (es. 'Catasto', 'Permessi')
+  path?: string | null;     // percorso leggibile, aggiornato allo spostamento
 }
 
 interface DocumentsViewProps {
@@ -35,6 +37,8 @@ interface DocumentsViewProps {
   canEdit: boolean;
   onUploadDocument: (pid: string, file: File, kind?: string) => void;
   onDeleteDocument: (pid: string, docId: string) => void;
+  /** Sposta un documento in una cartella (aggiorna folder + path sul nodo). */
+  onMoveDocument?: (pid: string, docId: string, folder: string | null) => void;
 }
 
 const GENERATOR_URL = `${import.meta.env.BASE_URL}generatore-modulistica.html`;
@@ -63,7 +67,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   users,
   canEdit,
   onUploadDocument,
-  onDeleteDocument
+  onDeleteDocument,
+  onMoveDocument
 }) => {
   const [mainTab, setMainTab] = useState<'pratiche' | 'contratti'>('pratiche');
   const [sector, setSector] = useState<'tutti' | 'studio' | 'strategico' | 'materico'>('tutti');
@@ -124,7 +129,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {/* hidden file input condiviso */}
       <input ref={uploadRef} type="file" className="hidden" onChange={onFilePicked} />
 
-      {/* Header + Generatore */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-[22px] font-black tracking-tight text-[#161616] leading-none">Documenti</h2>
@@ -132,31 +137,42 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             Archivio pratiche per cliente e generatore di modulistica.
           </p>
         </div>
-        <button
-          onClick={() => setShowGenerator(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer border-none hover:shadow-md active:scale-[0.98] transition-all"
-        >
-          <Sparkles className="w-4 h-4" />
-          Generatore documenti
-        </button>
       </div>
 
-      {/* Generatore in primo piano (card) */}
-      <button
-        onClick={() => setShowGenerator(true)}
-        className="text-left bg-gradient-to-br from-[#161616] to-[#2c2d31] text-white rounded-[24px] p-5 flex items-center gap-4 cursor-pointer border-none hover:shadow-lg transition-all group"
-      >
-        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-          <FileSpreadsheet className="w-6 h-6" />
-        </div>
-        <div className="flex-grow min-w-0">
-          <b className="text-[15px] block">Compilatore Modulistica Edilizia — SUE/SUAP</b>
-          <span className="text-[12.5px] text-white/60 block mt-0.5">
-            Compila e genera CILA, SCIA, permessi di costruire e altra modulistica.
+      {/* Compilatore + Crea contratto */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <button
+          onClick={() => setShowGenerator(true)}
+          className="text-left bg-gradient-to-br from-[#161616] to-[#2c2d31] text-white rounded-[24px] p-5 flex items-center gap-4 cursor-pointer border-none hover:shadow-lg transition-all group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+            <FileSpreadsheet className="w-6 h-6" />
+          </div>
+          <div className="flex-grow min-w-0">
+            <b className="text-[15px] block">Compilatore Modulistica Edilizia — SUE/SUAP</b>
+            <span className="text-[12.5px] text-white/60 block mt-0.5">
+              Compila e genera CILA, SCIA, permessi di costruire e altra modulistica.
+            </span>
+          </div>
+          <span className="text-[12px] font-bold text-white/70 group-hover:text-white shrink-0 hidden sm:block">Apri →</span>
+        </button>
+
+        {/* Crea contratto: box predisposto, da attivare in un secondo momento */}
+        <div className="text-left bg-white border border-dashed border-[#d8d8d8] rounded-[24px] p-5 flex items-center gap-4 opacity-80">
+          <div className="w-12 h-12 rounded-2xl bg-[#f3f3f3] flex items-center justify-center shrink-0">
+            <FileSignature className="w-6 h-6 text-[#9a9a9a]" />
+          </div>
+          <div className="flex-grow min-w-0">
+            <b className="text-[15px] block text-[#161616]">Crea contratto</b>
+            <span className="text-[12.5px] text-[#9a9a9a] block mt-0.5">
+              Generazione guidata dei contratti (incarico, fornitura, subappalto).
+            </span>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full shrink-0">
+            In preparazione
           </span>
         </div>
-        <span className="text-[12px] font-bold text-white/70 group-hover:text-white shrink-0 hidden sm:block">Apri →</span>
-      </button>
+      </div>
 
       {/* Barra principale: Pratiche | Contratti */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -304,6 +320,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           onBack={() => setOpenClient(null)}
           onUpload={triggerUpload}
           onDelete={onDeleteDocument}
+          onMove={onMoveDocument}
         />
       ) : clients.length === 0 ? (
         <div className="bg-white border border-dashed border-[#e2e2e2] rounded-[24px] p-10 text-center">
@@ -358,10 +375,10 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
       )}
 
-      {/* MODALE GENERATORE a tutto schermo */}
+      {/* GENERATORE a tutto schermo (come il moodboard 3D) */}
       {showGenerator && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex flex-col p-0 sm:p-4 animate-[fadeIn_0.18s_ease_both]">
-          <div className="bg-[#eceae5] w-full h-full sm:rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-[200] flex flex-col animate-[fadeIn_0.18s_ease_both]">
+          <div className="bg-[#eceae5] w-full h-full overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-2.5 bg-[#161616] text-white shrink-0">
               <b className="text-[13px] flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4" /> Compilatore Modulistica Edilizia
@@ -391,7 +408,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   );
 };
 
-// --- Dettaglio documenti di un cliente, raggruppati per pratica ---
+// --- Dettaglio documenti di un cliente, raggruppati per pratica (con cartelle) ---
 const ClientDocuments: React.FC<{
   client: UserProfile;
   projects: Project[];
@@ -400,7 +417,28 @@ const ClientDocuments: React.FC<{
   onBack: () => void;
   onUpload: (pid: string) => void;
   onDelete: (pid: string, docId: string) => void;
-}> = ({ client, projects, documents, canEdit, onBack, onUpload, onDelete }) => {
+  onMove?: (pid: string, docId: string, folder: string | null) => void;
+}> = ({ client, projects, documents, canEdit, onBack, onUpload, onDelete, onMove }) => {
+  // cartelle create in sessione (ancora vuote) + filtro cartella attiva, per pratica
+  const [extraFolders, setExtraFolders] = useState<Record<string, string[]>>({});
+  const [activeFolder, setActiveFolder] = useState<Record<string, string>>({});
+  const [newFolderFor, setNewFolderFor] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+
+  const foldersOf = (pid: string, docs: DocItem[]) => {
+    const set = new Set<string>(extraFolders[pid] || []);
+    docs.forEach((d) => { if (d.folder) set.add(d.folder); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  };
+  const createFolder = (pid: string) => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setExtraFolders((prev) => ({ ...prev, [pid]: Array.from(new Set([...(prev[pid] || []), name])) }));
+    setActiveFolder((prev) => ({ ...prev, [pid]: name }));
+    setNewFolderFor(null);
+    setNewFolderName('');
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#8a8a8a] hover:text-[#161616] w-fit">
@@ -429,9 +467,12 @@ const ClientDocuments: React.FC<{
       ) : (
         projects.map((p) => {
           const docs = Object.values(documents[p.id] || {}).sort((a, b) => (b.at || 0) - (a.at || 0));
+          const folders = foldersOf(p.id, docs);
+          const curFolder = activeFolder[p.id] || '';
+          const visibleDocs = curFolder ? docs.filter((d) => (d.folder || '') === curFolder) : docs;
           return (
             <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="min-w-0">
                   <b className="text-[15px] text-[#161616] block truncate">{p.name}</b>
                   {p.code && <span className="text-[11px] text-[#8a8a8a] font-mono">{p.code}</span>}
@@ -446,11 +487,52 @@ const ClientDocuments: React.FC<{
                 )}
               </div>
 
-              {docs.length === 0 ? (
-                <p className="text-[12.5px] italic text-[#8a8a8a]">Nessun documento.</p>
+              {/* Cartelle della pratica */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                <button
+                  onClick={() => setActiveFolder((prev) => ({ ...prev, [p.id]: '' }))}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${!curFolder ? 'bg-[#161616] text-white border-[#161616]' : 'bg-white text-[#6b6b6b] border-[#e2e2e2] hover:border-[#b0b0b0]'}`}
+                >
+                  Tutti
+                </button>
+                {folders.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFolder((prev) => ({ ...prev, [p.id]: f }))}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${curFolder === f ? 'bg-[#161616] text-white border-[#161616]' : 'bg-white text-[#6b6b6b] border-[#e2e2e2] hover:border-[#b0b0b0]'}`}
+                  >
+                    <Folder className="w-3 h-3" /> {f}
+                    <span className="opacity-60">({docs.filter((d) => (d.folder || '') === f).length})</span>
+                  </button>
+                ))}
+                {canEdit && (newFolderFor === p.id ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') createFolder(p.id); if (e.key === 'Escape') { setNewFolderFor(null); setNewFolderName(''); } }}
+                      placeholder="Nome cartella"
+                      className="h-7 w-36 border border-[#e2e2e2] rounded-full px-3 text-[11.5px] outline-none focus:border-[#161616]"
+                    />
+                    <button onClick={() => createFolder(p.id)} className="text-[11px] font-bold text-white bg-[#161616] rounded-full px-2.5 py-1 cursor-pointer border-none">Crea</button>
+                    <button onClick={() => { setNewFolderFor(null); setNewFolderName(''); }} className="text-gray-400 hover:text-[#161616]"><X className="w-3.5 h-3.5" /></button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => { setNewFolderFor(p.id); setNewFolderName(''); }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border border-dashed border-[#cfcfcf] text-[#8a8a8a] hover:text-[#161616] hover:border-[#161616] bg-white transition-colors"
+                  >
+                    <FolderPlus className="w-3 h-3" /> Nuova cartella
+                  </button>
+                ))}
+              </div>
+
+              {visibleDocs.length === 0 ? (
+                <p className="text-[12.5px] italic text-[#8a8a8a]">{curFolder ? 'Cartella vuota: sposta qui un documento con "Sposta in…".' : 'Nessun documento.'}</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {docs.map((d) => (
+                  {visibleDocs.map((d) => (
                     <div key={d.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-[#f0f0f0] hover:bg-gray-50 transition-colors">
                       <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                         <FileText className="w-4 h-4 text-gray-500" />
@@ -463,9 +545,20 @@ const ClientDocuments: React.FC<{
                           )}
                         </b>
                         <span className="text-[11px] text-[#8a8a8a]">
-                          {[d.byName, fmtWhen(d.at), fmtSize(d.size)].filter(Boolean).join(' · ')}
+                          {[d.folder ? `📁 ${d.folder}` : null, d.byName, fmtWhen(d.at), fmtSize(d.size)].filter(Boolean).join(' · ')}
                         </span>
                       </div>
+                      {canEdit && onMove && (
+                        <select
+                          value={d.folder || ''}
+                          onChange={(e) => onMove(p.id, d.id, e.target.value || null)}
+                          className="h-8 max-w-[130px] border border-[#e2e2e2] rounded-lg px-2 text-[11px] font-bold text-[#6b6b6b] bg-white outline-none focus:border-[#161616] shrink-0"
+                          title="Sposta in cartella"
+                        >
+                          <option value="">Sposta in…</option>
+                          {folders.map((f) => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      )}
                       {d.url && (
                         <a
                           href={safeUrl(d.url) || '#'}
