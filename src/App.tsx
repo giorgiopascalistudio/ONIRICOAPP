@@ -163,6 +163,52 @@ const DIVISION_META: Record<'studio' | 'strategico' | 'materico' | 'unico', { la
   unico: { label: 'Unico', color: '#4338ca', desc: 'Atelier di lusso su misura', cta: 'Crea progetto Unico' }
 };
 
+// Editor identificativi catastali multipli (Foglio/Particella/Sub ripetibili, layout allineato).
+// La nuova riga eredita il foglio dalla precedente per non ripetere dati inutilmente.
+const CatastaliEditor: React.FC<{
+  rows: { foglio: string; particella: string; sub: string }[];
+  onChange: (rows: { foglio: string; particella: string; sub: string }[]) => void;
+}> = ({ rows, onChange }) => {
+  const set = (i: number, k: 'foglio' | 'particella' | 'sub', v: string) =>
+    onChange(rows.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-[1fr_1fr_1fr_32px] gap-2 text-[10px] font-bold uppercase tracking-wider text-[#8a8a8a] px-1">
+        <span>Foglio</span>
+        <span>Particella</span>
+        <span>Sub</span>
+        <span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_1fr_32px] gap-2 items-center">
+          <input value={r.foglio} onChange={(e) => set(i, 'foglio', e.target.value)} placeholder="12" className="input text-xs bg-white h-9 font-mono text-center" />
+          <input value={r.particella} onChange={(e) => set(i, 'particella', e.target.value)} placeholder="450" className="input text-xs bg-white h-9 font-mono text-center" />
+          <input value={r.sub} onChange={(e) => set(i, 'sub', e.target.value)} placeholder="3" className="input text-xs bg-white h-9 font-mono text-center" />
+          {rows.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+              className="w-8 h-8 rounded-lg bg-white border border-[#e2e2e2] hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-600 flex items-center justify-center cursor-pointer"
+              title="Rimuovi riga"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <span />
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...rows, { foglio: rows[rows.length - 1]?.foglio || '', particella: '', sub: '' }])}
+        className="self-start text-[11px] font-bold text-[#161616] bg-[#f0f0f0] hover:bg-[#e2e2e2] border-none rounded-full px-3 py-1.5 cursor-pointer"
+      >
+        + Aggiungi particella
+      </button>
+    </div>
+  );
+};
+
 const projTaskCounts = (p: Project) => {
   let done = 0, tot = 0;
   Object.values(p.phases || {}).forEach(ph => {
@@ -1091,9 +1137,17 @@ export default function App() {
   const [pDue, setPDue] = useState('');
   const [pCommittente, setPCommittente] = useState('');
   const [pIndirizzo, setPIndirizzo] = useState('');
+  // Indirizzo immobile strutturato (via, civico, CAP, comune, provincia)
+  const [pVia, setPVia] = useState('');
+  const [pCivico, setPCivico] = useState('');
+  const [pCap, setPCap] = useState('');
+  const [pComune, setPComune] = useState('');
+  const [pProvincia, setPProvincia] = useState('');
   const [pFoglio, setPFoglio] = useState('');
   const [pParticella, setPParticella] = useState('');
   const [pSub, setPSub] = useState('');
+  // Identificativi catastali multipli (layout allineato, righe ripetibili)
+  const [pCatastali, setPCatastali] = useState<{ foglio: string; particella: string; sub: string }[]>([{ foglio: '', particella: '', sub: '' }]);
   const [pTipo, setPTipo] = useState('');
   const [pNotes, setPNotes] = useState('');
   const [pDivision, setPDivision] = useState<'studio' | 'strategico' | 'materico' | 'unico'>('studio');
@@ -1360,9 +1414,15 @@ export default function App() {
     setPDue('');
     setPCommittente('');
     setPIndirizzo('');
+    setPVia('');
+    setPCivico('');
+    setPCap('');
+    setPComune('');
+    setPProvincia('');
     setPFoglio('');
     setPParticella('');
     setPSub('');
+    setPCatastali([{ foglio: '', particella: '', sub: '' }]);
     setPTipo('');
     setPNotes('');
 
@@ -1466,12 +1526,66 @@ export default function App() {
       });
     }
 
+    // Indirizzo immobile composto dai campi strutturati (via, civico, CAP, comune, provincia)
+    const composedAddr = [
+      pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
+      [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
+      pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
+    ].filter(Boolean).join(', ');
+    // Identificativi catastali multipli: il primo popola anche i campi legacy
+    const catRows = pCatastali
+      .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
+      .filter((r) => r.foglio || r.particella || r.sub);
+
+    // Pianificazione dalla data di inizio: scadenze in sequenza (durata per task) +
+    // auto-assegnazione per mansione al membro più libero (meno task aperti)
+    const openCount: Record<string, number> = {};
+    Object.values(users).forEach((u: any) => {
+      if (!u || !u.active || u.role === 'cliente' || u.role === 'partner') return;
+      let n = 0;
+      Object.values(projects).forEach((pr: any) =>
+        Object.values(pr.phases || {}).forEach((ph: any) =>
+          Object.values(ph.tasks || {}).forEach((t: any) => { if (!t.done && t.assignee === u.uid) n++; })
+        )
+      );
+      Object.values(tasks).forEach((t: any) => { if (!t.done && (t.assignee === u.uid || (t.assignees || []).includes(u.uid))) n++; });
+      openCount[u.uid] = n;
+    });
+    const pickAssignee = (role?: string | null): string | null => {
+      if (!role) return null;
+      const r = role.trim().toLowerCase();
+      const cands = Object.values(users).filter(
+        (u: any) =>
+          u && u.active && u.role !== 'cliente' && u.role !== 'partner' &&
+          ((u.functions || []).some((f: string) => (f || '').toLowerCase() === r) || (u.title || '').toLowerCase() === r)
+      );
+      if (!cands.length) return null;
+      cands.sort((a: any, b: any) => (openCount[a.uid] || 0) - (openCount[b.uid] || 0));
+      const chosen: any = cands[0];
+      openCount[chosen.uid] = (openCount[chosen.uid] || 0) + 1; // bilancia anche tra i task di questo progetto
+      return chosen.uid;
+    };
+    {
+      const cursor = new Date(`${pStart || todayISO()}T00:00:00`);
+      Object.values(phases)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .forEach((ph) => {
+          Object.values(ph.tasks || {})
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .forEach((t) => {
+              cursor.setDate(cursor.getDate() + (t.durationDays || 2));
+              t.due = isoDate(cursor);
+              if (!t.assignee) t.assignee = pickAssignee(t.role);
+            });
+        });
+    }
+
     const newProj: Project = {
       id: nId,
       name: pName.trim(),
       code: pCode.trim() || null,
       client: pClient.trim() || null,
-      location: pLocation.trim() || null,
+      location: pComune.trim() || pLocation.trim() || null,
       manager: pManager || null,
       startDate: pStart || todayISO(),
       dueDate: pDue || null,
@@ -1482,10 +1596,16 @@ export default function App() {
       clientUid: pClientUid || null,
       clientRecordId: pClientRecordId || null,
       committente: pCommittente.trim() || null,
-      indirizzoImmobile: pIndirizzo.trim() || null,
-      foglio: pFoglio.trim() || null,
-      particella: pParticella.trim() || null,
-      sub: pSub.trim() || null,
+      indirizzoImmobile: composedAddr || pIndirizzo.trim() || null,
+      via: pVia.trim() || null,
+      civico: pCivico.trim() || null,
+      cap: pCap.trim() || null,
+      comune: pComune.trim() || null,
+      provincia: pProvincia.trim() ? pProvincia.trim().toUpperCase() : null,
+      foglio: catRows[0]?.foglio || pFoglio.trim() || null,
+      particella: catRows[0]?.particella || pParticella.trim() || null,
+      sub: catRows[0]?.sub || pSub.trim() || null,
+      catastali: catRows.length ? catRows : null,
       tipoIntervento: pDivision === 'studio' ? interventoLabel(pIntervento) : (pTipo.trim() || null),
       interventoEdilizio: pDivision === 'studio' ? pIntervento : undefined,
       titoloAbilitativo: pDivision === 'studio' ? pTitolo : undefined,
@@ -1507,6 +1627,24 @@ export default function App() {
       syncState('projects', updated);
       return updated;
     });
+
+    // Avvisa i membri auto-assegnati in base alla mansione
+    {
+      const assigned = new Set<string>();
+      Object.values(phases).forEach((ph) =>
+        Object.values(ph.tasks || {}).forEach((t) => {
+          if (t.assignee && t.assignee !== currentUser?.uid) assigned.add(t.assignee);
+        })
+      );
+      assigned.forEach((uid) =>
+        pushNotification(uid, {
+          type: 'task',
+          title: `Nuova pratica: ${pName.trim()}`,
+          body: 'Ti sono state assegnate attività in base alla tua mansione.',
+          link: `#progetto/${nId}`
+        })
+      );
+    }
 
     if (pNotes.trim()) {
       setProjectsInternal(prev => {
@@ -1552,12 +1690,22 @@ export default function App() {
     setPDue(p.dueDate || '');
     setPCommittente(p.committente || '');
     setPIndirizzo(p.indirizzoImmobile || '');
+    setPVia(p.via || '');
+    setPCivico(p.civico || '');
+    setPCap(p.cap || '');
+    setPComune(p.comune || p.location || '');
+    setPProvincia(p.provincia || '');
     setPFoglio(p.foglio || '');
     setPParticella(p.particella || '');
     setPSub(p.sub || '');
+    setPCatastali(
+      p.catastali && p.catastali.length
+        ? p.catastali.map((r) => ({ foglio: r.foglio || '', particella: r.particella || '', sub: r.sub || '' }))
+        : [{ foglio: p.foglio || '', particella: p.particella || '', sub: p.sub || '' }]
+    );
     setPTipo(p.tipoIntervento || '');
     setPDivision(p.division || 'studio');
-    
+
     const internal = projectsInternal[id];
     setPNotes(internal?.notes || '');
     setEditProjOpen(true);
@@ -1575,17 +1723,35 @@ export default function App() {
         name: pName.trim(),
         code: pCode.trim() || null,
         client: pClient.trim() || null,
-        location: pLocation.trim() || null,
+        location: pComune.trim() || pLocation.trim() || null,
         clientUid: pClientUid || null,
         clientRecordId: pClientRecordId || null,
         manager: pManager,
         startDate: pStart || null,
         dueDate: pDue || null,
         committente: pCommittente.trim() || null,
-        indirizzoImmobile: pIndirizzo.trim() || null,
-        foglio: pFoglio.trim() || null,
-        particella: pParticella.trim() || null,
-        sub: pSub.trim() || null,
+        indirizzoImmobile: (() => {
+          const composed = [
+            pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
+            [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
+            pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
+          ].filter(Boolean).join(', ');
+          return composed || pIndirizzo.trim() || null;
+        })(),
+        via: pVia.trim() || null,
+        civico: pCivico.trim() || null,
+        cap: pCap.trim() || null,
+        comune: pComune.trim() || null,
+        provincia: pProvincia.trim() ? pProvincia.trim().toUpperCase() : null,
+        foglio: (pCatastali[0]?.foglio || '').trim() || null,
+        particella: (pCatastali[0]?.particella || '').trim() || null,
+        sub: (pCatastali[0]?.sub || '').trim() || null,
+        catastali: (() => {
+          const rows = pCatastali
+            .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
+            .filter((r) => r.foglio || r.particella || r.sub);
+          return rows.length ? rows : null;
+        })(),
         tipoIntervento: pTipo.trim() || null,
         division: pDivision,
         updatedAt: Date.now()
@@ -1969,7 +2135,15 @@ export default function App() {
     if (!rec) return;
     setPClient(rec.name || '');
     setPCommittente((prev) => prev || rec.name || '');
-    if (rec.accountUid) setPClientUid(rec.accountUid);
+    // Collegamento automatico al portale: account esplicito in rubrica, oppure match per email
+    if (rec.accountUid) {
+      setPClientUid(rec.accountUid);
+    } else if (rec.email) {
+      const match = Object.values(users).find(
+        (u: any) => u.role === 'cliente' && (u.email || '').toLowerCase() === rec.email!.toLowerCase()
+      );
+      if (match) setPClientUid(match.uid);
+    }
   };
   const handleSaveInlineClient = () => {
     const d = ncDraft;
@@ -3737,15 +3911,9 @@ export default function App() {
               <input value={pName} onChange={(e) => setPName(e.target.value)} className="input mt-1" placeholder="Es. Villa Saracena - Carovigno" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-semibold">Codice Pratica</label>
-                <input value={pCode} onChange={(e) => setPCode(e.target.value)} className="input mt-1 font-mono" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-semibold">Città / Località</label>
-                <input value={pLocation} onChange={(e) => setPLocation(e.target.value)} className="input mt-1" />
-              </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] font-semibold">Codice Pratica</label>
+              <input value={pCode} onChange={(e) => setPCode(e.target.value)} className="input mt-1 font-mono" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -3788,14 +3956,18 @@ export default function App() {
               </select>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Divisione di Afferenza</label>
-              <select value={pDivision} onChange={(e) => handlePDivisionChange(e.target.value as any)} className="select mt-1 font-bold">
-                <option value="studio">STUDIO</option>
-                <option value="strategico">STRATEGICO</option>
-                <option value="materico">MATERICO</option>
-                <option value="unico">UNICO</option>
-              </select>
+            {/* Indirizzo immobile strutturato (tutte le divisioni) */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[12px] font-semibold">Indirizzo immobile</label>
+              <div className="grid grid-cols-[2fr_1fr] gap-2">
+                <input value={pVia} onChange={(e) => setPVia(e.target.value)} placeholder="Via / Piazza" className="input h-9 text-[13px]" />
+                <input value={pCivico} onChange={(e) => setPCivico(e.target.value)} placeholder="N. civico" className="input h-9 text-[13px]" />
+              </div>
+              <div className="grid grid-cols-[1fr_2fr_1fr] gap-2">
+                <input value={pCap} onChange={(e) => setPCap(e.target.value)} placeholder="CAP" className="input h-9 text-[13px] font-mono" />
+                <input value={pComune} onChange={(e) => setPComune(e.target.value)} placeholder="Comune" className="input h-9 text-[13px]" />
+                <input value={pProvincia} onChange={(e) => setPProvincia(e.target.value)} placeholder="Prov." maxLength={2} className="input h-9 text-[13px] uppercase text-center" />
+              </div>
             </div>
 
             {pDivision === 'studio' && (
@@ -3815,29 +3987,13 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Committente</label>
-                    <input value={pCommittente} onChange={(e) => setPCommittente(e.target.value)} placeholder="Es. Mario Rossi" className="input text-xs bg-white h-9" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Indirizzo Immobile</label>
-                    <input value={pIndirizzo} onChange={(e) => setPIndirizzo(e.target.value)} placeholder="Es. Via Roma 15, Lecce" className="input text-xs bg-white h-9" />
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-gray-600">Committente</label>
+                  <input value={pCommittente} onChange={(e) => setPCommittente(e.target.value)} placeholder="Es. Mario Rossi" className="input text-xs bg-white h-9" />
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Foglio</label>
-                    <input value={pFoglio} onChange={(e) => setPFoglio(e.target.value)} placeholder="12" className="input text-xs bg-white h-9 font-mono" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Particella</label>
-                    <input value={pParticella} onChange={(e) => setPParticella(e.target.value)} placeholder="450" className="input text-xs bg-white h-9 font-mono" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[11px] font-semibold text-gray-600">Sub</label>
-                    <input value={pSub} onChange={(e) => setPSub(e.target.value)} placeholder="3" className="input text-xs bg-white h-9 font-mono" />
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-gray-600">Identificativi catastali</label>
+                  <CatastaliEditor rows={pCatastali} onChange={setPCatastali} />
                 </div>
                 {(() => { const s = studioSummary(pCategorie, pTitolo); return (
                   <div className="flex items-center gap-2 mt-1 text-[11px] font-bold text-[#161616] bg-white border border-[#ececec] rounded-xl px-3 py-2">
@@ -3916,6 +4072,10 @@ export default function App() {
                 <input type="date" value={pDue} onChange={(e) => setPDue(e.target.value)} className="input mt-1" />
               </div>
             </div>
+            <p className="text-[11px] text-[#9a9a9a] -mt-1">
+              Dalla data di inizio i task vengono pianificati in sequenza (durata e ordine delle fasi) e assegnati
+              automaticamente al membro con la mansione richiesta più libero.
+            </p>
 
             <button onClick={handleCreateProject} className="btn bg-[#1b1b1b] hover:bg-black text-white font-bold h-11 justify-center mt-2.5">
               {DIVISION_META[pDivision].cta}
@@ -3932,14 +4092,21 @@ export default function App() {
             <input value={pName} onChange={(e) => setPName(e.target.value)} className="input mt-1" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Codice</label>
-              <input value={pCode} onChange={(e) => setPCode(e.target.value)} className="input mt-1 font-mono" />
+          <div className="flex flex-col gap-1">
+            <label className="text-[12px] font-semibold">Codice</label>
+            <input value={pCode} onChange={(e) => setPCode(e.target.value)} className="input mt-1 font-mono" />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[12px] font-semibold">Indirizzo immobile</label>
+            <div className="grid grid-cols-[2fr_1fr] gap-2">
+              <input value={pVia} onChange={(e) => setPVia(e.target.value)} placeholder="Via / Piazza" className="input h-9 text-[13px]" />
+              <input value={pCivico} onChange={(e) => setPCivico(e.target.value)} placeholder="N. civico" className="input h-9 text-[13px]" />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-semibold">Località</label>
-              <input value={pLocation} onChange={(e) => setPLocation(e.target.value)} className="input mt-1" />
+            <div className="grid grid-cols-[1fr_2fr_1fr] gap-2">
+              <input value={pCap} onChange={(e) => setPCap(e.target.value)} placeholder="CAP" className="input h-9 text-[13px] font-mono" />
+              <input value={pComune} onChange={(e) => setPComune(e.target.value)} placeholder="Comune" className="input h-9 text-[13px]" />
+              <input value={pProvincia} onChange={(e) => setPProvincia(e.target.value)} placeholder="Prov." maxLength={2} className="input h-9 text-[13px] uppercase text-center" />
             </div>
           </div>
 
@@ -3995,11 +4162,7 @@ export default function App() {
 
           <div className="flex flex-col gap-1">
             <div className="text-[12.5px] font-bold text-[#161616] mb-1">Dati catastali</div>
-            <div className="grid grid-cols-3 gap-2">
-              <input value={pFoglio} onChange={(e) => setPFoglio(e.target.value)} placeholder="Foglio" className="input text-center font-bold" />
-              <input value={pParticella} onChange={(e) => setPParticella(e.target.value)} placeholder="Particella" className="input text-center font-bold" />
-              <input value={pSub} onChange={(e) => setPSub(e.target.value)} placeholder="Sub" className="input text-center font-bold" />
-            </div>
+            <CatastaliEditor rows={pCatastali} onChange={setPCatastali} />
           </div>
 
           <div className="flex flex-col gap-1">

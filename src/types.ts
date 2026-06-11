@@ -51,6 +51,7 @@ export interface ProjectTask {
   role?: string | null;
   assignee?: string | null;
   due?: string | null;
+  durationDays?: number | null;  // durata stimata (per la pianificazione da data inizio)
 }
 
 export interface Phase {
@@ -78,10 +79,18 @@ export interface Project {
   clientUid?: string | null;
   clientRecordId?: string | null;   // anagrafica nella Rubrica clienti (nodo `clients`)
   committente?: string | null;
-  indirizzoImmobile?: string | null;
-  foglio?: string | null;
+  indirizzoImmobile?: string | null;   // composto da via/civico/cap/comune/provincia (o testo libero legacy)
+  // Indirizzo immobile strutturato
+  via?: string | null;
+  civico?: string | null;
+  cap?: string | null;
+  comune?: string | null;
+  provincia?: string | null;
+  foglio?: string | null;              // legacy: primo identificativo catastale
   particella?: string | null;
   sub?: string | null;
+  /** Identificativi catastali multipli (il primo popola anche foglio/particella/sub legacy). */
+  catastali?: { foglio: string; particella: string; sub?: string | null }[] | null;
   tipoIntervento?: string | null;
   interventoEdilizio?: string | null;   // id intervento edilizio (configuratore Studio)
   titoloAbilitativo?: string | null;    // id titolo abilitativo: CILA/SCIA/PdC...
@@ -232,7 +241,8 @@ export interface TeamLeave {
 export interface TemplateTask {
   title: string;
   order: number;
-  role?: string | null;
+  role?: string | null;          // mansione di riferimento (auto-assegnazione)
+  durationDays?: number | null;  // durata stimata in giorni (pianificazione sequenziale)
 }
 
 export interface TemplatePhase {
