@@ -110,7 +110,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const tasksOnDate = (iso: string): Task[] => {
-    const std = tasks.filter(t => occursOn(t, iso) && (t.assignee === myUid || t.owner === myUid || (!t.assignee && t.createdBy === myUid)));
+    const std = tasks.filter(t => occursOn(t, iso) && (t.assignee === myUid || (t.assignees || []).includes(myUid) || t.owner === myUid || (!t.assignee && !(t.assignees || []).length && t.createdBy === myUid)));
     const prj = projTasksOn(iso);
     return [...std, ...prj].sort((a, b) => {
       const timeCompare = (a.time || '99:99').localeCompare(b.time || '99:99');

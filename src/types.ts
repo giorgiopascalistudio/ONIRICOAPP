@@ -130,7 +130,8 @@ export interface Task {
   frequency: 'once' | 'daily' | 'weekly' | 'monthly';
   priority: 'urgente' | 'alta' | 'media' | 'bassa';
   tipo?: string | null;          // tipologia attività (rilievo, progetto 3D, computo…)
-  assignee?: string | null;
+  assignee?: string | null;      // primo assegnatario (compat: filtri/regole esistenti)
+  assignees?: string[] | null;   // multi-assegnatario: il task compare nel calendario di tutti
   projectId?: string | null;
   owner?: string | null;
   notes?: string | null;

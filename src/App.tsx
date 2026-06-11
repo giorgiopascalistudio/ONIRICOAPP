@@ -1070,7 +1070,7 @@ export default function App() {
   const [tFreq, setTFreq] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
   const [tPrio, setTPrio] = useState<'urgente' | 'alta' | 'media' | 'bassa'>('media');
   const [tTipo, setTTipo] = useState('');
-  const [tAssignee, setTAssignee] = useState('');
+  const [tAssignees, setTAssignees] = useState<string[]>([]);   // multi-assegnatario
   const [tProjectId, setTProjectId] = useState('');
   const [tNotes, setTNotes] = useState('');
 
@@ -1231,7 +1231,7 @@ export default function App() {
     setTFreq(t.frequency);
     setTPrio(t.priority);
     setTTipo(t.tipo || '');
-    setTAssignee(t.assignee || '');
+    setTAssignees(t.assignees && t.assignees.length ? t.assignees : t.assignee ? [t.assignee] : []);
     setTProjectId(t.projectId || '');
     setTNotes(t.notes || '');
     setTaskEditorOpen(true);
@@ -1243,16 +1243,19 @@ export default function App() {
       return;
     }
 
-    // notifica al collaboratore se l'assegnatario è nuovo o cambiato (riassegnazione)
-    const prevAssignee = editTaskId ? tasks[editTaskId]?.assignee || '' : '';
-    if (tAssignee && tAssignee !== prevAssignee && tAssignee !== currentUser?.uid) {
-      pushNotification(tAssignee, {
-        type: 'task',
-        title: `Attività assegnata: ${tTitle.trim()}`,
-        body: `${currentUser?.name || 'Lo studio'} ti ha assegnato un'attività${tDateInput ? ` per il ${tDateInput}` : ''}.`,
-        link: '#calendario'
-      });
-    }
+    // notifica ai collaboratori aggiunti (nuova assegnazione o riassegnazione)
+    const prevTask = editTaskId ? tasks[editTaskId] : undefined;
+    const prevAssignees = prevTask ? (prevTask.assignees && prevTask.assignees.length ? prevTask.assignees : prevTask.assignee ? [prevTask.assignee] : []) : [];
+    tAssignees
+      .filter((uid) => uid && !prevAssignees.includes(uid) && uid !== currentUser?.uid)
+      .forEach((uid) =>
+        pushNotification(uid, {
+          type: 'task',
+          title: `Attività assegnata: ${tTitle.trim()}`,
+          body: `${currentUser?.name || 'Lo studio'} ti ha assegnato un'attività${tDateInput ? ` per il ${tDateInput}` : ''}.`,
+          link: '#calendario'
+        })
+      );
 
     setTasks(prev => {
       const nextTasks = { ...prev };
@@ -1267,7 +1270,8 @@ export default function App() {
           frequency: tFreq,
           priority: tPrio,
           tipo: tTipo.trim() || null,
-          assignee: tAssignee || null,
+          assignee: tAssignees[0] || null,
+          assignees: tAssignees.length ? tAssignees : null,
           projectId: tProjectId || null,
           notes: tNotes.trim() || null,
           updatedAt: Date.now()
@@ -1283,7 +1287,8 @@ export default function App() {
           frequency: tFreq,
           priority: tPrio,
           tipo: tTipo.trim() || null,
-          assignee: tAssignee || null,
+          assignee: tAssignees[0] || null,
+          assignees: tAssignees.length ? tAssignees : null,
           projectId: tProjectId || null,
           notes: tNotes.trim() || null,
           done: false,
@@ -2543,7 +2548,7 @@ export default function App() {
               setTFreq('once');
               setTPrio('media');
               setTTipo('');
-              setTAssignee('');
+              setTAssignees([]);
               setTProjectId('');
               setTNotes('');
               setTaskEditorOpen(true);
@@ -2555,7 +2560,7 @@ export default function App() {
         return (
           <CalendarView
             tasks={Object.values(tasks).filter((t) =>
-              t.assignee === currentUser.uid || t.createdBy === currentUser.uid || t.owner === currentUser.uid
+              t.assignee === currentUser.uid || (t.assignees || []).includes(currentUser.uid) || t.createdBy === currentUser.uid || t.owner === currentUser.uid
             )}
             projects={Object.values(projects)}
             appointments={Object.values(appointments).filter((a) =>
@@ -2579,7 +2584,7 @@ export default function App() {
               setTFreq('once');
               setTPrio('media');
               setTTipo('');
-              setTAssignee('');
+              setTAssignees([]);
               setTProjectId('');
               setTNotes('');
               setTaskEditorOpen(true);
@@ -2599,6 +2604,9 @@ export default function App() {
             projects={Object.values(projects)}
             users={users}
             templates={templates}
+            agendaTasks={Object.values(tasks)}
+            onToggleAgendaTask={handleToggleTask}
+            onEditAgendaTask={handleEditTask}
             route={route}
             param={routeParam}
             divisionFilter={activeDivision}
@@ -3467,131 +3475,155 @@ export default function App() {
 
       {/* 2. Agenda Task Editor Modal */}
       <Modal
-        title={editTaskId ? 'Modifica task' : 'Nuovo task agenda'}
+        title={editTaskId ? 'Modifica impegno' : 'Nuovo impegno'}
         isOpen={taskEditorOpen}
         onClose={() => setTaskEditorOpen(false)}
       >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1 text-left">
-            <label className="text-[12px] font-bold text-[#333]">Titolo attività</label>
+        <div className="flex flex-col gap-3 text-left">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Titolo *</span>
             <input
               value={tTitle}
               onChange={(e) => setTTitle(e.target.value)}
-              className="input mt-1"
+              className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]"
               placeholder="Es. Sopralluogo via Roma"
             />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Data *</span>
+              <input type="date" value={tDateInput} onChange={(e) => setTDateInput(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ora</span>
+              <input type="time" value={tTimeInput} onChange={(e) => setTTimeInput(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Priorità</span>
+            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-xl gap-[2px]">
+              {([['urgente', 'Urgente'], ['alta', 'Alta'], ['media', 'Media'], ['bassa', 'Bassa']] as const).map(([k, lbl]) => (
+                <button
+                  key={k}
+                  onClick={() => setTPrio(k)}
+                  className={`flex-1 text-[12px] font-bold px-2 py-1.5 rounded-lg cursor-pointer border-none transition-all ${
+                    tPrio === k
+                      ? k === 'urgente' ? 'bg-rose-600 text-white' : k === 'alta' ? 'bg-orange-500 text-white' : k === 'media' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
+                      : 'bg-transparent text-[#8a8a8a] hover:text-[#161616]'
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 text-left">
-              <label className="text-[12px] font-bold text-[#333]">Data</label>
-              <input
-                type="date"
-                value={tDateInput}
-                onChange={(e) => setTDateInput(e.target.value)}
-                className="input mt-1"
-              />
-            </div>
-            <div className="flex flex-col gap-1 text-left">
-              <label className="text-[12px] font-bold text-[#333]">Ora (opzionale)</label>
-              <input
-                type="time"
-                value={tTimeInput}
-                onChange={(e) => setTTimeInput(e.target.value)}
-                className="input mt-1"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1 text-left">
-              <label className="text-[12px] font-bold text-[#333]">Priorità</label>
-              <select
-                value={tPrio}
-                onChange={(e: any) => setTPrio(e.target.value)}
-                className="select mt-1"
-              >
-                <option value="urgente">Urgente</option>
-                <option value="alta">Alta</option>
-                <option value="media">Media</option>
-                <option value="bassa">Bassa</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1 text-left">
-              <label className="text-[12px] font-bold text-[#333]">Ricorrenza</label>
-              <select
-                value={tFreq}
-                onChange={(e: any) => setTFreq(e.target.value)}
-                className="select mt-1"
-              >
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ricorrenza</span>
+              <select value={tFreq} onChange={(e: any) => setTFreq(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]">
                 <option value="once">Una volta</option>
                 <option value="daily">Giornaliero</option>
                 <option value="weekly">Settimanale</option>
                 <option value="monthly">Mensile</option>
               </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Tipologia</span>
+              <input
+                value={tTipo}
+                onChange={(e) => setTTipo(e.target.value)}
+                list="task-tipi"
+                placeholder="Rilievo, Computo…"
+                className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]"
+              />
+              <datalist id="task-tipi">
+                {['Rilievo', 'Progetto 3D', 'Computo', 'Pratica edilizia', 'Sopralluogo', 'Render', 'Consegna', 'Riunione'].map((t) => <option key={t} value={t} />)}
+              </datalist>
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Assegna a (anche più persone)</span>
+            {tAssignees.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {tAssignees.map((uid) => (
+                  <button
+                    key={uid}
+                    onClick={() => setTAssignees((prev) => prev.filter((u) => u !== uid))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#161616] text-white text-[11.5px] font-bold cursor-pointer border-none"
+                    title="Rimuovi"
+                  >
+                    {uid === currentUser.uid ? 'Io' : users[uid]?.name || 'Utente'}
+                    <X className="w-3 h-3 opacity-70" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="max-h-36 overflow-y-auto border border-[#e2e2e2] rounded-xl divide-y divide-[#f3f3f3] bg-white">
+              {Object.values(users)
+                .filter((u: any) => u.role && u.role !== 'cliente' && u.role !== 'partner' && u.status === 'approved')
+                .sort((a: any, b: any) => (a.uid === currentUser.uid ? -1 : b.uid === currentUser.uid ? 1 : (a.name || '').localeCompare(b.name || '')))
+                .map((u: any) => {
+                  const sel = tAssignees.includes(u.uid);
+                  return (
+                    <button
+                      key={u.uid}
+                      onClick={() => setTAssignees((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                      className={`w-full flex items-center gap-2 px-3 py-2 cursor-pointer border-none text-left transition-colors ${sel ? 'bg-[#f5f5f3]' : 'bg-white hover:bg-[#fafafa]'}`}
+                    >
+                      <span className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-[#161616] border-[#161616] text-white' : 'border-[#d4d4d4] bg-white'}`}>
+                        {sel && <Check className="w-3 h-3" />}
+                      </span>
+                      <span className="text-[13px] font-semibold text-[#161616] truncate">{u.uid === currentUser.uid ? `Io (${currentUser.name})` : u.name}</span>
+                    </button>
+                  );
+                })}
             </div>
+            <span className="text-[11px] text-[#9a9a9a]">Senza selezione il task resta personale. Il task compare nel calendario di tutti gli assegnatari.</span>
           </div>
 
-          <div className="flex flex-col gap-1 text-left">
-            <label className="text-[12px] font-bold text-[#333]">Tipologia attività <span className="text-gray-400 font-normal">(facoltativa)</span></label>
-            <input
-              value={tTipo}
-              onChange={(e) => setTTipo(e.target.value)}
-              list="task-tipi"
-              placeholder="Es. Rilievo, Progetto 3D, Computo…"
-              className="input mt-1"
-            />
-            <datalist id="task-tipi">
-              {['Rilievo', 'Progetto 3D', 'Computo', 'Pratica edilizia', 'Sopralluogo', 'Render', 'Consegna', 'Riunione'].map((t) => <option key={t} value={t} />)}
-            </datalist>
-          </div>
-
-          <div className="flex flex-col gap-1 text-left">
-            <label className="text-[12px] font-bold text-[#333]">Assegna ad operatore</label>
-            <select
-              value={tAssignee}
-              onChange={(e) => setTAssignee(e.target.value)}
-              className="select mt-1"
-            >
-              <option value="">— Nessuno (personale) —</option>
-              {Object.values(users).filter((u: any) => u.role !== 'cliente').map((u: any) => (
-                <option key={u.uid} value={u.uid}>{u.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1 text-left">
-            <label className="text-[12px] font-bold text-[#333]">Collega a pratica</label>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Collega a pratica</span>
+            {!tProjectId && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+                <HelpCircle className="w-4 h-4 shrink-0" />
+                <span><b>Vuoi collegare una pratica?</b> Il task comparirà anche nel fascicolo del progetto.</span>
+              </div>
+            )}
             <select
               value={tProjectId}
               onChange={(e) => setTProjectId(e.target.value)}
-              className="select mt-1"
+              className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]"
             >
               <option value="">— Pratica libera —</option>
-              {Object.values(projects).map((p: any) => (
+              {Object.values(projects).filter((p: any) => !p.archived).map((p: any) => (
                 <option key={p.id} value={p.id}>{p.name} ({p.code || 'ARC'})</option>
               ))}
             </select>
           </div>
 
-          <div className="flex flex-col gap-1 text-left">
-            <label className="text-[12px] font-bold text-[#333]">Note o appunti</label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Note o appunti</span>
             <textarea
               value={tNotes}
               onChange={(e) => setTNotes(e.target.value)}
-              className="textarea mt-1 min-h-[70px]"
-              placeholder="Fornisci dettagli sul sopralluogo..."
+              rows={2}
+              className="input border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none"
+              placeholder="Dettagli sull'attività…"
             />
-          </div>
+          </label>
 
-          <div className="flex justify-between mt-4">
+          <div className="flex justify-between gap-2 mt-1">
             {editTaskId && (
-              <button onClick={handleDeleteTask} className="btn bg-red-100 hover:bg-red-200 border-none text-red-800 font-bold cursor-pointer">
+              <button onClick={handleDeleteTask} className="py-2.5 px-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-800 font-bold text-[13px] cursor-pointer">
                 Rimuovi
               </button>
             )}
-            <button onClick={handleSaveTask} className="btn bg-[#1b1b1b] text-white hover:bg-black font-semibold ml-auto cursor-pointer">
-              Salva task
+            <button onClick={handleSaveTask} className="flex-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">
+              {editTaskId ? 'Salva modifiche' : 'Crea impegno'}
             </button>
           </div>
         </div>

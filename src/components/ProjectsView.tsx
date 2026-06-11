@@ -40,7 +40,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -103,6 +103,10 @@ interface ProjectsViewProps {
   onEmitMilestone?: (quoteId: string, milestoneId: string) => void;
   // Archiviazione progetti
   onToggleArchiveProject?: (pid: string) => void;
+  // Task agenda collegati alle pratiche (compaiono nel fascicolo tecnico)
+  agendaTasks?: Task[];
+  onToggleAgendaTask?: (taskId: string, date: string) => void;
+  onEditAgendaTask?: (taskId: string) => void;
   // Doppia conferma + Cestino (modale/nodo condivisi in App; usati dalle sotto-viste)
   askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
   onTrashItem?: (section: string, label: string, payload: any, meta?: Record<string, string>, detail?: string) => void;
@@ -193,6 +197,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onSetQuoteStatus,
   onEmitMilestone,
   onToggleArchiveProject,
+  agendaTasks = [],
+  onToggleAgendaTask,
+  onEditAgendaTask,
   askDelete,
   onTrashItem,
   estimates = [],
@@ -1493,6 +1500,75 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   );
                 })}
               </div>
+
+              {/* Task agenda collegati a questa pratica */}
+              {(() => {
+                const linked = agendaTasks.filter((t) => t.projectId === p.id);
+                if (linked.length === 0) return null;
+                return (
+                  <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-left">
+                        <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">Impegni agenda collegati</h3>
+                        <p className="text-[10.5px] text-[#8a8a8a] mt-0.5 font-medium">Task dell'agenda personale/di studio collegati a questa pratica</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#8a8a8a]">{linked.length}</span>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {linked
+                        .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+                        .map((t) => {
+                          const names = (t.assignees && t.assignees.length ? t.assignees : t.assignee ? [t.assignee] : [])
+                            .map((uid) => users[uid]?.name)
+                            .filter(Boolean);
+                          return (
+                            <div key={t.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border border-[#e5e5e5] bg-white transition-all hover:border-[#161616] ${t.done ? 'opacity-60' : ''}`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <button
+                                  onClick={() => onToggleAgendaTask?.(t.id, t.date || todayISO())}
+                                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer flex-shrink-0 ${
+                                    t.done ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300 bg-white hover:border-black'
+                                  }`}
+                                >
+                                  {t.done && (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className="w-2.5 h-2.5 text-white">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="min-w-0 text-left">
+                                  <b className={`block text-[13px] font-bold text-[#161616] ${t.done ? 'line-through text-gray-400 font-medium' : ''}`}>{t.title}</b>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap text-gray-400 text-[10.5px] font-bold font-mono">
+                                    {t.date && (
+                                      <span className={`px-1.5 py-0.5 rounded text-[9.5px] ${t.date < todayISO() && !t.done ? 'bg-red-50 text-red-700 font-bold' : 'bg-gray-50 text-gray-500'}`}>
+                                        📅 {fmtDay(t.date)}{t.time ? ` · ${t.time}` : ''}
+                                      </span>
+                                    )}
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-extrabold tracking-wider ${
+                                      t.priority === 'urgente' ? 'bg-rose-50 text-rose-700' : t.priority === 'alta' ? 'bg-orange-50 text-orange-700' : t.priority === 'media' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                                    }`}>{t.priority}</span>
+                                    {names.length > 0 && (
+                                      <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-[9.5px]">👤 {names.join(', ')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {isInternalBoss && onEditAgendaTask && (
+                                <button
+                                  onClick={() => onEditAgendaTask(t.id)}
+                                  className="w-[28px] h-[28px] rounded-full bg-gray-50 hover:bg-[#ececec] text-[#a8a8a8] hover:text-[#161616] flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-[#e2e2e2] shrink-0"
+                                  title="Modifica"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Right column: Document storage */}
