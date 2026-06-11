@@ -1017,7 +1017,7 @@ const ProductivityDashboard: React.FC<{ members: any[]; tasks: Task[] }> = ({ me
   const startMs = start.getTime();
 
   const statsFor = (uid: string) => {
-    const mine = tasks.filter((t) => t.assignee === uid);
+    const mine = tasks.filter((t) => t.assignee === uid || (t.assignees || []).includes(uid));
     const open = mine.filter((t) => !t.done);
     const overdue = open.filter((t) => t.date && t.date < todayIso);
     const completed = mine.filter((t) => t.done && (t.updatedAt || 0) >= startMs);

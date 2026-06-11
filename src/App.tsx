@@ -164,6 +164,20 @@ const DIVISION_META: Record<'studio' | 'strategico' | 'materico' | 'unico', { la
   unico: { label: 'Unico', color: '#4338ca', desc: 'Atelier di lusso su misura', cta: 'Crea progetto Unico' }
 };
 
+// Compone l'indirizzo immobile leggibile dai campi strutturati (via, civico, CAP, comune, provincia).
+const composeAddress = (via: string, civico: string, cap: string, comune: string, provincia: string): string =>
+  [
+    via.trim() && `${via.trim()}${civico.trim() ? ' ' + civico.trim() : ''}`,
+    [cap.trim(), comune.trim()].filter(Boolean).join(' '),
+    provincia.trim() && `(${provincia.trim().toUpperCase()})`
+  ].filter(Boolean).join(', ');
+
+// Normalizza le righe catastali del form: trim + scarta le righe vuote.
+const normalizeCatastali = (rows: { foglio: string; particella: string; sub: string }[]) =>
+  rows
+    .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
+    .filter((r) => r.foglio || r.particella || r.sub);
+
 // Editor identificativi catastali multipli (Foglio/Particella/Sub ripetibili, layout allineato).
 // La nuova riga eredita il foglio dalla precedente per non ripetere dati inutilmente.
 const CatastaliEditor: React.FC<{
@@ -588,7 +602,12 @@ export default function App() {
       // Conferma del singolo partecipante: l'appuntamento diventa 'confermato' solo quando tutti hanno confermato.
       const participants = { ...a.participants, [me]: 'confermato' as const };
       const allConfirmed = Object.values(participants).every((s) => s === 'confermato');
-      handleSaveAppointment({ ...a, participants, status: allConfirmed ? 'confermato' : 'pending' });
+      const next: Appointment = { ...a, participants, status: allConfirmed ? 'confermato' : 'pending' };
+      setAppointments((prev) => ({ ...prev, [a.id]: next }));
+      // scrittura granulare del proprio stato (consentita dalle regole anche ai partecipanti non-attivi),
+      // poi aggiornamento dello stato complessivo (riesce per i membri studio; per i portali resta al DL)
+      writeNode(`appointments/${a.id}/participants/${me}`, 'confermato').catch(() => showToast('Errore salvataggio conferma.', 'err'));
+      updateNode(`appointments/${a.id}`, { status: next.status }).catch(() => {});
       if (allConfirmed) {
         Object.keys(participants).filter((u) => u !== me).forEach((uid) =>
           pushNotification(uid, { type: 'appuntamento', title: 'Appuntamento confermato', body: `"${a.title}" del ${a.date} è stato confermato da tutti i partecipanti.`, link: '#calendario' })
@@ -612,7 +631,9 @@ export default function App() {
     const me = currentUser!.uid;
     if (a.participants && a.participants[me]) {
       const participants = { ...a.participants, [me]: 'rifiutato' as const };
-      handleSaveAppointment({ ...a, participants, status: 'pending' });
+      setAppointments((prev) => ({ ...prev, [a.id]: { ...a, participants, status: 'pending' } }));
+      writeNode(`appointments/${a.id}/participants/${me}`, 'rifiutato').catch(() => showToast('Errore salvataggio rifiuto.', 'err'));
+      updateNode(`appointments/${a.id}`, { status: 'pending' }).catch(() => {});
       if (a.createdBy && a.createdBy !== me) {
         pushNotification(a.createdBy, { type: 'appuntamento', title: 'Partecipazione rifiutata', body: `${currentUser!.name} ha rifiutato "${a.title}" del ${a.date}.`, link: '#calendario' });
       }
@@ -1467,36 +1488,6 @@ export default function App() {
     setPCategorie(prev => (prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]));
   };
 
-  const handlePDivisionChange = (newDiv: 'studio' | 'strategico' | 'materico' | 'unico') => {
-    setPDivision(newDiv);
-    const yr = new Date().getFullYear();
-    const count = Object.values(projects).length + 1;
-    let prefix = 'ARC';
-    let defaultTemplate = 'arch-completo';
-    if (newDiv === 'strategico') {
-      prefix = 'STR';
-      defaultTemplate = 'marketing-strategico';
-    } else if (newDiv === 'materico') {
-      prefix = 'MAT';
-      defaultTemplate = 'fornitura-materico';
-    } else if (newDiv === 'unico') {
-      prefix = 'UNI';
-      defaultTemplate = 'concept-unico';
-    }
-    setPTmplPicked(defaultTemplate);
-    setPCode(`${prefix}-${yr}-${String(count).padStart(3, '0')}`);
-
-    // Configuratore Studio: reimposta intervento/titolo/categorie alla scelta della divisione.
-    if (newDiv === 'studio') {
-      const it = interventoById(pIntervento) || interventoById(DEFAULT_INTERVENTO) || INTERVENTI_EDILIZI[0];
-      setPIntervento(it.id);
-      setPTitolo(it.titolo);
-      setPCategorie(it.categorie);
-    } else {
-      setPCategorie([]);
-    }
-  };
-
   const handleCreateProject = () => {
     if (!pName.trim()) {
       showToast('Inserisci il nome del progetto!', 'err');
@@ -1533,15 +1524,9 @@ export default function App() {
     }
 
     // Indirizzo immobile composto dai campi strutturati (via, civico, CAP, comune, provincia)
-    const composedAddr = [
-      pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
-      [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
-      pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
-    ].filter(Boolean).join(', ');
+    const composedAddr = composeAddress(pVia, pCivico, pCap, pComune, pProvincia);
     // Identificativi catastali multipli: il primo popola anche i campi legacy
-    const catRows = pCatastali
-      .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
-      .filter((r) => r.foglio || r.particella || r.sub);
+    const catRows = normalizeCatastali(pCatastali);
 
     // Pianificazione dalla data di inizio: scadenze in sequenza (durata per task) +
     // auto-assegnazione per mansione al membro più libero (meno task aperti)
@@ -1736,27 +1721,20 @@ export default function App() {
         startDate: pStart || null,
         dueDate: pDue || null,
         committente: pCommittente.trim() || null,
-        indirizzoImmobile: (() => {
-          const composed = [
-            pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
-            [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
-            pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
-          ].filter(Boolean).join(', ');
-          return composed || pIndirizzo.trim() || null;
-        })(),
+        indirizzoImmobile: composeAddress(pVia, pCivico, pCap, pComune, pProvincia) || pIndirizzo.trim() || null,
         via: pVia.trim() || null,
         civico: pCivico.trim() || null,
         cap: pCap.trim() || null,
         comune: pComune.trim() || null,
         provincia: pProvincia.trim() ? pProvincia.trim().toUpperCase() : null,
-        foglio: (pCatastali[0]?.foglio || '').trim() || null,
-        particella: (pCatastali[0]?.particella || '').trim() || null,
-        sub: (pCatastali[0]?.sub || '').trim() || null,
-        catastali: (() => {
-          const rows = pCatastali
-            .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
-            .filter((r) => r.foglio || r.particella || r.sub);
-          return rows.length ? rows : null;
+        ...(() => {
+          const rows = normalizeCatastali(pCatastali);
+          return {
+            foglio: rows[0]?.foglio || null,
+            particella: rows[0]?.particella || null,
+            sub: rows[0]?.sub || null,
+            catastali: rows.length ? rows : null
+          };
         })(),
         tipoIntervento: pTipo.trim() || null,
         division: pDivision,
@@ -4568,14 +4546,8 @@ export default function App() {
               setProjects(prev => {
                 const next = { ...prev };
                 const div = next[anagProjId]?.division || 'studio';
-                const composed = [
-                  pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
-                  [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
-                  pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
-                ].filter(Boolean).join(', ');
-                const catRows = pCatastali
-                  .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
-                  .filter((r) => r.foglio || r.particella || r.sub);
+                const composed = composeAddress(pVia, pCivico, pCap, pComune, pProvincia);
+                const catRows = normalizeCatastali(pCatastali);
                 next[anagProjId] = {
                   ...next[anagProjId],
                   committente: div === 'studio' ? (pCommittente.trim() || null) : next[anagProjId].committente,
