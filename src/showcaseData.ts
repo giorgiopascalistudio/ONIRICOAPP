@@ -93,8 +93,16 @@ export const SHOWCASE_SERVICES: ServiceShowcase[] = [
 // Config della pagina pubblica di accesso (AuthFlow → CinematicShowcase).
 // ⚠️ Sostituire `videoUrl` con l'URL del proprio video su Firebase Storage
 // (vedi CLAUDE.md §13): video mp4 CONTINUO, le scene sono mappate sui secondi.
+// Video della landing servito DAL SITO (public/vetrina/landing.mp4): deployato
+// col push, già 720p mobile-safe (H.264 High L4.0 yuv420p faststart, ~7MB).
+// Risolto in URL assoluto same-origin così supera safeUrl (whitelist http/https).
+const landingVideo = (() => {
+  const rel = (import.meta.env.BASE_URL || '/') + 'vetrina/landing.mp4';
+  try { return new URL(rel, window.location.href).href; } catch { return rel; }
+})();
+
 export const LANDING_SHOWCASE: { videoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
-  videoUrl: 'https://github.com/giorgiopascalistudio/ONIRICOAPP/releases/download/VIDEO_ONIRICO-APP/Clip.1.mp4',
+  videoUrl: landingVideo,
   // Niente immagine in caricamento: si resta su NERO con il titolo che lampeggia
   // (CinematicShowcase) finché il video non è pronto.
   poster: '',

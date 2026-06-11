@@ -62,50 +62,99 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   const posterSrc = safeUrl(poster || '');
   const hasVideo = !!src && !videoFailed;
 
-  // Avvio robusto: forza muted (React a volte non setta la property → autoplay
-  // bloccato), poi prova a far partire. Il video gira SEMPRE in loop: tenerlo in
-  // riproduzione è l'unico modo affidabile per renderizzare i frame su iOS
-  // (un video in pausa, lì, resta nero). Lo scroll fa solo un seek istantaneo.
-  const kickPlay = () => {
+  const rafRef = useRef<number | null>(null);
+  const primedRef = useRef(false); // il video ha già riprodotto (decoder attivo)
+  const cancelRaf = () => { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } };
+
+  // Forza muted via JS (React non setta sempre la property → autoplay bloccato).
+  const forceMuted = () => {
     const v = videoRef.current;
-    if (!v) return;
-    v.muted = true;
-    v.defaultMuted = true;
-    const p = v.play();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
+    if (v) { v.muted = true; v.defaultMuted = true; }
   };
 
-  // Cambio scena: aggiorna il testo + salta al secondo della scena restando in
-  // play (un solo seek, niente scrubbing per-frame → fluido anche su mobile).
+  // Porta il video al secondo `target`. In AVANTI riproduce a velocità maggiorata
+  // (decode lineare = fluido su PC e mobile, niente seek per-frame); all'INDIETRO
+  // un solo seek. Alla fine PAUSA: il frame resta (il decoder ha già riprodotto,
+  // quindi anche su iOS il fotogramma è renderizzato, non nero). Niente loop.
+  const TRANSITION_RATE = 2.6;
+  const applyTarget = (target: number, instant = false) => {
+    const v = videoRef.current;
+    if (!v || !v.duration || isNaN(v.duration)) return;
+    cancelRaf();
+    const tgt = Math.max(0, Math.min(target, v.duration - 0.05));
+    if (instant || tgt <= v.currentTime + 0.05) {
+      forceMuted();
+      try { v.currentTime = tgt; } catch { /* seek non pronto */ }
+      v.pause();
+      return;
+    }
+    forceMuted();
+    v.playbackRate = TRANSITION_RATE;
+    const p = v.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+    const tick = () => {
+      const vv = videoRef.current;
+      if (!vv) { rafRef.current = null; return; }
+      if (vv.currentTime >= tgt - 0.04 || vv.ended) {
+        try { vv.currentTime = tgt; } catch { /* noop */ }
+        vv.pause();
+        vv.playbackRate = 1;
+        rafRef.current = null;
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  };
+
+  // Cambio scena: aggiorna il testo + muovi il video alla scena.
   const changeScene = (nextIdx: number) => {
     const clamped = Math.max(0, Math.min(nextIdx, SCENES.length - 1));
     setCurrentSceneIdx(clamped);
     idxRef.current = clamped;
     lastScrollTime.current = Date.now();
-    const v = videoRef.current;
-    if (v && v.duration && !isNaN(v.duration)) {
-      try { v.currentTime = Math.min(SCENES[clamped].time, v.duration - 0.1); } catch { /* seek non pronto */ }
-    }
-    kickPlay();
+    applyTarget(SCENES[clamped].time);
   };
 
-  // Setta muted + tenta il play appena il src è disponibile (e a ogni cambio).
+  // L'autoplay muto serve SOLO a "primare" il decoder (su iOS un video mai
+  // riprodotto resta nero). Appena parte, prendiamo il controllo: posizioniamo
+  // sulla scena corrente e mettiamo in pausa → da lì comanda lo scroll.
+  const handlePlaying = () => {
+    setReady(true);
+    if (primedRef.current) return;
+    primedRef.current = true;
+    applyTarget(SCENES[idxRef.current].time, true);
+  };
+
+  // Tenta il play appena il src è pronto (desktop parte qui; mobile via autoplay).
   useEffect(() => {
-    if (hasVideo) kickPlay();
+    if (!hasVideo) return;
+    forceMuted();
+    const v = videoRef.current;
+    const p = v && v.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, hasVideo]);
 
-  // Sblocca l'autoplay al primo gesto utente (browser che lo bloccano a freddo).
+  // Rete di sicurezza: se l'autoplay è bloccato a freddo, il primo gesto utente
+  // (tap/click ovunque) avvia la riproduzione e quindi prima il decoder.
   useEffect(() => {
     if (!hasVideo) return;
-    const kick = () => kickPlay();
+    const kick = () => {
+      forceMuted();
+      const v = videoRef.current;
+      const p = v && v.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    };
     document.addEventListener('touchstart', kick, { passive: true });
-    document.addEventListener('click', kick);
+    document.addEventListener('pointerdown', kick);
     return () => {
       document.removeEventListener('touchstart', kick);
-      document.removeEventListener('click', kick);
+      document.removeEventListener('pointerdown', kick);
     };
   }, [hasVideo]);
+
+  useEffect(() => () => cancelRaf(), []);
 
   // Listener nativi (non-passivi) per rotella + swipe: così possiamo bloccare
   // lo scroll della pagina (pull-to-refresh incluso) → sensazione "app".
@@ -165,14 +214,11 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             src={src}
             className="w-full h-full object-cover select-none"
             muted
-            loop
             autoPlay
             playsInline
             preload="auto"
             disablePictureInPicture
-            onLoadedData={kickPlay}
-            onCanPlay={kickPlay}
-            onPlaying={() => setReady(true)}
+            onPlaying={handlePlaying}
             onError={() => setVideoFailed(true)}
           />
         ) : posterSrc ? (
