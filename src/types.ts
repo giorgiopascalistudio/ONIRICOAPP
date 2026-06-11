@@ -397,7 +397,8 @@ export interface Cantiere {
   name: string;
   status: CantiereStatus;
   division: 'studio' | 'materico' | 'unico';
-  partnerUids?: Record<string, boolean>;       // imprese partner assegnate
+  partnerUids?: Record<string, boolean>;       // imprese partner assegnate (con account portale)
+  partnerRecordIds?: Record<string, boolean>;  // imprese dalla rubrica (anche senza portale)
   taskRefs?: Record<string, boolean>;          // '<phId>::<tId>' → riferimenti SOLO lettura ai task del fascicolo
   progressPct?: number | null;                 // avanzamento 0-100 (gestito dallo studio)
   startDate?: string | null;

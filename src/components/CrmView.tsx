@@ -568,18 +568,18 @@ export const CrmView: React.FC<CrmViewProps> = ({
             {clDraft.type === 'azienda' ? (
               <Field label="Ragione sociale *"><input value={clDraft.companyName || ''} onChange={(e) => setClDraft((d) => ({ ...d, companyName: e.target.value }))} className="crm-input" /></Field>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Nome"><input value={clDraft.firstName || ''} onChange={(e) => setClDraft((d) => ({ ...d, firstName: e.target.value }))} className="crm-input" /></Field>
                 <Field label="Cognome"><input value={clDraft.lastName || ''} onChange={(e) => setClDraft((d) => ({ ...d, lastName: e.target.value }))} className="crm-input" /></Field>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email"><input value={clDraft.email || ''} onChange={(e) => setClDraft((d) => ({ ...d, email: e.target.value }))} className="crm-input" /></Field>
               <Field label="Telefono"><input value={clDraft.phone || ''} onChange={(e) => setClDraft((d) => ({ ...d, phone: e.target.value }))} className="crm-input" /></Field>
             </div>
             <Field label={clDraft.type === 'azienda' ? 'Sede legale' : 'Residenza'}><input value={clDraft.address || ''} onChange={(e) => setClDraft((d) => ({ ...d, address: e.target.value }))} className="crm-input" /></Field>
             {clDraft.type === 'azienda' ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="P. IVA"><input value={clDraft.partitaIva || ''} onChange={(e) => setClDraft((d) => ({ ...d, partitaIva: e.target.value }))} className="crm-input" /></Field>
                 <Field label="Codice Fiscale"><input value={clDraft.codiceFiscale || ''} onChange={(e) => setClDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="crm-input" /></Field>
                 <Field label="PEC"><input value={clDraft.pec || ''} onChange={(e) => setClDraft((d) => ({ ...d, pec: e.target.value }))} className="crm-input" /></Field>
@@ -588,7 +588,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
             ) : (
               <Field label="Codice Fiscale"><input value={clDraft.codiceFiscale || ''} onChange={(e) => setClDraft((d) => ({ ...d, codiceFiscale: e.target.value }))} className="crm-input" /></Field>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Fascia cliente">
                 <select value={clDraft.tier || ''} onChange={(e) => setClDraft((d) => ({ ...d, tier: e.target.value ? (Number(e.target.value) as 1 | 2 | 3) : null }))} className="crm-input">
                   <option value="">—</option>
@@ -696,11 +696,11 @@ export const CrmView: React.FC<CrmViewProps> = ({
           <div className="flex flex-col gap-3">
             <Field label="Nome contatto *"><input value={fName} onChange={(e) => setFName(e.target.value)} className="crm-input" /></Field>
             <Field label="Azienda"><input value={fCompany} onChange={(e) => setFCompany(e.target.value)} className="crm-input" /></Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Settore"><SectorSelect value={fSector} onChange={setFSector} /></Field>
               <Field label="Valore stimato (€)"><input value={fValue} onChange={(e) => setFValue(e.target.value)} inputMode="decimal" className="crm-input" /></Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email"><input value={fEmail} onChange={(e) => setFEmail(e.target.value)} className="crm-input" /></Field>
               <Field label="Telefono"><input value={fPhone} onChange={(e) => setFPhone(e.target.value)} className="crm-input" /></Field>
             </div>
@@ -715,11 +715,11 @@ export const CrmView: React.FC<CrmViewProps> = ({
           <FormHeader title="Nuovo fornitore / subappaltatore" onClose={() => setNewSupplierOpen(false)} />
           <div className="flex flex-col gap-3">
             <Field label="Nome / Ragione sociale *"><input value={fName} onChange={(e) => setFName(e.target.value)} className="crm-input" /></Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Categoria"><input value={fCategory} onChange={(e) => setFCategory(e.target.value)} placeholder="es. Impianti, Edile…" className="crm-input" /></Field>
               <Field label="Settore"><SectorSelect value={fSector} onChange={setFSector} /></Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email"><input value={fEmail} onChange={(e) => setFEmail(e.target.value)} className="crm-input" /></Field>
               <Field label="Telefono"><input value={fPhone} onChange={(e) => setFPhone(e.target.value)} className="crm-input" /></Field>
             </div>
@@ -736,7 +736,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
 // --- helpers UI ---
 const Overlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
   <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-[fadeIn_0.18s_ease_both]" onClick={onClose}>
-    <div className="bg-white rounded-[24px] w-full max-w-[480px] max-h-[86vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="bg-white rounded-[24px] w-full max-w-[480px] max-h-[88vh] overflow-y-auto p-5 sm:p-6 shadow-2xl text-left" onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   </div>

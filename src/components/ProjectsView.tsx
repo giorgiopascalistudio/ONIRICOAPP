@@ -136,6 +136,7 @@ interface ProjectsViewProps {
   impresaDocs?: Record<string, Record<string, ImpresaDoc>>;
   impresaRecords?: Record<string, Record<string, ImpresaRecord>>;
   clients?: Record<string, ClientRecord>;
+  onSaveClientRecord?: (rec: ClientRecord) => void;   // rubrica: crea/aggiorna impresa o cliente (usato dal Cantiere)
   partnerAccounts?: UserProfile[];
   onSaveCantiere?: (c: Cantiere) => void;
   onDeleteCantiere?: (cid: string) => void;
@@ -226,6 +227,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   impresaDocs = {},
   impresaRecords = {},
   clients = {},
+  onSaveClientRecord,
   partnerAccounts = [],
   onSaveCantiere,
   onDeleteCantiere,
@@ -1731,6 +1733,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               impresaDocs={impresaDocs}
               impresaRecords={impresaRecords}
               partnerAccounts={partnerAccounts}
+              partnerRecords={Object.values(clients).filter((cr) => cr.category === 'partner')}
+              onCreatePartnerRecord={onSaveClientRecord}
               onSaveCantiere={onSaveCantiere}
               onDeleteCantiere={onDeleteCantiere}
               onAssignPartner={onAssignPartner}

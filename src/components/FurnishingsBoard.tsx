@@ -17,7 +17,8 @@ import {
   LayoutGrid,
   Palette,
   Type as TypeIcon,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from 'lucide-react';
 
 import { Furnishing, Project } from '../types';
@@ -91,6 +92,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
 }) => {
   const [section, setSection] = useState<Section>('fissi');
   const [modalKind, setModalKind] = useState<Furnishing['kind'] | null>(null);
+  const [editItem, setEditItem] = useState<Furnishing | null>(null);   // arredo in modifica (solo non confermati)
   const [mb3dOpen, setMb3dOpen] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -131,32 +133,55 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
 
   const openModal = (kind: Furnishing['kind']) => {
     resetForm();
+    setEditItem(null);
     setModalKind(kind);
+  };
+
+  // Modifica di un arredo esistente (consentita finché non è confermato)
+  const openEdit = (item: Furnishing) => {
+    setFTitle(item.title || '');
+    setFCategory(item.category || '');
+    setFDeadline(item.deadline || '');
+    setFImageUrl(item.imageUrl || '');
+    setFLink(item.link || '');
+    setFColor(item.color || '');
+    setFNote(item.note || '');
+    setFPrice(item.price != null ? String(item.price) : '');
+    setFQuantity(item.quantity != null ? String(item.quantity) : '');
+    setEditItem(item);
+    setModalKind(item.kind);
   };
 
   const saveNew = () => {
     if (!fTitle.trim() || !modalKind) return;
-    const item: Furnishing = {
-      id: `fur-${Date.now()}-${Math.floor(Math.random() * 900)}`,
-      projectId: pid,
+    const fields = {
       kind: modalKind,
       category: fCategory || null,
       title: fTitle.trim(),
-      status: 'da_scegliere',
       deadline: fDeadline || null,
       imageUrl: fImageUrl.trim() || null,
       link: fLink.trim() || null,
       color: fColor.trim() || null,
       note: fNote.trim() || null,
       price: fPrice.trim() ? parseFloat(fPrice.replace(',', '.')) || null : null,
-      quantity: fQuantity.trim() ? parseFloat(fQuantity.replace(',', '.')) || null : null,
-      board: null,
-      createdBy: myUid,
-      createdByName: undefined,
-      createdByRole: myRole,
-      at: Date.now()
+      quantity: fQuantity.trim() ? parseFloat(fQuantity.replace(',', '.')) || null : null
     };
-    onSaveItem(pid, item);
+    if (editItem) {
+      onSaveItem(pid, { ...editItem, ...fields, updatedAt: Date.now() });
+    } else {
+      onSaveItem(pid, {
+        id: `fur-${Date.now()}-${Math.floor(Math.random() * 900)}`,
+        projectId: pid,
+        status: 'da_scegliere',
+        board: null,
+        createdBy: myUid,
+        createdByName: undefined,
+        createdByRole: myRole,
+        at: Date.now(),
+        ...fields
+      });
+    }
+    setEditItem(null);
     setModalKind(null);
   };
 
@@ -224,9 +249,16 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <b className="text-[13.5px] text-[#161616] truncate" title={item.title}>{item.title}</b>
-              <button onClick={() => onDeleteItem(pid, item.id)} className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0" title="Rimuovi">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <span className="flex items-center gap-1.5 flex-shrink-0">
+                {item.status !== 'confermato' && (
+                  <button onClick={() => openEdit(item)} className="text-gray-300 hover:text-[#161616] transition-colors" title="Modifica">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                <button onClick={() => onDeleteItem(pid, item.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Rimuovi">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </span>
             </div>
             {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{item.category}</div>}
             {item.price != null && (
@@ -443,28 +475,40 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
 
       {/* MODALE NUOVO ARREDO */}
       {modalKind && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModalKind(null)}>
-          <div className="bg-white rounded-[24px] w-full max-w-md p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setModalKind(null); setEditItem(null); }}>
+          <div className="bg-white rounded-[24px] w-full max-w-md p-6 shadow-xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-[15px] font-extrabold text-[#161616]">
-                Nuovo arredo {modalKind === 'fisso' ? 'fisso' : 'mobile'}
+                {editItem ? 'Modifica arredo' : 'Nuovo arredo'} {modalKind === 'fisso' ? 'fisso' : 'mobile'}
               </h4>
-              <button onClick={() => setModalKind(null)} className="text-gray-400 hover:text-[#161616]"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setModalKind(null); setEditItem(null); }} className="text-gray-400 hover:text-[#161616]"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex flex-col gap-3">
-              <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Titolo (es. Lavabo sospeso 60cm)" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
-              <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] bg-white">
-                <option value="">Categoria…</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
+                Titolo *
+                <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Es. Lavabo sospeso 60cm" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              </label>
+              <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
+                Categoria
+                <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] bg-white">
+                  <option value="">Categoria…</option>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
               {modalKind === 'fisso' && (
                 <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
                   Scadenza scelta
                   <input type="date" value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
                 </label>
               )}
-              <input value={fImageUrl} onChange={(e) => setFImageUrl(e.target.value)} placeholder="URL immagine di riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
-              <input value={fLink} onChange={(e) => setFLink(e.target.value)} placeholder="Link prodotto/riferimento" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
+                URL immagine di riferimento
+                <input value={fImageUrl} onChange={(e) => setFImageUrl(e.target.value)} placeholder="https://…" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              </label>
+              <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
+                Link prodotto/riferimento
+                <input value={fLink} onChange={(e) => setFLink(e.target.value)} placeholder="https://…" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+              </label>
               <div className="flex gap-2">
                 <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 flex-1">
                   Prezzo unitario (€)
@@ -483,9 +527,9 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               <textarea value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Note" rows={2} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] resize-none" />
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={() => setModalKind(null)} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">Annulla</button>
+              <button onClick={() => { setModalKind(null); setEditItem(null); }} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">Annulla</button>
               <button onClick={saveNew} disabled={!fTitle.trim()} className="flex-1 bg-[#1b1b1b] hover:bg-black disabled:opacity-40 text-white rounded-full py-2.5 text-[12.5px] font-bold inline-flex items-center justify-center gap-1">
-                <Check className="w-4 h-4" /> Salva
+                <Check className="w-4 h-4" /> {editItem ? 'Salva modifiche' : 'Salva'}
               </button>
             </div>
           </div>

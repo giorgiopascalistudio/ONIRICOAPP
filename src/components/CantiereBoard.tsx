@@ -21,7 +21,7 @@ import {
 import {
   Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale,
   ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, UserProfile,
-  CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord
+  CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord
 } from '../types';
 import { eur, todayISO, fmtDay, safeUrl } from '../utils';
 import { DriveUploader } from './cantiere/DriveUploader';
@@ -54,6 +54,8 @@ export interface CantiereBoardProps {
   impresaDocs?: Record<string, Record<string, ImpresaDoc>>;   // Area Impresa: keyed per uid partner
   impresaRecords?: Record<string, Record<string, ImpresaRecord>>;
   partnerAccounts?: UserProfile[];                            // studio: elenco imprese partner per assegnazione
+  partnerRecords?: ClientRecord[];                            // studio: imprese dalla rubrica (anche senza portale)
+  onCreatePartnerRecord?: (rec: ClientRecord) => void;        // studio: crea nuova impresa in rubrica
   onSaveCantiere?: (c: Cantiere) => void;
   onDeleteCantiere?: (cid: string) => void;
   onAssignPartner?: (cid: string, uid: string, name: string, on: boolean) => void;
@@ -423,69 +425,124 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11.5px] text-[#9a9a9a]">
             {c.location && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {c.location}</span>}
             {c.dueDate && <span className="inline-flex items-center gap-1"><CalIcon className="w-3 h-3" /> consegna {fmtDay(c.dueDate)}</span>}
-            <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> {Object.keys(c.partnerUids || {}).length} partner</span>
+            <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> {Object.keys(c.partnerUids || {}).length + Object.keys(c.partnerRecordIds || {}).length} imprese</span>
           </div>
         </div>
         {isStudio && (
-          <div className="flex items-center gap-2">
-            <select
-              value={c.status}
-              onChange={(e) => p.onSaveCantiere?.({ ...c, status: e.target.value as Cantiere['status'], updatedAt: Date.now() })}
-              className="px-2.5 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold outline-none"
-            >
-              {(['pianificazione', 'in_corso', 'sospeso', 'concluso'] as Cantiere['status'][]).map((s) => (
-                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-              ))}
-            </select>
-            <button onClick={() => setAssignOpen((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold">
-              <Users className="w-4 h-4" /> Partner
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#9a9a9a]">
+              Stato
+              <select
+                value={c.status}
+                onChange={(e) => p.onSaveCantiere?.({ ...c, status: e.target.value as Cantiere['status'], updatedAt: Date.now() })}
+                className="px-2.5 py-1.5 rounded-xl border border-[#e2e2e2] text-[12px] font-bold outline-none text-[#161616]"
+              >
+                {(['pianificazione', 'in_corso', 'sospeso', 'concluso'] as Cantiere['status'][]).map((s) => (
+                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                ))}
+              </select>
+            </label>
+            <button onClick={() => setAssignOpen((v) => !v)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] font-bold transition-colors ${assignOpen ? 'bg-[#161616] text-white border-[#161616]' : 'border-[#e2e2e2] hover:border-black'}`}>
+              <Users className="w-4 h-4" /> Imprese
             </button>
             <button
               onClick={() => p.onDeleteCantiere?.(cid)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-[#e2e2e2] text-rose-600"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#e2e2e2] text-rose-600 text-[12px] font-bold hover:bg-red-50 hover:border-red-200"
               title="Elimina (nel Cestino)"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" /> Elimina
             </button>
           </div>
         )}
       </div>
 
-      {/* assegnazione partner (studio) */}
+      {/* collegamento imprese al cantiere (studio): account portale + rubrica + nuova impresa */}
       {isStudio && assignOpen && (
-        <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#eee]">
-          <p className="text-[12px] font-bold text-[#161616] mb-2">Imprese partner assegnate</p>
-          {(p.partnerAccounts || []).length === 0 ? (
-            <p className="text-[12px] italic text-[#9a9a9a]">Nessuna impresa partner registrata. Registrane una da Team → Anagrafiche.</p>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {(p.partnerAccounts || []).map((pa) => {
-                const on = !!c.partnerUids?.[pa.uid];
-                return (
-                  <label key={pa.uid} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-[#eee]">
-                    <span className="text-[12.5px] font-medium text-[#161616]">{pa.companyName || pa.name}</span>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={(e) => p.onAssignPartner?.(cid, pa.uid, pa.companyName || pa.name, e.target.checked)}
-                    />
-                  </label>
-                );
-              })}
+        <div className="mb-3 p-3 rounded-2xl bg-[#fafafa] border border-[#eee] flex flex-col gap-3">
+          <div>
+            <p className="text-[12px] font-bold text-[#161616] mb-1.5">Imprese con portale partner</p>
+            {(p.partnerAccounts || []).length === 0 ? (
+              <p className="text-[12px] italic text-[#9a9a9a]">Nessuna impresa con account portale. Le imprese si registrano dalla pagina di accesso (tipo account "team" non serve: usare invito partner) oppure aggiungile dalla rubrica qui sotto.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {(p.partnerAccounts || []).map((pa) => {
+                  const on = !!c.partnerUids?.[pa.uid];
+                  return (
+                    <label key={pa.uid} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-[#eee] cursor-pointer">
+                      <span className="text-[12.5px] font-medium text-[#161616] min-w-0 truncate">
+                        {pa.companyName || pa.name}
+                        <span className="ml-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">portale</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => p.onAssignPartner?.(cid, pa.uid, pa.companyName || pa.name, e.target.checked)}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Imprese dalla rubrica (anche senza account portale) */}
+          {(p.partnerRecords || []).length > 0 && (
+            <div>
+              <p className="text-[12px] font-bold text-[#161616] mb-1.5">Imprese dalla rubrica</p>
+              <div className="flex flex-col gap-1.5">
+                {(p.partnerRecords || []).map((rec) => {
+                  const linkedUid = rec.accountUid || (p.partnerAccounts || []).find((a) => rec.email && (a.email || '').toLowerCase() === rec.email!.toLowerCase())?.uid;
+                  const on = linkedUid ? !!c.partnerUids?.[linkedUid] : !!c.partnerRecordIds?.[rec.id];
+                  return (
+                    <label key={rec.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-[#eee] cursor-pointer">
+                      <span className="text-[12.5px] font-medium text-[#161616] min-w-0 truncate">
+                        {rec.companyName || rec.name}
+                        {linkedUid
+                          ? <span className="ml-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">portale collegato</span>
+                          : <span className="ml-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#9a9a9a] bg-[#f1f1f1] px-1.5 py-0.5 rounded">senza portale</span>}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => {
+                          if (linkedUid) {
+                            // impresa con account: assegna anche il portale
+                            p.onAssignPartner?.(cid, linkedUid, rec.companyName || rec.name, e.target.checked);
+                          } else {
+                            const next = { ...(c.partnerRecordIds || {}) };
+                            if (e.target.checked) next[rec.id] = true; else delete next[rec.id];
+                            p.onSaveCantiere?.({ ...c, partnerRecordIds: next, updatedAt: Date.now() });
+                          }
+                        }}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          {/* Nuova impresa in rubrica */}
+          <NewImpresaInline
+            onCreate={(rec) => {
+              p.onCreatePartnerRecord?.(rec);
+              // collega subito la nuova impresa al cantiere
+              const next = { ...(c.partnerRecordIds || {}), [rec.id]: true };
+              p.onSaveCantiere?.({ ...c, partnerRecordIds: next, updatedAt: Date.now() });
+            }}
+          />
         </div>
       )}
 
-      {/* nav AREA (livello 1) */}
-      <div className="flex gap-1.5 mb-2.5 border-b border-[#f2f2f2] pb-2.5">
+      {/* nav AREA (livello 1): segmented control a tutta larghezza, ben distinto dalle sezioni */}
+      <div className="flex w-full items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px] mb-2.5">
         {AREAS.map((a) => {
           const active = area === a.id;
           return (
             <button
               key={a.id}
               onClick={() => switchArea(a.id)}
-              className={`px-3.5 py-1.5 rounded-full text-[12px] font-bold transition-colors ${active ? 'bg-[#161616] text-white' : 'bg-white text-[#6b6b6b] border border-[#e2e2e2] hover:bg-[#fafafa]'}`}
+              className={`flex-1 px-3 py-2 rounded-xl text-[12px] font-bold uppercase tracking-wide transition-colors ${active ? 'bg-[#161616] text-white shadow-xs' : 'bg-transparent text-[#8a8a8a] hover:text-[#161616]'}`}
             >
               {a.label}
             </button>
@@ -493,8 +550,8 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
         })}
       </div>
 
-      {/* nav SEZIONE (livello 2) */}
-      <div className="pillbar flex gap-1 mb-3">
+      {/* nav SEZIONE (livello 2): tutte le voci visibili, vanno a capo */}
+      <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-2xl bg-[#fafafa] border border-[#f2f2f2]">
         {areaSections.map((s) => {
           const Icon = s.icon;
           const active = section === s.id;
@@ -502,7 +559,7 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
             <button
               key={s.id}
               onClick={() => setSection(s.id)}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${active ? 'bg-[#2b2b2b] text-white' : 'bg-[#f3f3f3] text-[#6b6b6b]'}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors ${active ? 'bg-[#2b2b2b] text-white' : 'bg-white border border-[#e8e8e8] text-[#6b6b6b] hover:text-[#161616] hover:border-[#d0d0d0]'}`}
             >
               <Icon className="w-3.5 h-3.5" /> {s.label}
             </button>
@@ -522,6 +579,54 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
       )}
 
       {renderSection()}
+    </div>
+  );
+};
+
+// Form inline "nuova impresa" → crea il record in rubrica (category 'partner') e lo collega al cantiere
+const NewImpresaInline: React.FC<{ onCreate: (rec: ClientRecord) => void }> = ({ onCreate }) => {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const create = () => {
+    if (!name.trim()) return;
+    onCreate({
+      id: newId('cli'),
+      category: 'partner',
+      type: 'azienda',
+      name: name.trim(),
+      companyName: name.trim(),
+      email: email.trim() || null,
+      phone: phone.trim() || null,
+      createdBy: '',
+      createdAt: Date.now()
+    } as ClientRecord);
+    setName(''); setEmail(''); setPhone(''); setOpen(false);
+  };
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="self-start inline-flex items-center gap-1.5 text-[12px] font-bold text-[#161616] bg-white border border-[#e2e2e2] hover:border-black rounded-full px-3.5 py-1.5">
+        <Plus className="w-3.5 h-3.5" /> Nuova impresa
+      </button>
+    );
+  }
+  return (
+    <div className="p-3 rounded-xl bg-white border border-[#e2e2e2] flex flex-wrap gap-2 items-end">
+      <label className="flex flex-col gap-1 flex-1 min-w-[160px] text-[11px] font-bold text-[#6b6b6b]">
+        Ragione sociale *
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Edil Salento srl" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none font-normal" />
+      </label>
+      <label className="flex flex-col gap-1 w-44 text-[11px] font-bold text-[#6b6b6b]">
+        Email
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="impresa@pec.it" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none font-normal" />
+      </label>
+      <label className="flex flex-col gap-1 w-36 text-[11px] font-bold text-[#6b6b6b]">
+        Telefono
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39…" className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] outline-none font-normal" />
+      </label>
+      <button onClick={create} disabled={!name.trim()} className="px-4 py-2 rounded-xl bg-[#161616] text-white text-[12.5px] font-bold disabled:opacity-40">Crea e collega</button>
+      <button onClick={() => setOpen(false)} className="px-3 py-2 rounded-xl border border-[#e2e2e2] text-[12.5px] font-bold text-[#6b6b6b]">Annulla</button>
     </div>
   );
 };

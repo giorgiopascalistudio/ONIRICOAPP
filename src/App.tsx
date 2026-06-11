@@ -2931,6 +2931,7 @@ export default function App() {
             impresaDocs={impresaDocs}
             impresaRecords={impresaRecords}
             clients={clients}
+            onSaveClientRecord={handleSaveClient}
             partnerAccounts={Object.values(accounts).filter((a: any) => a?.role === 'partner' && a?.status === 'approved') as UserProfile[]}
             onSaveCantiere={handleSaveCantiere}
             onDeleteCantiere={handleDeleteCantiere}
