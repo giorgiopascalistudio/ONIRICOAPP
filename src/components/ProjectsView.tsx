@@ -12,7 +12,6 @@ import {
   Folder,
   FolderOpen,
   Calendar,
-  MoreVertical,
   ArrowLeft,
   Briefcase,
   FileText,
@@ -516,10 +515,10 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             {isInternalBoss && (
               <button
                 onClick={() => onEditProject(p.id)}
-                className="w-9 h-9 border border-[#e2e2e2] hover:border-black rounded-full flex items-center justify-center text-[#8a8a8a] hover:text-[#161616] bg-transparent cursor-pointer transition-colors"
-                title="Impostazioni Progetto"
+                className="inline-flex items-center gap-1.5 py-2 px-4 border border-[#e2e2e2] hover:border-black rounded-full text-[12px] font-bold text-[#161616] bg-white hover:bg-[#161616] hover:text-white cursor-pointer transition-colors"
+                title="Modifica pratica"
               >
-                <MoreVertical className="w-4.5 h-4.5" />
+                <Edit className="w-3.5 h-3.5" /> Modifica
               </button>
             )}
           </div>
@@ -651,12 +650,14 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                         </div>
                       )}
                       
-                      {(p.foglio || p.particella) && (
+                      {(p.foglio || p.particella || (p.catastali || []).length > 0) && (
                         <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-[#fafafa]/50 border border-[#f3f3f3] hover:border-[#e5e5e5] transition-colors">
                           <Building2 className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                           <div className="min-w-0">
                             <span className="text-[10px] text-[#8a8a8a] uppercase font-bold tracking-wider block font-sans">Foglio / Part. / Sub</span>
-                            <b className="block text-[13px] mt-0.5 truncate text-[#161616]">{p.foglio || '—'} / {p.particella || '—'} / {p.sub || '—'}</b>
+                            {(p.catastali && p.catastali.length ? p.catastali : [{ foglio: p.foglio, particella: p.particella, sub: p.sub }]).map((r: any, i: number) => (
+                              <b key={i} className="block text-[13px] mt-0.5 truncate text-[#161616]">{r.foglio || '—'} / {r.particella || '—'} / {r.sub || '—'}</b>
+                            ))}
                           </div>
                         </div>
                       )}
@@ -816,6 +817,63 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   <div className="text-[13.5px] font-bold text-red-755 mt-2">{p.dueDate ? fmtDay(p.dueDate) : '—'}</div>
                 </div>
               </div>
+
+              {/* Team di lavoro: tutti i membri assegnati ad attività della pratica */}
+              {(() => {
+                const uids = new Set<string>();
+                Object.values(p.phases || {}).forEach((ph: any) =>
+                  Object.values(ph.tasks || {}).forEach((t: any) => { if (t.assignee) uids.add(t.assignee); })
+                );
+                agendaTasks.forEach((t) => {
+                  if (t.projectId !== p.id) return;
+                  (t.assignees && t.assignees.length ? t.assignees : t.assignee ? [t.assignee] : []).forEach((u) => uids.add(u));
+                });
+                const members = Array.from(uids)
+                  .map((uid) => users[uid])
+                  .filter(Boolean)
+                  .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+                const openFor = (uid: string) => {
+                  let n = 0;
+                  Object.values(p.phases || {}).forEach((ph: any) =>
+                    Object.values(ph.tasks || {}).forEach((t: any) => { if (!t.done && t.assignee === uid) n++; })
+                  );
+                  return n;
+                };
+                return (
+                  <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm text-left">
+                    <div className="flex items-center justify-between mb-3 pb-3 border-b border-[#f5f5f5]">
+                      <h2 className="text-[15px] font-extrabold text-[#161616] font-sans tracking-tight flex items-center gap-1.5">
+                        <Users className="w-4 h-4" /> Team di lavoro
+                      </h2>
+                      <span className="text-[11px] font-bold text-[#8a8a8a]">{members.length} membri</span>
+                    </div>
+                    {members.length > 0 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {members.map((u: any) => (
+                          <div key={u.uid} className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl hover:bg-[#fafafa] transition-colors">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-8 h-8 rounded-full bg-[#161616] text-white flex items-center justify-center text-[11px] font-extrabold shrink-0 uppercase">
+                                {(u.name || '?').split(' ').map((s: string) => s[0]).slice(0, 2).join('')}
+                              </span>
+                              <div className="min-w-0">
+                                <b className="block text-[13px] font-bold text-[#161616] truncate">{u.name}</b>
+                                <span className="block text-[10.5px] text-[#8a8a8a] truncate">
+                                  {(u.functions || []).slice(0, 2).join(' · ') || u.title || u.role}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[10.5px] font-bold text-[#8a8a8a] bg-[#f5f5f3] border border-[#ececec] rounded-full px-2 py-0.5 shrink-0">
+                              {openFor(u.uid)} task aperti
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[12.5px] italic text-[#9a9a9a] py-2">Nessun membro assegnato alle attività della pratica.</p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Messaging with Client */}
               <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm text-left flex flex-col">

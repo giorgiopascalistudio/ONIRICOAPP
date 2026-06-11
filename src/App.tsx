@@ -2824,9 +2824,21 @@ export default function App() {
               setPClient(p?.client || '');
               setPIndirizzo(p?.indirizzoImmobile || '');
               setPLocation(p?.location || '');
+              setPVia(p?.via || '');
+              setPCivico(p?.civico || '');
+              setPCap(p?.cap || '');
+              setPComune(p?.comune || p?.location || '');
+              setPProvincia(p?.provincia || '');
               setPFoglio(p?.foglio || '');
               setPParticella(p?.particella || '');
               setPSub(p?.sub || '');
+              setPCatastali(
+                p?.catastali && p.catastali.length
+                  ? p.catastali.map((r) => ({ foglio: r.foglio || '', particella: r.particella || '', sub: r.sub || '' }))
+                  : [{ foglio: p?.foglio || '', particella: p?.particella || '', sub: p?.sub || '' }]
+              );
+              setPIntervento(p?.interventoEdilizio || DEFAULT_INTERVENTO);
+              setPTitolo(p?.titoloAbilitativo || 'scia');
               setPTipo(p?.tipoIntervento || '');
               setPMarketingBudget(p?.marketingBudget ?? '');
               setPMarketingChannels(p?.marketingChannels ?? '');
@@ -4188,17 +4200,18 @@ export default function App() {
       </Modal>
 
       {/* 5. Phase Creator Modal */}
-      <Modal title="Aggiungi o Rinomina Fase" isOpen={phaseOpen} onClose={() => setPhaseOpen(false)}>
-        <div className="flex flex-col gap-4 text-left">
-          <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold">Nome macro-fase</label>
+      <Modal title={phaseEditId ? 'Rinomina fase' : 'Aggiungi fase'} isOpen={phaseOpen} onClose={() => setPhaseOpen(false)}>
+        <div className="flex flex-col gap-3 text-left">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Nome macro-fase *</span>
             <input
               value={phaseName}
               onChange={(e) => setPhaseName(e.target.value)}
-              className="input mt-1"
-              placeholder="Es. Sopralluogo climatico"
+              className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]"
+              placeholder="Es. Rilievo e stato di fatto"
             />
-          </div>
+          </label>
+          <span className="text-[11px] text-[#9a9a9a]">La fase viene aggiunta in coda al fascicolo; le attività si aggiungono dopo, dentro la fase.</span>
           <button
             onClick={() => {
               if (!phaseName.trim() || !phasePrjId) return;
@@ -4217,7 +4230,7 @@ export default function App() {
               setPhaseOpen(false);
               showToast('Fase salvata!');
             }}
-            className="btn bg-[#1b1b1b] text-white hover:bg-black w-full mt-4 justify-center"
+            className="py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none w-full mt-1"
           >
             Salva fase
           </button>
@@ -4226,42 +4239,49 @@ export default function App() {
 
       {/* 6. Practice Task Activity Modal */}
       <Modal title={ptaskEditId ? 'Modifica attività' : 'Nuova attività'} isOpen={ptaskOpen} onClose={() => setPtaskOpen(false)}>
-        <div className="flex flex-col gap-4 text-left">
-          <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold">Attività cantiere / pratica</label>
-            <input value={ptTitle} onChange={(e) => setPtTitle(e.target.value)} className="input mt-1" placeholder="Es. Rilievo droni esterni" />
-          </div>
+        <div className="flex flex-col gap-3 text-left">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Attività *</span>
+            <input value={ptTitle} onChange={(e) => setPtTitle(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder="Es. Rilievo droni esterni" />
+          </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-bold">Ruolo / Mansione</label>
-              <select value={ptRole} onChange={(e) => setPtRole(e.target.value)} className="select mt-1">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ruolo / Mansione</span>
+              <select value={ptRole} onChange={(e) => setPtRole(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[13.5px]">
                 <option value="">— Nessuno —</option>
                 {MANSIONI.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] font-bold">Responsabile</label>
-              <select value={ptAssignee} onChange={(e) => setPtAssignee(e.target.value)} className="select mt-1">
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Operatore di riferimento</span>
+              <select value={ptAssignee} onChange={(e) => setPtAssignee(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[13.5px]">
                 <option value="">— Non assegnato —</option>
-                {Object.values(users).filter((u: any) => u.role !== 'cliente').map((u: any) => (
+                {Object.values(users).filter((u: any) => u.role !== 'cliente' && u.role !== 'partner').map((u: any) => (
                   <option key={u.uid} value={u.uid}>{u.name}</option>
                 ))}
               </select>
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Scadenza</span>
+            <input type="date" value={ptDue} onChange={(e) => setPtDue(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" />
+          </label>
+
+          {(!ptDue || !ptAssignee) && (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Ogni attività dovrebbe avere <b>scadenza</b> e <b>operatore di riferimento</b>: così entra nel calendario del membro.</span>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold">Scadenza</label>
-            <input type="date" value={ptDue} onChange={(e) => setPtDue(e.target.value)} className="input mt-1" />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold">Descrizione attività</label>
-            <textarea value={ptNote} onChange={(e) => setPtNote(e.target.value)} className="textarea mt-1 min-h-[60px]" />
-          </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Descrizione attività</span>
+            <textarea value={ptNote} onChange={(e) => setPtNote(e.target.value)} rows={2} className="input border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none" />
+          </label>
 
           <div className="flex justify-between mt-4">
             {ptaskEditId && (
@@ -4311,32 +4331,62 @@ export default function App() {
       </Modal>
 
       {/* 7. Practice Anagrafica Form Details */}
-      <Modal title="Scheda Anagrafica Pratica" isOpen={anagOpen} onClose={() => setAnagOpen(false)} wide>
+      <Modal title="Pratica & Dati catastali" isOpen={anagOpen} onClose={() => setAnagOpen(false)} wide>
         <div className="flex flex-col gap-4 text-left max-h-[65vh] overflow-y-auto pr-1 font-sans">
           {(!anagProjId || projects[anagProjId]?.division === 'studio' || !projects[anagProjId]?.division) && (
             <>
-              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec]">
-                <h4 className="text-[14.5px] font-bold mb-3 flex items-center gap-1">Committente / Intestatario</h4>
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <input value={pCommittente} onChange={(e) => setPCommittente(e.target.value)} placeholder="Cognome e Nome" className="input" />
-                  <input value={pClient} onChange={(e) => setPClient(e.target.value)} placeholder="Ragione sociale ditta" className="input" />
-                </div>
-                <input value={pIndirizzo} onChange={(e) => setPIndirizzo(e.target.value)} placeholder="Comune / Residenza" className="input" />
-              </div>
-
-              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec]">
-                <h4 className="text-[14.5px] font-bold mb-3 flex items-center gap-1">Dati Catastali Fabbricato</h4>
-                <div className="grid grid-cols-4 gap-3">
-                  <input value={pLocation} onChange={(e) => setPLocation(e.target.value)} placeholder="Comune Catastale" className="input" />
-                  <input value={pFoglio} onChange={(e) => setPFoglio(e.target.value)} placeholder="Foglio" className="input font-bold" />
-                  <input value={pParticella} onChange={(e) => setPParticella(e.target.value)} placeholder="Particella" className="input font-bold" />
-                  <input value={pSub} onChange={(e) => setPSub(e.target.value)} placeholder="Sub" className="input font-bold" />
+              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec] flex flex-col gap-3">
+                <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Committente / Intestatario</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-gray-600">Cognome e nome</span>
+                    <input value={pCommittente} onChange={(e) => setPCommittente(e.target.value)} placeholder="Es. Mario Rossi" className="input bg-white h-9 text-[13px]" />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-gray-600">Ragione sociale / Cliente</span>
+                    <input value={pClient} onChange={(e) => setPClient(e.target.value)} placeholder="Es. Rossi Costruzioni srl" className="input bg-white h-9 text-[13px]" />
+                  </label>
                 </div>
               </div>
 
-              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec]">
-                <h4 className="text-[14.5px] font-bold mb-3 flex items-center gap-1">Lavori di Progettazione</h4>
-                <input value={pTipo} onChange={(e) => setPTipo(e.target.value)} placeholder="Es. Ampliamento residenza, SCIA commerciale..." className="input" />
+              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec] flex flex-col gap-2">
+                <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Indirizzo immobile</h4>
+                <div className="grid grid-cols-[2fr_1fr] gap-2">
+                  <input value={pVia} onChange={(e) => setPVia(e.target.value)} placeholder="Via / Piazza" className="input bg-white h-9 text-[13px]" />
+                  <input value={pCivico} onChange={(e) => setPCivico(e.target.value)} placeholder="N. civico" className="input bg-white h-9 text-[13px]" />
+                </div>
+                <div className="grid grid-cols-[1fr_2fr_1fr] gap-2">
+                  <input value={pCap} onChange={(e) => setPCap(e.target.value)} placeholder="CAP" className="input bg-white h-9 text-[13px] font-mono" />
+                  <input value={pComune} onChange={(e) => setPComune(e.target.value)} placeholder="Comune" className="input bg-white h-9 text-[13px]" />
+                  <input value={pProvincia} onChange={(e) => setPProvincia(e.target.value)} placeholder="Prov." maxLength={2} className="input bg-white h-9 text-[13px] uppercase text-center" />
+                </div>
+              </div>
+
+              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec] flex flex-col gap-2">
+                <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Dati catastali fabbricato</h4>
+                <CatastaliEditor rows={pCatastali} onChange={setPCatastali} />
+              </div>
+
+              <div className="bg-[#fafafa] p-4 rounded-2xl border border-[#ececec] flex flex-col gap-3">
+                <h4 className="text-[12px] font-bold uppercase tracking-wider text-[#8a8a8a]">Pratica edilizia</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-gray-600">Tipo di intervento</span>
+                    <select value={pIntervento} onChange={(e) => setPIntervento(e.target.value)} className="select bg-white h-9 text-[12.5px]">
+                      {INTERVENTI_EDILIZI.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-gray-600">Titolo abilitativo</span>
+                    <select value={pTitolo} onChange={(e) => setPTitolo(e.target.value)} className="select bg-white h-9 text-[12.5px]">
+                      {TITOLI_ABILITATIVI.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-gray-600">Lavori di progettazione</span>
+                  <input value={pTipo} onChange={(e) => setPTipo(e.target.value)} placeholder="Es. Ampliamento residenza, SCIA commerciale..." className="input bg-white h-9 text-[13px]" />
+                </label>
               </div>
             </>
           )}
@@ -4409,16 +4459,32 @@ export default function App() {
               setProjects(prev => {
                 const next = { ...prev };
                 const div = next[anagProjId]?.division || 'studio';
+                const composed = [
+                  pVia.trim() && `${pVia.trim()}${pCivico.trim() ? ' ' + pCivico.trim() : ''}`,
+                  [pCap.trim(), pComune.trim()].filter(Boolean).join(' '),
+                  pProvincia.trim() && `(${pProvincia.trim().toUpperCase()})`
+                ].filter(Boolean).join(', ');
+                const catRows = pCatastali
+                  .map((r) => ({ foglio: r.foglio.trim(), particella: r.particella.trim(), sub: r.sub.trim() || null }))
+                  .filter((r) => r.foglio || r.particella || r.sub);
                 next[anagProjId] = {
                   ...next[anagProjId],
                   committente: div === 'studio' ? (pCommittente.trim() || null) : next[anagProjId].committente,
                   client: div === 'studio' ? (pClient.trim() || null) : next[anagProjId].client,
-                  indirizzoImmobile: div === 'studio' ? (pIndirizzo.trim() || null) : next[anagProjId].indirizzoImmobile,
-                  location: div === 'studio' ? (pLocation.trim() || null) : next[anagProjId].location,
-                  foglio: div === 'studio' ? (pFoglio.trim() || null) : next[anagProjId].foglio,
-                  particella: div === 'studio' ? (pParticella.trim() || null) : next[anagProjId].particella,
-                  sub: div === 'studio' ? (pSub.trim() || null) : next[anagProjId].sub,
-                  tipoIntervento: div === 'studio' ? (pTipo.trim() || null) : next[anagProjId].tipoIntervento,
+                  indirizzoImmobile: div === 'studio' ? (composed || pIndirizzo.trim() || null) : next[anagProjId].indirizzoImmobile,
+                  via: div === 'studio' ? (pVia.trim() || null) : next[anagProjId].via,
+                  civico: div === 'studio' ? (pCivico.trim() || null) : next[anagProjId].civico,
+                  cap: div === 'studio' ? (pCap.trim() || null) : next[anagProjId].cap,
+                  comune: div === 'studio' ? (pComune.trim() || null) : next[anagProjId].comune,
+                  provincia: div === 'studio' ? (pProvincia.trim() ? pProvincia.trim().toUpperCase() : null) : next[anagProjId].provincia,
+                  location: div === 'studio' ? (pComune.trim() || pLocation.trim() || null) : next[anagProjId].location,
+                  foglio: div === 'studio' ? (catRows[0]?.foglio || null) : next[anagProjId].foglio,
+                  particella: div === 'studio' ? (catRows[0]?.particella || null) : next[anagProjId].particella,
+                  sub: div === 'studio' ? (catRows[0]?.sub || null) : next[anagProjId].sub,
+                  catastali: div === 'studio' ? (catRows.length ? catRows : null) : next[anagProjId].catastali,
+                  interventoEdilizio: div === 'studio' ? pIntervento : next[anagProjId].interventoEdilizio,
+                  titoloAbilitativo: div === 'studio' ? pTitolo : next[anagProjId].titoloAbilitativo,
+                  tipoIntervento: div === 'studio' ? (pTipo.trim() || interventoLabel(pIntervento) || null) : next[anagProjId].tipoIntervento,
                   marketingBudget: div === 'strategico' && pMarketingBudget !== '' ? Number(pMarketingBudget) : next[anagProjId].marketingBudget,
                   marketingChannels: div === 'strategico' ? pMarketingChannels : next[anagProjId].marketingChannels,
                   marketingGoal: div === 'strategico' ? pMarketingGoal : next[anagProjId].marketingGoal,
