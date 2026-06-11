@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Clock, CheckSquare, Folder, Calendar, AlertTriangle, Plus, MoreHorizontal, Check, X } from 'lucide-react';
+import { Clock, CheckSquare, Folder, Calendar, AlertTriangle, Plus, MoreHorizontal, Check, X, Inbox } from 'lucide-react';
 import { Project, Task, UserProfile, Appointment } from '../types';
 import { eur, fmtDayLong, initials } from '../utils';
 import { Company, COMPANY_LABEL, COMPANY_COLOR } from '../finance';
@@ -22,6 +22,9 @@ interface DashboardViewProps {
   appointmentRequests?: Appointment[];
   onConfirmAppointment?: (id: string) => void;
   onDeclineAppointment?: (id: string) => void;
+  /** Messaggi/richieste recenti (notifiche persistenti + richieste appuntamento) per il box sotto l'agenda. */
+  messages?: { id: string; title: string; text: string; time: string; read: boolean; link?: string | null }[];
+  onOpenMessage?: (id: string, link?: string | null) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -35,7 +38,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNewTask,
   appointmentRequests = [],
   onConfirmAppointment,
-  onDeclineAppointment
+  onDeclineAppointment,
+  messages = [],
+  onOpenMessage
 }) => {
   const todayISO = () => {
     const x = new Date();
@@ -205,6 +210,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Main Dual Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Colonna sinistra: Agenda + Messaggi & richieste */}
+        <div className="flex flex-col gap-6">
         {/* Agenda Section */}
         <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm text-left">
           <div className="flex justify-between items-center mb-4">
@@ -293,6 +300,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Messaggi & richieste (sotto l'Agenda di oggi) */}
+        <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm text-left">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h2 className="text-[19px] font-extrabold tracking-tight text-[#161616]">Messaggi & richieste</h2>
+              <span className="text-[12px] text-[#8a8a8a]">Notifiche e richieste recenti</span>
+            </div>
+            {messages.filter(m => !m.read).length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full bg-[#161616] text-white text-[11.5px] font-extrabold">
+                {messages.filter(m => !m.read).length}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {messages.length > 0 ? (
+              messages.slice(0, 8).map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => onOpenMessage?.(m.id, m.link)}
+                  className={`w-full flex items-start gap-3 py-2.5 px-2 border-b border-[#f5f5f5] last:border-b-0 rounded-xl transition-colors cursor-pointer border-none bg-transparent text-left hover:bg-[#fafafa] ${m.read ? 'opacity-60' : ''}`}
+                >
+                  <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${m.read ? 'bg-[#d6d6d6]' : 'bg-orange-500'}`} />
+                  <span className="flex-1 min-w-0">
+                    <b className="block text-[13.5px] font-bold text-[#161616] leading-tight truncate">{m.title}</b>
+                    {m.text && <span className="block text-[12px] text-[#8a8a8a] leading-snug mt-0.5 line-clamp-2">{m.text}</span>}
+                  </span>
+                  <span className="text-[10.5px] text-[#9a9a9a] font-semibold shrink-0 mt-0.5">{m.time}</span>
+                </button>
+              ))
+            ) : (
+              <div className="text-center py-8 px-5 text-[#8a8a8a]">
+                <Inbox className="w-9 h-9 opacity-30 mx-auto mb-2.5" />
+                <b className="block text-[#161616] text-[14px] font-semibold mb-1">Nessun messaggio</b>
+                <p className="text-[12.5px] max-w-[320px] mx-auto">Le richieste e le notifiche recenti compariranno qui.</p>
+              </div>
+            )}
+          </div>
+        </div>
         </div>
 
         {/* Active Projects Quick Panel */}

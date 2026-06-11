@@ -219,7 +219,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {!isToday && aps.length > 0 && (
                     <span
                       title={`${aps.length} appuntamenti`}
-                      className={`inline-flex items-center justify-center text-[8px] font-extrabold min-w-[14px] h-[14px] px-0.5 rounded-full ${apsPending ? 'bg-amber-500 text-white' : 'bg-sky-500 text-white'}`}
+                      className={`inline-flex items-center justify-center text-[8px] font-extrabold min-w-[14px] h-[14px] px-0.5 rounded-full ${apsPending ? 'bg-gray-400 text-white' : 'bg-emerald-500 text-white'}`}
                     >
                       {aps.length}
                     </span>
@@ -487,19 +487,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {dayAppts.map(a => {
               const pending = a.status === 'pending';
               const refused = a.status === 'rifiutato';
+              // posso confermare/rifiutare se sono un partecipante in attesa (o legacy: richiesta sulla mia agenda)
+              const myState = a.participants ? a.participants[myUid] : undefined;
+              const canRespond = myState === 'pending' || (!a.participants && pending && a.ownerUid === myUid);
+              const partEntries = Object.entries(a.participants || {});
               return (
                 <div
                   key={a.id}
                   className={`flex items-center justify-between gap-3.5 py-3.5 px-4 rounded-2xl border transition-all ${
                     pending
-                      ? 'bg-amber-50/70 border-amber-200'
+                      ? 'bg-gray-50 border-[#e2e2e2]'
                       : refused
                       ? 'bg-gray-50 border-[#f0f0f0] opacity-60'
-                      : 'bg-sky-50/60 border-sky-200'
+                      : 'bg-emerald-50/60 border-emerald-200'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${pending ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${pending || refused ? 'bg-gray-200 text-gray-600' : 'bg-emerald-100 text-emerald-700'}`}>
                       {a.kind === 'nota' ? <Edit2 className="w-4 h-4" /> : <CalendarIcon className="w-4 h-4" />}
                     </span>
                     <div className="min-w-0">
@@ -508,16 +512,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         {a.title}
                       </b>
                       <span className="text-[11.5px] text-[#8a8a8a] truncate block">
-                        {[a.withName, a.createdByName && a.createdBy !== myUid ? `richiesto da ${a.createdByName}` : null, a.note]
+                        {[partEntries.length === 0 ? a.withName : null, a.createdByName && a.createdBy !== myUid ? `creato da ${a.createdByName}` : null, a.note]
                           .filter(Boolean)
                           .join(' · ')}
-                        {pending && ' · in attesa di conferma'}
+                        {pending && (partEntries.length > 0 ? ' · in attesa dei partecipanti' : ' · in attesa di conferma')}
                         {refused && ' · rifiutato'}
                       </span>
+                      {/* Partecipanti con stato conferma */}
+                      {partEntries.length > 0 && (
+                        <span className="flex flex-wrap gap-1 mt-1.5">
+                          {partEntries.map(([uid, st]) => (
+                            <span
+                              key={uid}
+                              title={st === 'confermato' ? 'Ha confermato' : st === 'rifiutato' ? 'Ha rifiutato' : 'In attesa'}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${
+                                st === 'confermato'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : st === 'rifiutato'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-white text-gray-500 border-gray-200'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${st === 'confermato' ? 'bg-emerald-500' : st === 'rifiutato' ? 'bg-rose-500' : 'bg-gray-400'}`} />
+                              {uid === myUid ? 'Io' : a.participantNames?.[uid] || 'Utente'}
+                            </span>
+                          ))}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {pending && (
+                    {canRespond && (
                       <>
                         <button onClick={() => onConfirmAppointment(a.id)} title="Conferma" className="w-8 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer border-none">
                           <Check className="w-4 h-4" />
@@ -527,7 +552,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </button>
                       </>
                     )}
-                    <button onClick={() => onDeleteAppointment(a.id)} title="Elimina" className="w-8 h-8 rounded-lg bg-white border border-[#e2e2e2] hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-600 flex items-center justify-center cursor-pointer">
+                    <button onClick={() => onDeleteAppointment(a.id)} title="Annulla appuntamento" className="w-8 h-8 rounded-lg bg-white border border-[#e2e2e2] hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-600 flex items-center justify-center cursor-pointer">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>

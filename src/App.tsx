@@ -18,7 +18,9 @@ import {
   HelpCircle,
   Clock,
   Sparkle,
-  Bell
+  Bell,
+  Check,
+  X
 } from 'lucide-react';
 
 import {
@@ -248,10 +250,9 @@ export default function App() {
   const [apptDate, setApptDate] = useState('');
   const [apptTitle, setApptTitle] = useState('');
   const [apptTime, setApptTime] = useState('');
-  const [apptOwner, setApptOwner] = useState('');
-  const [apptWith, setApptWith] = useState('');
+  const [apptWho, setApptWho] = useState<string[]>([]);   // uid partecipanti (team + clienti + partner)
+  const [apptWhoFilter, setApptWhoFilter] = useState('');
   const [apptNote, setApptNote] = useState('');
-  const [apptKind, setApptKind] = useState<'appuntamento' | 'nota'>('appuntamento');
 
   // Elenco pubblico dei membri studio (per i portali cliente/partner)
   const [directory, setDirectory] = useState<Record<string, { name: string; role: string }>>({});
@@ -535,19 +536,57 @@ export default function App() {
   const handleConfirmAppointment = (id: string) => {
     const a = appointments[id];
     if (!a) return;
+    const me = currentUser!.uid;
+    if (a.participants && a.participants[me]) {
+      // Conferma del singolo partecipante: l'appuntamento diventa 'confermato' solo quando tutti hanno confermato.
+      const participants = { ...a.participants, [me]: 'confermato' as const };
+      const allConfirmed = Object.values(participants).every((s) => s === 'confermato');
+      handleSaveAppointment({ ...a, participants, status: allConfirmed ? 'confermato' : 'pending' });
+      if (allConfirmed) {
+        Object.keys(participants).filter((u) => u !== me).forEach((uid) =>
+          pushNotification(uid, { type: 'appuntamento', title: 'Appuntamento confermato', body: `"${a.title}" del ${a.date} è stato confermato da tutti i partecipanti.`, link: '#calendario' })
+        );
+      } else if (a.createdBy && a.createdBy !== me) {
+        pushNotification(a.createdBy, { type: 'appuntamento', title: 'Conferma partecipazione', body: `${currentUser!.name} ha confermato "${a.title}" del ${a.date}.`, link: '#calendario' });
+      }
+      showToast(allConfirmed ? 'Appuntamento confermato da tutti.' : 'Partecipazione confermata.');
+      return;
+    }
+    // Legacy: richieste dal portale senza partecipanti
     handleSaveAppointment({ ...a, status: 'confermato' });
+    if (a.createdBy && a.createdBy !== me) {
+      pushNotification(a.createdBy, { type: 'appuntamento', title: 'Appuntamento confermato', body: `"${a.title}" del ${a.date}${a.time ? ' alle ' + a.time : ''} è stato confermato.`, link: '#calendario' });
+    }
     showToast('Appuntamento confermato.');
   };
   const handleDeclineAppointment = (id: string) => {
     const a = appointments[id];
     if (!a) return;
+    const me = currentUser!.uid;
+    if (a.participants && a.participants[me]) {
+      const participants = { ...a.participants, [me]: 'rifiutato' as const };
+      handleSaveAppointment({ ...a, participants, status: 'pending' });
+      if (a.createdBy && a.createdBy !== me) {
+        pushNotification(a.createdBy, { type: 'appuntamento', title: 'Partecipazione rifiutata', body: `${currentUser!.name} ha rifiutato "${a.title}" del ${a.date}.`, link: '#calendario' });
+      }
+      showToast('Partecipazione rifiutata.', 'err');
+      return;
+    }
     handleSaveAppointment({ ...a, status: 'rifiutato' });
     showToast('Appuntamento rifiutato.', 'err');
   };
   const handleDeleteAppointment = (id: string) => {
     const a = appointments[id];
     askDelete('Eliminare l\'appuntamento?', a ? `"${a.title}" · ${a.date}` : null, () => {
-      if (a) moveToTrash('appuntamenti', a.title || 'Appuntamento', a, undefined, a.date);
+      if (a) {
+        moveToTrash('appuntamenti', a.title || 'Appuntamento', a, undefined, a.date);
+        // Annullamento: notifica a tutti i partecipanti
+        Object.keys(a.participants || {})
+          .filter((uid) => uid !== currentUser!.uid)
+          .forEach((uid) =>
+            pushNotification(uid, { type: 'appuntamento', title: 'Appuntamento annullato', body: `"${a.title}" del ${a.date}${a.time ? ' alle ' + a.time : ''} è stato annullato da ${currentUser!.name}.`, link: '#calendario' })
+          );
+      }
       setAppointments((prev) => {
         const n = { ...prev };
         delete n[id];
@@ -562,10 +601,9 @@ export default function App() {
     setApptDate(presetDate || todayISO());
     setApptTitle('');
     setApptTime('');
-    setApptOwner(currentUser?.uid || '');
-    setApptWith('');
+    setApptWho(currentUser ? [currentUser.uid] : []);   // il creatore è preselezionato
+    setApptWhoFilter('');
     setApptNote('');
-    setApptKind('appuntamento');
     setApptOpen(true);
   };
   const handleSubmitAppointment = () => {
@@ -573,27 +611,42 @@ export default function App() {
       showToast('Inserisci titolo e data.', 'err');
       return;
     }
-    const ownerUid = apptOwner || currentUser!.uid;
-    const owner = users[ownerUid];
+    const me = currentUser!.uid;
+    const who = apptWho.length ? apptWho : [me];
+    // Partecipanti: il creatore (se coinvolto) è auto-confermato, gli altri in attesa
+    const participants: Record<string, 'pending' | 'confermato'> = {};
+    const participantNames: Record<string, string> = {};
+    who.forEach((uid) => {
+      participants[uid] = uid === me ? 'confermato' : 'pending';
+      participantNames[uid] = uid === me ? currentUser!.name : users[uid]?.name || '';
+    });
+    const allConfirmed = Object.values(participants).every((s) => s === 'confermato');
+    const otherNames = who.filter((u) => u !== me).map((u) => users[u]?.name).filter(Boolean);
     const a: Appointment = {
       id: `appt-${Date.now()}`,
       title: apptTitle.trim(),
       date: apptDate,
       time: apptTime || null,
-      ownerUid,
-      ownerName: owner?.name || '',
-      createdBy: currentUser!.uid,
+      ownerUid: me,
+      ownerName: currentUser!.name,
+      createdBy: me,
       createdByName: currentUser!.name,
-      withName: apptWith.trim() || undefined,
+      withName: otherNames.length ? otherNames.join(', ') : undefined,
       note: apptNote.trim() || undefined,
-      kind: apptKind,
-      // se lo assegni a un altro membro resta confermato (è un'aggiunta interna)
-      status: 'confermato',
+      kind: 'appuntamento',
+      // grigio (pending) finché tutti i partecipanti non confermano → verde (confermato)
+      status: allConfirmed ? 'confermato' : 'pending',
+      participants,
+      participantNames,
       createdAt: Date.now()
     };
     handleSaveAppointment(a);
+    // invito in-app agli altri partecipanti
+    who.filter((uid) => uid !== me).forEach((uid) =>
+      pushNotification(uid, { type: 'appuntamento', title: 'Invito appuntamento', body: `${currentUser!.name} ti ha invitato: "${a.title}" il ${a.date}${a.time ? ' alle ' + a.time : ''}. Conferma dal calendario.`, link: '#calendario' })
+    );
     setApptOpen(false);
-    showToast(ownerUid === currentUser!.uid ? 'Aggiunto in agenda.' : `Aggiunto all'agenda di ${owner?.name || 'utente'}.`);
+    showToast(otherNames.length ? 'Appuntamento creato. Partecipanti avvisati.' : 'Aggiunto in agenda.');
   };
 
   // Richiesta appuntamento dai portali cliente/partner (resta "in attesa")
@@ -611,6 +664,8 @@ export default function App() {
       note: note || undefined,
       kind: 'appuntamento',
       status: 'pending',
+      participants: { [memberUid]: 'pending', [currentUser!.uid]: 'confermato' },
+      participantNames: { [memberUid]: memberName, [currentUser!.uid]: currentUser!.name },
       createdAt: Date.now()
     };
     handleSaveAppointment(a);
@@ -2468,6 +2523,12 @@ export default function App() {
             appointmentRequests={myApptRequests}
             onConfirmAppointment={handleConfirmAppointment}
             onDeclineAppointment={handleDeclineAppointment}
+            messages={liveNotifications}
+            onOpenMessage={(id, link) => {
+              markNotificationRead(id);
+              if (link) window.location.hash = link;
+              else if (id.startsWith('apptreq-')) window.location.hash = '#calendario';
+            }}
             onNav={(r) => {
               setRoute(r);
               window.location.hash = `#${r}`;
@@ -2497,7 +2558,9 @@ export default function App() {
               t.assignee === currentUser.uid || t.createdBy === currentUser.uid || t.owner === currentUser.uid
             )}
             projects={Object.values(projects)}
-            appointments={Object.values(appointments).filter((a) => a.ownerUid === currentUser.uid)}
+            appointments={Object.values(appointments).filter((a) =>
+              a.participants ? !!a.participants[currentUser.uid] : a.ownerUid === currentUser.uid
+            )}
             calView={calView}
             calDate={calDate}
             onSetCalView={setCalView}
@@ -2944,13 +3007,17 @@ export default function App() {
   const approvedAccounts = Object.values(accounts).filter((a: any) => a?.status === 'approved') as UserProfile[];
 
   // Richieste appuntamento in attesa dirette a ME (per notifiche + dashboard)
-  const myApptRequests = Object.values(appointments).filter(
-    (a) => a.ownerUid === currentUser.uid && a.status === 'pending'
+  const myApptRequests = Object.values(appointments).filter((a) =>
+    a.participants
+      ? a.participants[currentUser.uid] === 'pending'
+      : a.ownerUid === currentUser.uid && a.status === 'pending'
   );
   const apptRequestNotifs = myApptRequests.map((a) => ({
     id: `apptreq-${a.id}`,
-    title: 'Richiesta appuntamento',
-    text: `${a.createdByName || 'Un cliente'} ha richiesto un appuntamento il ${a.date}${a.time ? ' alle ' + a.time : ''}${a.note ? ' — ' + a.note : ''}.`,
+    title: a.participants ? 'Invito appuntamento' : 'Richiesta appuntamento',
+    text: a.participants
+      ? `${a.createdByName || 'Un collega'} ti ha invitato: "${a.title}" il ${a.date}${a.time ? ' alle ' + a.time : ''}. Conferma dal calendario o dalla dashboard.`
+      : `${a.createdByName || 'Un cliente'} ha richiesto un appuntamento il ${a.date}${a.time ? ' alle ' + a.time : ''}${a.note ? ' — ' + a.note : ''}.`,
     time: 'Da confermare',
     read: false,
     apptDate: a.date
@@ -3310,24 +3377,12 @@ export default function App() {
         </Modal>
       )}
 
-      {/* 1c. Nuovo appuntamento / nota agenda */}
-      <Modal title={apptKind === 'nota' ? 'Nuova nota' : 'Nuovo appuntamento'} isOpen={apptOpen} onClose={() => setApptOpen(false)}>
+      {/* 1c. Nuovo appuntamento (multi-partecipante: team + clienti + partner) */}
+      <Modal title="Nuovo appuntamento" isOpen={apptOpen} onClose={() => setApptOpen(false)}>
         <div className="flex flex-col gap-3 text-left">
-          <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-fit">
-            {(['appuntamento', 'nota'] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setApptKind(k)}
-                className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full cursor-pointer border-none capitalize transition-all ${apptKind === k ? 'bg-[#161616] text-white' : 'text-[#8a8a8a] bg-transparent'}`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Titolo *</span>
-            <input value={apptTitle} onChange={(e) => setApptTitle(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder={apptKind === 'nota' ? 'Promemoria…' : 'Sopralluogo, riunione…'} />
+            <input value={apptTitle} onChange={(e) => setApptTitle(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder="Sopralluogo, riunione…" />
           </label>
 
           <div className="grid grid-cols-2 gap-3">
@@ -3341,22 +3396,63 @@ export default function App() {
             </label>
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Agenda di</span>
-            <select value={apptOwner} onChange={(e) => setApptOwner(e.target.value)} className="select border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]">
-              <option value={currentUser.uid}>Io ({currentUser.name})</option>
-              {Object.values(users)
-                .filter((u) => u.uid !== currentUser.uid && (u.role === 'admin' || u.role === 'manager' || u.role === 'staff'))
-                .map((u) => (
-                  <option key={u.uid} value={u.uid}>{u.name}</option>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Con</span>
+            {/* chips dei selezionati */}
+            {apptWho.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {apptWho.map((uid) => (
+                  <button
+                    key={uid}
+                    onClick={() => setApptWho((prev) => prev.filter((u) => u !== uid))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#161616] text-white text-[11.5px] font-bold cursor-pointer border-none"
+                    title="Rimuovi"
+                  >
+                    {uid === currentUser.uid ? 'Io' : users[uid]?.name || 'Utente'}
+                    <X className="w-3 h-3 opacity-70" />
+                  </button>
                 ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Con (controparte)</span>
-            <input value={apptWith} onChange={(e) => setApptWith(e.target.value)} className="input border border-[#e2e2e2] rounded-xl h-10 px-3 text-[14px]" placeholder="Cliente, fornitore… (facoltativo)" />
-          </label>
+              </div>
+            )}
+            <input
+              value={apptWhoFilter}
+              onChange={(e) => setApptWhoFilter(e.target.value)}
+              className="input border border-[#e2e2e2] rounded-xl h-9 px-3 text-[13px]"
+              placeholder="Cerca persona… (team, clienti, partner)"
+            />
+            <div className="max-h-44 overflow-y-auto border border-[#e2e2e2] rounded-xl divide-y divide-[#f3f3f3] bg-white">
+              {(() => {
+                const q = apptWhoFilter.trim().toLowerCase();
+                const roleOrder: Record<string, number> = { admin: 0, manager: 0, staff: 0, cliente: 1, partner: 2 };
+                const people = Object.values(users)
+                  .filter((u) => u.status === 'approved' && u.role && (!q || (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)))
+                  .sort((a, b) => (a.uid === currentUser.uid ? -1 : b.uid === currentUser.uid ? 1 : (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3) || (a.name || '').localeCompare(b.name || '')));
+                if (people.length === 0) return <div className="px-3 py-2.5 text-[12px] italic text-[#9a9a9a]">Nessuna persona trovata.</div>;
+                return people.map((u) => {
+                  const sel = apptWho.includes(u.uid);
+                  const tag = u.uid === currentUser.uid ? 'io' : u.role === 'cliente' ? 'cliente' : u.role === 'partner' ? 'partner' : 'team';
+                  return (
+                    <button
+                      key={u.uid}
+                      onClick={() => setApptWho((prev) => (sel ? prev.filter((x) => x !== u.uid) : [...prev, u.uid]))}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 cursor-pointer border-none text-left transition-colors ${sel ? 'bg-[#f5f5f3]' : 'bg-white hover:bg-[#fafafa]'}`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className={`w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-[#161616] border-[#161616] text-white' : 'border-[#d4d4d4] bg-white'}`}>
+                          {sel && <Check className="w-3 h-3" />}
+                        </span>
+                        <span className="text-[13px] font-semibold text-[#161616] truncate">{u.uid === currentUser.uid ? `Io (${currentUser.name})` : u.name}</span>
+                      </span>
+                      <span className={`text-[9.5px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${tag === 'cliente' ? 'bg-sky-50 text-sky-700' : tag === 'partner' ? 'bg-orange-50 text-orange-700' : 'bg-[#f0f0f0] text-[#6b6b6b]'}`}>
+                        {tag}
+                      </span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+            <span className="text-[11px] text-[#9a9a9a]">L'appuntamento comparirà nel calendario di tutti i partecipanti, che dovranno confermare.</span>
+          </div>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Note</span>
@@ -3364,7 +3460,7 @@ export default function App() {
           </label>
 
           <button onClick={handleSubmitAppointment} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none">
-            {apptOwner && apptOwner !== currentUser.uid ? "Aggiungi all'agenda del membro" : 'Aggiungi in agenda'}
+            Crea appuntamento
           </button>
         </div>
       </Modal>

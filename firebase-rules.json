@@ -91,8 +91,13 @@
     "appointments": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$id": {
-        ".read": "auth != null && (data.child('createdBy').val() == auth.uid || data.child('ownerUid').val() == auth.uid)",
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || (!data.exists() && newData.child('createdBy').val() == auth.uid))"
+        ".read": "auth != null && (data.child('createdBy').val() == auth.uid || data.child('ownerUid').val() == auth.uid || data.child('participants').child(auth.uid).exists())",
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || (!data.exists() && newData.child('createdBy').val() == auth.uid))",
+        "participants": {
+          "$puid": {
+            ".write": "auth != null && $puid == auth.uid"
+          }
+        }
       }
     },
 

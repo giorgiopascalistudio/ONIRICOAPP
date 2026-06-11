@@ -299,14 +299,18 @@ export interface Appointment {
   title: string;
   date: string;            // ISO yyyy-mm-dd
   time?: string | null;
-  ownerUid: string;        // di chi è l'agenda
+  ownerUid: string;        // di chi è l'agenda (legacy) / creatore
   ownerName?: string;
   createdBy: string;       // uid creatore
   createdByName?: string;
-  withName?: string;       // controparte (cliente/partner/altro)
+  withName?: string;       // controparte (legacy) / riepilogo nomi partecipanti
   note?: string;
   kind: 'appuntamento' | 'nota';
+  /** Stato complessivo: 'pending' (grigio) finché tutti i partecipanti non confermano → 'confermato' (verde). */
   status: 'confermato' | 'pending' | 'rifiutato';
+  /** Partecipanti multi-persona (team + clienti + partner): uid → stato conferma. Il creatore è auto-confermato. */
+  participants?: Record<string, 'pending' | 'confermato' | 'rifiutato'>;
+  participantNames?: Record<string, string>;   // uid → nome (per render senza lookup)
   projectId?: string | null;
   createdAt: number;
 }
