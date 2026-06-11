@@ -13,10 +13,11 @@ import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, X, MapPin, TrendingUp, Users, Coins, Trash2, Pencil, Building2,
-  Tag, PiggyBank, Percent, Wallet, ArrowUpRight, Gem,
+  Tag, PiggyBank, Percent, Wallet, ArrowUpRight, Gem, Clapperboard,
 } from 'lucide-react';
-import type { UnicoDeal, UnicoInvestor, UnicoDealStatus, Project } from '../types';
+import type { UnicoDeal, UnicoInvestor, UnicoDealStatus, UnicoShowcaseConfig, Project } from '../types';
 import { eur } from '../utils';
+import { UnicoShowcaseEditor } from './UnicoShowcaseEditor';
 
 const IN = 'w-full h-10 px-3 text-[14px] border border-[#e2e2e2] rounded-lg bg-white outline-none focus:border-[#161616]';
 
@@ -51,6 +52,7 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
   const [tab, setTab] = useState<'operazioni' | 'investitori'>('operazioni');
   const [editing, setEditing] = useState<UnicoDeal | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [showcaseFor, setShowcaseFor] = useState<UnicoDeal | null>(null); // editor pagina vetrina
 
   const totals = useMemo(() => {
     const raised = deals.reduce((s, d) => s + raisedOf(d), 0);
@@ -78,6 +80,12 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
     const next = isNew ? [...deals, { ...d, createdAt: d.createdAt || Date.now() }] : deals.map((x) => (x.id === d.id ? { ...d, updatedAt: Date.now() } : x));
     onSave(next);
     setEditing(null); setIsNew(false);
+  };
+  // Salva la config vetrina (+ pubblicazione) sul deal: lo snapshot pubblico
+  // su `unicoShowcase` lo scrive saveUnicoDeals in App.
+  const saveShowcase = (dealId: string, showcase: UnicoShowcaseConfig, published: boolean) => {
+    onSave(deals.map((x) => (x.id === dealId ? { ...x, showcase, published, updatedAt: Date.now() } : x)));
+    setShowcaseFor(null);
   };
   const deleteDeal = (id: string) => {
     const deal = deals.find((d) => d.id === id);
@@ -126,7 +134,7 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {deals.map((d) => (
-              <DealCard key={d.id} deal={d} canEdit={canEdit} onEdit={() => { setIsNew(false); setEditing(d); }} onDelete={() => deleteDeal(d.id)} />
+              <DealCard key={d.id} deal={d} canEdit={canEdit} onEdit={() => { setIsNew(false); setEditing(d); }} onShowcase={() => setShowcaseFor(d)} onDelete={() => deleteDeal(d.id)} />
             ))}
           </div>
         )
@@ -144,6 +152,13 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
             onSave={saveDeal}
           />
         )}
+        {showcaseFor && (
+          <UnicoShowcaseEditor
+            deal={showcaseFor}
+            onClose={() => setShowcaseFor(null)}
+            onSave={(cfg, published) => saveShowcase(showcaseFor.id, cfg, published)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -159,7 +174,7 @@ const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: string; sub?:
 );
 
 /* ---------- Card operazione ---------- */
-const DealCard: React.FC<{ deal: UnicoDeal; canEdit: boolean; onEdit: () => void; onDelete: () => void }> = ({ deal: d, canEdit, onEdit, onDelete }) => {
+const DealCard: React.FC<{ deal: UnicoDeal; canEdit: boolean; onEdit: () => void; onShowcase: () => void; onDelete: () => void }> = ({ deal: d, canEdit, onEdit, onShowcase, onDelete }) => {
   const raised = raisedOf(d);
   const fundedPct = d.capitalGoal ? Math.min(100, Math.round((raised / d.capitalGoal) * 100)) : 0;
   const st = STATUS[d.status];
@@ -200,6 +215,11 @@ const DealCard: React.FC<{ deal: UnicoDeal; canEdit: boolean; onEdit: () => void
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
           <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer">
             <Pencil className="w-3.5 h-3.5" /> Gestisci
+          </button>
+          <button onClick={onShowcase} title={d.published ? 'Pagina vetrina (pubblicata)' : 'Allestisci pagina vetrina'}
+            className={`relative flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-bold border cursor-pointer transition-colors ${d.published ? 'bg-indigo-50 border-indigo-200 text-[#4338ca] hover:bg-indigo-100' : 'bg-white border-[#e2e2e2] text-stone-600 hover:border-stone-400'}`}>
+            <Clapperboard className="w-3.5 h-3.5" /> Vetrina
+            {d.published && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#4338ca] border-2 border-white" />}
           </button>
           <button onClick={onDelete} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer">
             <Trash2 className="w-3.5 h-3.5" />

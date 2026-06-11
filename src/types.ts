@@ -358,9 +358,52 @@ export interface UnicoDeal {
   investors: UnicoInvestor[];
   matericoProjectId?: string | null; // commessa Materico collegata (ristrutturazione)
   published?: boolean;       // pubblicato nella vetrina Unico
+  showcase?: UnicoShowcaseConfig | null; // pagina vetrina cinematica (video + scene)
   notes?: string | null;
   createdAt: number;
   updatedAt?: number;
+}
+
+/* ---------- Vetrina cinematica Unico (pagina "villa-omnia") ---------- */
+// Una scena = un punto temporale del video continuo, con titolo e testo.
+export interface UnicoShowcaseScene {
+  time: number;      // secondo del video a cui si trova la scena
+  subtitle: string;  // titolo scena (es. "Scena 01 • L'Ingresso")
+  text: string;      // descrizione narrativa
+}
+
+// Config di allestimento per-operazione (vive dentro UnicoDeal.showcase).
+export interface UnicoShowcaseConfig {
+  image?: string | null;          // copertina card vetrina (URL immagine online)
+  videoUrl?: string | null;       // video continuo ONLINE (Firebase Storage / URL diretto mp4)
+  summary?: string | null;        // descrizione breve (card + dettaglio)
+  highlights?: string[];          // punti di forza (dettaglio)
+  scenes?: UnicoShowcaseScene[];  // scene mappate sui secondi del video
+}
+
+// Snapshot PUBBLICO per la vetrina clienti — nodo `unicoShowcase/<dealId>`.
+// Scritto dallo studio (saveUnicoDeals) solo per i deal `published`; contiene
+// SOLO campi divulgabili (niente costi di acquisto/ristrutturazione né nomi
+// investitori). Strutturalmente compatibile con InvestProperty (showcaseData).
+export interface UnicoShowcaseEntry {
+  id: string;
+  title: string;
+  type: string;
+  location: string;
+  status: 'aperto' | 'in_corso' | 'completato' | 'in_arrivo';
+  price: number;          // valore operazione (prezzo di rivendita atteso)
+  minInvestment: number;
+  targetRoi: number;
+  durationMonths: number;
+  goal: number;           // capitale da raccogliere
+  raised: number;         // capitale raccolto (somma conferimenti)
+  investors: number;      // numero investitori (solo conteggio)
+  summary: string;
+  highlights: string[];
+  image: string;
+  videoUrl?: string | null;
+  scenes?: UnicoShowcaseScene[];
+  updatedAt: number;
 }
 
 export interface Furnishing {

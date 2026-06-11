@@ -6,7 +6,12 @@
  * Contenuti dimostrativi — NON salvati su Firebase. Servono per far
  * navigare al cliente gli altri servizi Onirico oltre ai propri progetti.
  * Gli immobili Unico sono fittizi, pensati per testare la pagina investimenti.
+ *
+ * Qui vivono anche: la config della LANDING cinematica (pagina di login) e
+ * il mapper deal→snapshot pubblico per il nodo `unicoShowcase`.
  */
+
+import type { UnicoDeal, UnicoShowcaseEntry, UnicoShowcaseScene } from './types';
 
 export type ServiceKey = 'studio' | 'materico' | 'strategico' | 'unico';
 
@@ -83,6 +88,48 @@ export const SHOWCASE_SERVICES: ServiceShowcase[] = [
     cta: 'Scopri gli immobili',
   },
 ];
+
+/* ---------------- LANDING CINEMATICA (pagina di login) ---------------- */
+// Config della pagina pubblica di accesso (AuthFlow → CinematicShowcase).
+// ⚠️ Sostituire `videoUrl` con l'URL del proprio video su Firebase Storage
+// (vedi CLAUDE.md §13): video mp4 CONTINUO, le scene sono mappate sui secondi.
+export const LANDING_SHOWCASE: { videoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
+  videoUrl: 'https://github.com/giorgiopascalistudio/ONIRICOAPP/releases/download/VIDEO_ONIRICO-APP/Clip.1.mp4',
+  // Sfondo di riserva se il video non carica (stessa estetica scura).
+  poster: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80',
+  scenes: [
+    {
+      time: 0,
+      subtitle: 'Onirico • Design your vision',
+      text: 'Trasformiamo le idee che hai sempre sognato in progetti concreti e personalizzati. Spazi che parlano di te.',
+    },
+    {
+      time: 3,
+      subtitle: 'Studio • Architettura & Ingegneria',
+      text: 'Progettazione, pratiche edilizie, catasto e direzione lavori: seguiamo ogni fase, dal sopralluogo al collaudo.',
+    },
+    {
+      time: 6,
+      subtitle: 'Materico • Forniture & Posa',
+      text: 'Finiture e capitolati chiavi in mano: selezioniamo materiali di pregio e coordiniamo le imprese partner.',
+    },
+    {
+      time: 9,
+      subtitle: 'Strategico • Marketing & Brand',
+      text: 'Comunicazione e campagne che raccontano la tua storia e fanno crescere il tuo brand.',
+    },
+    {
+      time: 12,
+      subtitle: 'Unico • Atelier immobiliare',
+      text: 'Immobili di pregio selezionati in Puglia, ristrutturati e rivenduti. Investi con noi a partire da piccole quote.',
+    },
+    {
+      time: 15,
+      subtitle: 'Diamo forma ai tuoi sogni',
+      text: 'Crea il tuo accesso in due minuti: segui ogni progetto in tempo reale, dall’idea alla consegna delle chiavi.',
+    },
+  ],
+};
 
 export type PropertyStatus = 'aperto' | 'in_corso' | 'completato' | 'in_arrivo';
 
@@ -239,3 +286,45 @@ export const UNICO_PROPERTIES: InvestProperty[] = [
     ],
   },
 ];
+
+/* ---------------- PUBBLICAZIONE VETRINA (deal → snapshot) ---------------- */
+// Stato deal (lato studio) → badge vetrina (lato cliente).
+const DEAL_TO_PROPERTY_STATUS: Record<UnicoDeal['status'], PropertyStatus> = {
+  valutazione: 'in_arrivo',
+  acquisizione: 'aperto',       // raccolta capitale in corso
+  ristrutturazione: 'in_corso',
+  vendita: 'in_corso',
+  concluso: 'completato',
+};
+
+// Copertina di cortesia se lo studio non ha ancora impostato un'immagine.
+const DEFAULT_PROPERTY_IMAGE = 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1000&q=80';
+
+/**
+ * Snapshot PUBBLICO di un'operazione Unico per il nodo `unicoShowcase/<id>`.
+ * Espone SOLO campi divulgabili: niente costi di acquisto/ristrutturazione
+ * né nomi degli investitori (solo somma raccolta e conteggio).
+ */
+export function dealToShowcaseEntry(d: UnicoDeal): UnicoShowcaseEntry {
+  const sc = d.showcase || {};
+  return {
+    id: d.id,
+    title: d.title || 'Operazione Unico',
+    type: d.type || 'Immobile',
+    location: d.location || 'Puglia',
+    status: DEAL_TO_PROPERTY_STATUS[d.status] || 'in_arrivo',
+    price: Number(d.targetSalePrice) || 0,
+    minInvestment: Number(d.minInvestment) || 0,
+    targetRoi: Number(d.targetRoi) || 0,
+    durationMonths: Number(d.durationMonths) || 0,
+    goal: Number(d.capitalGoal) || 0,
+    raised: (d.investors || []).reduce((s, i) => s + (Number(i.amount) || 0), 0),
+    investors: (d.investors || []).length,
+    summary: sc.summary || '',
+    highlights: sc.highlights || [],
+    image: sc.image || DEFAULT_PROPERTY_IMAGE,
+    videoUrl: sc.videoUrl || null,
+    scenes: sc.scenes || [],
+    updatedAt: Date.now(),
+  };
+}

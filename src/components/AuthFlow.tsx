@@ -18,40 +18,22 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  ArrowRight, Building2, Hammer, Megaphone, Gem, Mail, Lock, Phone, MapPin,
-  Check, ChevronLeft, Briefcase, User as UserIcon, Users, Sparkle, Eye, EyeOff, TrendingUp
+  ArrowRight, Mail, Lock, Phone, MapPin,
+  Check, ChevronLeft, Briefcase, User as UserIcon, Users, Eye, EyeOff
 } from 'lucide-react';
 import {
   loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, setAccount,
   type User as GUser
 } from '../firebase';
 import type { AccountType } from '../types';
-import { UNICO_PROPERTIES } from '../showcaseData';
-import { eur } from '../utils';
+import { LANDING_SHOWCASE } from '../showcaseData';
+import { CinematicShowcase } from './CinematicShowcase';
 
 const OWNER_EMAIL = 'giorgio.pascali990@gmail.com';
 
 // Classe condivisa per uniformare tutti i campi (la base .input non ha padding/altezza)
 const IN = 'input w-full h-11 px-3.5 text-[14px]';
 const IN_PWD = 'input w-full h-11 pl-3.5 pr-10 text-[14px]';
-
-const SERVICES = [
-  { key: 'studio', name: 'Studio', color: '#161616', icon: Building2, tag: 'Architettura · Ingegneria', desc: 'Progettazione, pratiche edilizie, catasto e direzione lavori.' },
-  { key: 'materico', name: 'Materico', color: '#c2410c', icon: Hammer, tag: 'Forniture & posa', desc: 'Finiture e capitolati chiavi in mano con imprese partner.' },
-  { key: 'strategico', name: 'Strategico', color: '#b45309', icon: Megaphone, tag: 'Marketing & brand', desc: 'Comunicazione e campagne che raccontano la tua storia.' },
-  { key: 'unico', name: 'Unico', color: '#4338ca', icon: Gem, tag: 'Atelier immobiliare', desc: 'Immobili di pregio selezionati, ristrutturati e rivenduti.' },
-] as const;
-
-// Unico messo in evidenza separatamente; gli altri 3 in griglia secondaria.
-const OTHER_SERVICES = SERVICES.filter((s) => s.key !== 'unico');
-
-// Badge stato immobili (anteprima landing)
-const PSTATUS: Record<string, { label: string; cls: string }> = {
-  aperto: { label: 'Raccolta aperta', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  in_corso: { label: 'In corso', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  completato: { label: 'Concluso', cls: 'bg-stone-100 text-stone-600 border-stone-200' },
-  in_arrivo: { label: 'In arrivo', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-};
 
 const SECTORS = [
   { value: 'studio', label: 'Edilizia / Architettura' },
@@ -288,164 +270,32 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
     );
   }
 
-  // ---------- LANDING ----------
+  // ---------- LANDING (cinematica, struttura villa-omnia) ----------
   if (screen === 'landing') {
     return (
-      <div className="min-h-screen bg-[#F5F5F3] font-sans text-[#161616] select-none">
-        {/* Topbar */}
-        <div className="max-w-[1080px] mx-auto px-6 pt-6 flex items-center justify-between">
-          <div className="font-serif text-[22px] tracking-tight">onirico</div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => { setScreen('login'); setErr(null); }} className="text-[13px] font-bold px-4 py-2 rounded-full hover:bg-black/5 transition">
-              Accedi
+      <CinematicShowcase
+        videoUrl={LANDING_SHOWCASE.videoUrl}
+        poster={LANDING_SHOWCASE.poster}
+        scenes={LANDING_SHOWCASE.scenes}
+        brand="ONIRICO"
+        brandSub="Architettura · Ingegneria · Design"
+        footer={
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full max-w-md mt-2">
+            <button
+              onClick={() => { setScreen('register'); setErr(null); }}
+              className="flex items-center justify-center gap-2 text-[13.5px] font-bold px-7 h-12 rounded-full bg-white text-stone-950 hover:bg-stone-200 transition active:scale-[0.98] w-full sm:w-auto cursor-pointer"
+            >
+              Inizia il tuo progetto <ArrowRight className="w-4 h-4" />
             </button>
-            <button onClick={() => { setScreen('register'); setErr(null); }} className="text-[13px] font-bold px-4 py-2 rounded-full bg-[#1b1b1b] text-white hover:bg-black transition">
-              Registrati
-            </button>
-          </div>
-        </div>
-
-        {/* Hero */}
-        <div className="max-w-[1080px] mx-auto px-6 pt-20 pb-12 text-center">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.2em] text-stone-500">
-              <Sparkle className="w-3.5 h-3.5" /> Architettura · Ingegneria · Design
-            </span>
-            <h1 className="font-serif tracking-tight text-[clamp(40px,7vw,72px)] leading-[1.04] mt-6">
-              Design your <span className="italic text-stone-400">vision.</span>
-            </h1>
-            <p className="text-[15px] md:text-[17px] text-stone-600 mt-6 max-w-[640px] mx-auto leading-relaxed">
-              Trasformiamo le idee che hai sempre sognato in progetti concreti e personalizzati.
-              Spazi che parlano di te e rispecchiano la tua personalità.
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-9 flex-wrap">
-              <button onClick={() => { setScreen('register'); setErr(null); }} className="flex items-center gap-2 text-[14px] font-bold px-7 py-3.5 rounded-full bg-[#1b1b1b] text-white hover:bg-black transition active:scale-[0.98]">
-                Inizia il tuo progetto <ArrowRight className="w-4 h-4" />
-              </button>
-              <button onClick={() => { setScreen('login'); setErr(null); }} className="text-[14px] font-bold px-7 py-3.5 rounded-full bg-white border border-[#e2e2e2] hover:border-stone-400 transition active:scale-[0.98]">
-                Sono già cliente
-              </button>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Servizi */}
-        <div className="max-w-[1080px] mx-auto px-6 pb-20">
-          {/* FEATURED · Unico — visibile senza login; dettagli immobile dopo registrazione */}
-          <div className="rounded-[30px] border border-indigo-200/70 bg-gradient-to-br from-[#f3f2ff] to-[#F5F5F3] p-6 md:p-8">
-            <div className="flex items-end justify-between flex-wrap gap-3 mb-6">
-              <div>
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em]" style={{ color: '#4338ca' }}>
-                  <Gem className="w-3.5 h-3.5" /> Unico · Investimenti immobiliari
-                </span>
-                <h2 className="font-serif text-[clamp(26px,4.5vw,40px)] tracking-tight mt-2 leading-tight">Investi negli immobili Onirico</h2>
-                <p className="text-[14px] text-stone-600 mt-2 max-w-[600px] leading-relaxed">
-                  Operazioni selezionate in Puglia, ristrutturate dal nostro studio. Sfoglia gli immobili —
-                  <b className="text-[#161616]"> registrati per i dettagli e per investire</b>.
-                </p>
-              </div>
-              <button onClick={() => { setScreen('register'); setErr(null); }} className="hidden sm:flex items-center gap-2 text-[13.5px] font-bold px-5 py-3 rounded-full text-white transition active:scale-[0.98]" style={{ background: '#4338ca' }}>
-                Registrati per investire <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {UNICO_PROPERTIES.map((p, i) => {
-                const pct = p.goal ? Math.min(100, Math.round((p.raised / p.goal) * 100)) : 0;
-                const st = PSTATUS[p.status];
-                return (
-                  <motion.button
-                    key={p.id}
-                    onClick={() => { setScreen('register'); setErr(null); }}
-                    initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, delay: 0.04 * i }}
-                    className="group text-left bg-white border border-[#e6e6e6] rounded-[22px] overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col"
-                  >
-                    <div className="h-44 w-full overflow-hidden relative">
-                      <img src={p.image} alt={p.title} loading="lazy" decoding="async" referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      <span className={`absolute top-3 left-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
-                      <span className="absolute top-3 right-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#161616] border border-white/60 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" /> {p.targetRoi}%/anno
-                      </span>
-                    </div>
-                    <div className="p-4 flex flex-col flex-1">
-                      <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{p.type}</span>
-                      <b className="block text-[16px] tracking-tight mt-0.5">{p.title}</b>
-                      <span className="flex items-center gap-1 text-[12px] text-stone-500 mt-1"><MapPin className="w-3.5 h-3.5" /> {p.location}</span>
-                      <div className="mt-3">
-                        <div className="h-1.5 w-full bg-[#eee] rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#4338ca' }} />
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-stone-500 mt-1.5 font-semibold">
-                          <span>da {eur(p.minInvestment)}</span><span>{pct}% raccolto</span>
-                        </div>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-[#f0f0f0] flex items-center gap-1.5 text-[12px] font-bold" style={{ color: '#4338ca' }}>
-                        <Lock className="w-3.5 h-3.5" /> Registrati per i dettagli
-                      </div>
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            <button onClick={() => { setScreen('register'); setErr(null); }} className="sm:hidden flex items-center justify-center gap-2 text-[14px] font-bold h-12 rounded-full text-white w-full mt-5" style={{ background: '#4338ca' }}>
-              Registrati per investire <ArrowRight className="w-4 h-4" />
+            <button
+              onClick={() => { setScreen('login'); setErr(null); }}
+              className="text-[13.5px] font-bold px-7 h-12 rounded-full border border-white/30 text-white hover:bg-white/10 transition active:scale-[0.98] w-full sm:w-auto cursor-pointer"
+            >
+              Sono già cliente
             </button>
           </div>
-
-          {/* Altri servizi */}
-          <div className="mt-14">
-            <div className="text-center mb-7">
-              <h2 className="font-serif text-[24px] tracking-tight">Tutto sotto un unico studio</h2>
-              <p className="text-[13.5px] text-stone-500 mt-1.5">Dall’architettura alle finiture, fino al marketing.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {OTHER_SERVICES.map((s, i) => {
-                const Icon = s.icon;
-                return (
-                  <motion.button
-                    key={s.key}
-                    onClick={() => { setScreen('register'); setErr(null); }}
-                    initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.05 * i }}
-                    className="group text-left bg-white border border-[#e6e6e6] rounded-[24px] p-5 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer"
-                  >
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white mb-4" style={{ background: s.color }}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <b className="block text-[17px] tracking-tight">{s.name}</b>
-                    <span className="block text-[11px] font-bold uppercase tracking-wide text-stone-400 mt-0.5">{s.tag}</span>
-                    <p className="text-[13px] text-stone-600 mt-2.5 leading-relaxed">{s.desc}</p>
-                    <span className="inline-flex items-center gap-1 text-[12.5px] font-bold mt-3 group-hover:gap-2 transition-all" style={{ color: s.color }}>
-                      Scopri <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Banda finale */}
-          <div className="mt-14 bg-[#161616] text-white rounded-[30px] p-9 md:p-12 text-center overflow-hidden relative">
-            <h3 className="font-serif text-[28px] md:text-[32px] tracking-tight">Diamo forma ai tuoi sogni</h3>
-            <p className="text-[14px] text-white/65 mt-3 max-w-[540px] mx-auto leading-relaxed">
-              Crea il tuo accesso in due minuti. Se hai già una pratica avviata con noi,
-              lo studio la collegherà al tuo account.
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-7 flex-wrap">
-              <button onClick={() => { setScreen('register'); setErr(null); }} className="text-[14px] font-bold px-7 py-3 rounded-full bg-white text-[#161616] hover:bg-stone-100 transition">
-                Crea il tuo accesso
-              </button>
-              <button onClick={() => { setScreen('login'); setErr(null); }} className="text-[14px] font-bold px-7 py-3 rounded-full border border-white/25 hover:bg-white/10 transition">
-                Ho già un account
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center pb-8 text-[11px] text-stone-400 font-bold tracking-wide uppercase">
-          Onirico · Architettura · Ingegneria · Design · 2026
-        </div>
-      </div>
+        }
+      />
     );
   }
 

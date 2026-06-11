@@ -88,6 +88,11 @@
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
     },
 
+    "unicoShowcase": {
+      ".read": "auth != null",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
+    },
+
     "appointments": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$id": {

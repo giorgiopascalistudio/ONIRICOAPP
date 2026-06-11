@@ -37,7 +37,7 @@ import {
   Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { CantiereBoard } from './CantiereBoard';
 import { ChatDeleteButton } from './ChatDeleteButton';
@@ -289,6 +289,8 @@ interface ClientPortalViewProps {
   onCreateMatericoRequest?: (req: MatericoRequest) => void;
   onAcceptMatericoOffer?: (reqId: string, accept: boolean) => void;
   onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
+  /** Vetrina Unico pubblicata (snapshot dal nodo `unicoShowcase`; vuoto → demo). */
+  unicoShowcase?: UnicoShowcaseEntry[];
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   furnishings?: Record<string, Record<string, Furnishing>>;
@@ -341,6 +343,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onCreateMatericoRequest,
   onAcceptMatericoOffer,
   onSubmitMatericoOffer,
+  unicoShowcase,
   projectMessages,
   documents,
   furnishings = {},
@@ -662,7 +665,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
   // Vetrina "Scopri i servizi" — accessibile a qualunque cliente, anche senza progetti
   if (showcaseOpen) {
-    return <ServicesShowcase profile={profile} onBack={() => setShowcaseOpen(false)} onLogout={onLogout} />;
+    return <ServicesShowcase profile={profile} unicoShowcase={unicoShowcase} onBack={() => setShowcaseOpen(false)} onLogout={onLogout} />;
   }
 
   // If no projects connected

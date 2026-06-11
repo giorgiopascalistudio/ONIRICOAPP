@@ -38,6 +38,7 @@ import {
   Appointment,
   MatericoRequest,
   UnicoDeal,
+  UnicoShowcaseEntry,
   Furnishing,
   Cantiere,
   Rapportino,
@@ -142,6 +143,7 @@ import {
   InvoicePassive,
   ScadenzaItem
 } from './finance';
+import { dealToShowcaseEntry } from './showcaseData';
 
 interface Toast {
   id: string;
@@ -304,6 +306,8 @@ export default function App() {
   const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
   const [crmSuppliers, setCrmSuppliers] = useState<Supplier[]>([]);
   const [unicoDeals, setUnicoDeals] = useState<UnicoDeal[]>([]);
+  // Vetrina Unico pubblicata (snapshot pubblici dei deal `published`, nodo `unicoShowcase`)
+  const [unicoShowcase, setUnicoShowcase] = useState<Record<string, UnicoShowcaseEntry>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -562,10 +566,17 @@ export default function App() {
     setCrmSuppliers(arr);
     writeNode('crmSuppliers', arr).catch(() => {});
   };
-  // Unico (lato studio): operazioni immobiliari + investitori (nodo array)
+  // Unico (lato studio): operazioni immobiliari + investitori (nodo array).
+  // Write-through: ricostruisce anche lo snapshot PUBBLICO `unicoShowcase`
+  // (solo deal `published`, solo campi divulgabili — vedi dealToShowcaseEntry):
+  // scrivere il nodo intero tiene in sync anche depubblicazioni/eliminazioni.
   const saveUnicoDeals = (arr: UnicoDeal[]) => {
     setUnicoDeals(arr);
     writeNode('unicoDeals', arr).catch(() => {});
+    const pub: Record<string, UnicoShowcaseEntry> = {};
+    arr.filter((d) => d.published).forEach((d) => { pub[d.id] = dealToShowcaseEntry(d); });
+    setUnicoShowcase(pub);
+    writeNode('unicoShowcase', pub).catch(() => {});
   };
   const handleConvertLead = (lead: Lead) => {
     const pid = `p-${Date.now()}`;
@@ -846,6 +857,7 @@ export default function App() {
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
       subs.push(watchNode('unicoDeals', (v) => setUnicoDeals(toArr(v)), () => {}));
+      subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
@@ -874,6 +886,8 @@ export default function App() {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      // Vetrina Unico pubblicata (snapshot pubblici, leggibili da ogni autenticato)
+      subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
       const pids = Object.keys(currentUser.projectIds || {});
       pids.forEach((pid) => {
         subs.push(watchNode(`projects/${pid}`, (v) => {
@@ -2695,6 +2709,7 @@ export default function App() {
         onCreateMatericoRequest={handleCreateMatericoRequest}
         onAcceptMatericoOffer={handleAcceptMatericoOffer}
         onSubmitMatericoOffer={handleSubmitMatericoOffer}
+        unicoShowcase={Object.values(unicoShowcase)}
         projectMessages={projectMessages}
         documents={documents}
         furnishings={furnishings}

@@ -17,7 +17,8 @@ Le "divisioni"/società:
   Materico) → rivendita, con investitori. Lato studio: modulo **operazioni
   immobiliari + investitori + ROI** (`UnicoStudioView`, sotto-tab "Operazioni &
   Investitori" nella divisione UNICO di Progetti; nodo `unicoDeals`). Lato
-  cliente: vetrina investimenti (`ServicesShowcase`, oggi dati demo).
+  cliente: vetrina investimenti (`ServicesShowcase`: mostra gli immobili
+  **pubblicati** dal nodo `unicoShowcase`, fallback demo se vuoto — vedi §21).
 - **Strategico** — società controllata: marketing per le altre società e per
   clienti esterni. *(modulo dedicato non ancora costruito)*
 
@@ -66,8 +67,10 @@ npm run build      # output in dist/ (esbuild: NON fa type-check)
 (sezione "Scopri i servizi" del portale: pagine vetrina Studio/Materico/
 Strategico/Unico accanto ai progetti; Unico ha la vetrina immobili-investimento
 con dati **fittizi** da `src/showcaseData.ts` — contenuti demo, non su Firebase),
-`AuthFlow` (onboarding pubblico, vedi §5), `UnicoStudioView` (modulo Unico lato
-studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`),
+`AuthFlow` (onboarding pubblico, vedi §5; la landing è la pagina **cinematica**
+`CinematicShowcase`, vedi §21), `UnicoStudioView` (modulo Unico lato
+studio: operazioni immobiliari + investitori + ROI, nodo `unicoDeals`; pulsante
+"Vetrina" → `UnicoShowcaseEditor`, vedi §21),
 `FurnishingsBoard` (modulo "Arredi & Moodboard": scelte materiali/arredi —
 **fissi** con impatto progettuale+scadenza vs **mobili** estetici — e lavagna
 moodboard drag-and-drop; nodo `projectFurnishings`; usato identico lato studio in
@@ -141,6 +144,10 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   updatedAt, by }`. Scrittura del **nodo intero** (non per-elemento). Regole come `projectFurnishings`
   (studio attivo non-cliente **o** cliente collegato `clientUid`, read+write).
 - `appointments/<id>` — agenda condivisa (vedi §8).
+- `unicoShowcase/<dealId>` — **snapshot PUBBLICO vetrina Unico** (`UnicoShowcaseEntry`, vedi §21):
+  scritto in write-through da `saveUnicoDeals` (App) per i soli deal `published`; SOLO campi
+  divulgabili (no costi acquisto/ristrutturazione, no nomi investitori). Read: ogni autenticato;
+  write: admin/manager.
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `clients/<id>` — **Rubrica clienti** (anagrafica riutilizzabile, anche clienti **senza login**:
   privato/azienda con CF/P.IVA/PEC/SDI/indirizzo). Gestita in CRM → tab "Clienti" (admin/manager).
@@ -269,8 +276,8 @@ regole** e ricordare all'utente di ripubblicarle.
 Fatto: login+ruoli, DB condiviso, Documenti+generatore modulistica, Finanza
 condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
 Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
-investitori, ROI/margine — `unicoDeals`); manca la pubblicazione automatica in
-vetrina (oggi la vetrina Unico usa dati demo) e SPV/quote.
+investitori, ROI/margine — `unicoDeals`); fatta la **pubblicazione in vetrina**
+(editor per-deal + nodo `unicoShowcase` + pagina cinematica, §21); mancano SPV/quote.
 Fatto: modulo **Cantiere** (§15) ampliato alla struttura del PDF a 3 aree (Campi condivisi /
 Area Tecnici / Area Impresa): record `cantieri` + sotto-collezioni + registri generici
 (`cantiereRecords`/`cantiereDocumenti` con `section`) + chat (`cantiereMessages`) + Area Impresa
@@ -315,6 +322,9 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunto il nodo **`trash`** (Cestino, §20 — read/write team attivo non-cliente):
   **ripubblicare le regole**, altrimenti il Cestino resta vuoto e i ripristini falliscono
   (le eliminazioni continuano a funzionare ma senza copia di sicurezza).
+  ⚠️ Aggiunto il nodo **`unicoShowcase`** (vetrina Unico pubblicata, §21 — read ogni autenticato,
+  write admin/manager): **ripubblicare le regole**, altrimenti la pubblicazione vetrina fallisce
+  in silenzio e i clienti continuano a vedere i dati demo.
   ⚠️ Aggiornate le regole di **`projectMessages` e `cantiereMessages`** (chat): cliente/partner
   possono **eliminare un proprio messaggio entro 60s** dall'invio (unsend) e il create richiede
   `from == auth.uid` (niente spoofing autore). **Ripubblicare le regole**, altrimenti l'unsend
@@ -328,6 +338,14 @@ reporting/redditività, integrazioni esterne
   incollarne l'ID in `src/drive.ts` (`DEFAULT_CLIENT_ID`) o impostare
   `window.__ONIRICO_DRIVE_CLIENT_ID__`. Finché non è configurato, l'upload Drive non parte e la
   UI usa il **fallback "incolla link"** (l'app resta pienamente funzionante).
+- **Firebase Storage (video vetrina cinematica, §21)**: Console Firebase → Build → Storage →
+  "Inizia" (i progetti recenti richiedono il piano **Blaze** per attivarlo — già previsto per le
+  Cloud Functions §18; la quota no-cost resta: **5 GB** archiviati + **1 GB/giorno** di download).
+  Caricare gli mp4 da console (cartella `vetrina/`), click sul file → copiare l'**URL di download**
+  (con token, funziona nel tag `<video>` senza toccare le regole Storage) → incollarlo nel campo
+  "Video" dell'editor vetrina o in `LANDING_SHOWCASE.videoUrl` (`src/showcaseData.ts`).
+  Video consigliato: mp4 H.264 muto, ~20-30s, keyframe fitti per lo scrubbing fluido
+  (`ffmpeg -i in.mp4 -c:v libx264 -crf 23 -g 15 -movflags +faststart -an out.mp4`).
 - Mettere i 13 GLB in `public/model/`.
 
 ## 15. Modulo Cantiere (studio ↔ impresa partner)
@@ -494,3 +512,30 @@ reporting/redditività, integrazioni esterne
   nel filtro **"Archivio"** di ProjectsView (insieme a sospesi/annullati), con badge ambra.
 - **Colori società**: `COMPANY_COLOR` in `finance.ts` (unica fonte; usato da Dashboard, Preventivi,
   liste progetti). Non ridefinire i colori inline nei nuovi componenti.
+
+## 21. Vetrina cinematica (login + immobili Unico)
+- **`CinematicShowcase`** (`src/components/CinematicShowcase.tsx`): pagina a tutto schermo con
+  **video continuo** di sfondo; rotella/swipe fanno scorrere il video con easing tra **scene**
+  mappate su secondi precisi (`UnicoShowcaseScene { time, subtitle, text }`), pallini di
+  navigazione, vignette per contrasto. Props: `videoUrl` (sempre **online**, fallback `poster`
+  immagine se manca/fallisce), `scenes`, `brand`/`brandSub`, `footer` (ReactNode fisso sotto al
+  testo), `onDiscover`/`discoverLabel` (CTA sull'ultima scena), `onClose` (uso overlay).
+  Origine: prototipo `MODULI/villa-omnia.zip`, senza l'uploader runtime.
+- **Login**: la landing di `AuthFlow` È il CinematicShowcase (config **`LANDING_SHOWCASE`** in
+  `src/showcaseData.ts` — sostituire lì il `videoUrl` placeholder con l'URL Firebase Storage),
+  con i tasti "Inizia il tuo progetto" (→ registrazione) e "Sono già cliente" (→ login) nel
+  footer. Le schermate login/registrazione sono invariate.
+- **Allestimento per-operazione**: in `UnicoStudioView` ogni card deal ha il pulsante **"Vetrina"**
+  (pallino indigo se pubblicata) → **`UnicoShowcaseEditor`** (copertina, video URL online,
+  descrizione, punti di forza, scene sec/titolo/testo, **anteprima** fullscreen, checkbox
+  pubblica). Salva in `UnicoDeal.showcase` (`UnicoShowcaseConfig`) + `published`.
+- **Pubblicazione**: `saveUnicoDeals` (App) riscrive in write-through il nodo intero
+  **`unicoShowcase`** con `dealToShowcaseEntry(deal)` (`src/showcaseData.ts`) per i soli deal
+  `published` → depubblicazioni/eliminazioni sempre in sync. Lo snapshot è **solo campi
+  divulgabili** (vendita/quota/ROI/durata/raccolto/n.investitori, MAI costi né nomi investitori).
+- **Lato cliente**: App sottoscrive `unicoShowcase` (entrambi i rami) e lo passa via
+  `ClientPortalView` a `ServicesShowcase`: la vetrina Unico usa le entry reali (badge "Tour video"
+  sulle card con video; click → pagina cinematica con CTA "Dettagli & investi" → modale dettaglio);
+  senza entry pubblicate restano i demo `UNICO_PROPERTIES` (disclaimer "dati dimostrativi" solo lì).
+- **Video**: SEMPRE URL online (Firebase Storage consigliato, vedi §13) — un unico mp4 continuo
+  per pagina; le scene puntano ai suoi secondi. Niente upload dal client.

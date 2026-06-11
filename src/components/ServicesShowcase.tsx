@@ -4,21 +4,28 @@
  *
  * ServicesShowcase — sezione "Scopri i servizi" del portale cliente.
  * Pagine VETRINA per Studio / Materico / Strategico / Unico, accanto ai
- * progetti personali. Unico include la vetrina degli immobili in cui investire
- * (dati fittizi, vedi src/showcaseData.ts).
+ * progetti personali. Unico mostra gli immobili PUBBLICATI dallo studio
+ * (snapshot dal nodo `unicoShowcase`; se vuoto, fallback sui dati demo di
+ * src/showcaseData.ts). Gli immobili con video+scene aprono la pagina
+ * vetrina cinematica (CinematicShowcase, struttura villa-omnia).
  */
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, ArrowRight, LogOut, Briefcase, Check, MapPin, TrendingUp, Clock,
-  Users, Coins, Building2, Hammer, Megaphone, Gem, Sparkles, X, CheckCircle2
+  Users, Coins, Building2, Hammer, Megaphone, Gem, Sparkles, X, CheckCircle2, Film
 } from 'lucide-react';
-import type { UserProfile } from '../types';
+import type { UserProfile, UnicoShowcaseEntry, UnicoShowcaseScene } from '../types';
 import {
   SHOWCASE_SERVICES, UNICO_PROPERTIES, type ServiceKey, type InvestProperty, type PropertyStatus,
 } from '../showcaseData';
+import { CinematicShowcase } from './CinematicShowcase';
 import { eur } from '../utils';
+
+// Immobile in vetrina: dato demo (InvestProperty) o snapshot pubblicato
+// (UnicoShowcaseEntry, che aggiunge video+scene per la pagina cinematica).
+type VetrinaProperty = InvestProperty & { videoUrl?: string | null; scenes?: UnicoShowcaseScene[] };
 
 const ICONS: Record<ServiceKey, React.ComponentType<any>> = {
   studio: Building2, materico: Hammer, strategico: Megaphone, unico: Gem,
@@ -33,15 +40,59 @@ const STATUS_META: Record<PropertyStatus, { label: string; cls: string }> = {
 
 interface ShowcaseProps {
   profile: UserProfile;
+  /** Immobili pubblicati dallo studio (nodo `unicoShowcase`); vuoto → demo. */
+  unicoShowcase?: UnicoShowcaseEntry[];
   onBack: () => void;
   onLogout: () => void;
 }
 
-export const ServicesShowcase: React.FC<ShowcaseProps> = ({ profile, onBack, onLogout }) => {
+export const ServicesShowcase: React.FC<ShowcaseProps> = ({ profile, unicoShowcase, onBack, onLogout }) => {
   const [view, setView] = useState<'hub' | ServiceKey>('hub');
-  const [selected, setSelected] = useState<InvestProperty | null>(null);
+  const [selected, setSelected] = useState<VetrinaProperty | null>(null);
+  const [cinema, setCinema] = useState<VetrinaProperty | null>(null); // pagina vetrina cinematica aperta
 
   const service = view !== 'hub' ? SHOWCASE_SERVICES.find((s) => s.key === view)! : null;
+
+  // Immobili reali pubblicati se presenti, altrimenti i demo.
+  const isDemo = !(unicoShowcase && unicoShowcase.length);
+  const properties: VetrinaProperty[] = isDemo
+    ? UNICO_PROPERTIES
+    : [...unicoShowcase!].sort((a, b) => ((b as UnicoShowcaseEntry).updatedAt || 0) - ((a as UnicoShowcaseEntry).updatedAt || 0));
+
+  // Click su un immobile: con video+scene → pagina cinematica, altrimenti dettaglio.
+  const openProperty = (p: VetrinaProperty) => {
+    if (p.videoUrl && p.scenes?.length) setCinema(p);
+    else setSelected(p);
+  };
+
+  // Pagina vetrina cinematica a tutto schermo (struttura villa-omnia)
+  if (cinema) {
+    return (
+      <>
+        <CinematicShowcase
+          videoUrl={cinema.videoUrl}
+          poster={cinema.image}
+          scenes={cinema.scenes || []}
+          brand={cinema.title.toUpperCase()}
+          brandSub={cinema.location}
+          onClose={() => { setCinema(null); setSelected(null); }}
+          discoverLabel="Scopri di più"
+          onDiscover={() => setSelected(cinema)}
+          footer={
+            <button
+              onClick={() => setSelected(cinema)}
+              className="flex items-center gap-2 text-[13px] font-bold px-7 h-11 rounded-full bg-white text-stone-950 hover:bg-stone-200 transition active:scale-[0.98] cursor-pointer mt-1"
+            >
+              Dettagli & investi <ArrowRight className="w-4 h-4" />
+            </button>
+          }
+        />
+        <AnimatePresence>
+          {selected && <PropertyDetail property={selected} demo={isDemo} onClose={() => setSelected(null)} />}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F5F3] text-[#161616] font-sans select-none pb-24">
@@ -69,7 +120,7 @@ export const ServicesShowcase: React.FC<ShowcaseProps> = ({ profile, onBack, onL
       </div>
 
       <div className="flex-1 max-w-[1080px] mx-auto w-full p-4 md:p-6 text-left">
-        {view === 'hub' && <Hub profile={profile} onOpen={(k) => { setView(k); setSelected(null); }} />}
+        {view === 'hub' && <Hub profile={profile} properties={properties} onOpen={(k) => { setView(k); setSelected(null); }} />}
 
         {service && service.key !== 'unico' && (
           <ServicePage service={service} onBack={() => setView('hub')} />
@@ -77,24 +128,25 @@ export const ServicesShowcase: React.FC<ShowcaseProps> = ({ profile, onBack, onL
 
         {view === 'unico' && (
           <UnicoVetrina
+            properties={properties}
             onBackHub={() => setView('hub')}
-            onOpenProperty={(p) => setSelected(p)}
+            onOpenProperty={openProperty}
           />
         )}
       </div>
 
       <AnimatePresence>
-        {selected && <PropertyDetail property={selected} onClose={() => setSelected(null)} />}
+        {selected && <PropertyDetail property={selected} demo={isDemo} onClose={() => setSelected(null)} />}
       </AnimatePresence>
     </div>
   );
 };
 
 /* ---------------- HUB ---------------- */
-const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> = ({ profile, onOpen }) => {
+const Hub: React.FC<{ profile: UserProfile; properties: VetrinaProperty[]; onOpen: (k: ServiceKey) => void }> = ({ profile, properties, onOpen }) => {
   const unico = SHOWCASE_SERVICES.find((s) => s.key === 'unico')!;
   const others = SHOWCASE_SERVICES.filter((s) => s.key !== 'unico');
-  const minQuota = Math.min(...UNICO_PROPERTIES.map((p) => p.minInvestment));
+  const minQuota = Math.min(...properties.map((p) => p.minInvestment));
   return (
   <>
     <div className="mt-2 mb-7">
@@ -130,7 +182,7 @@ const Hub: React.FC<{ profile: UserProfile; onOpen: (k: ServiceKey) => void }> =
         <div>
           <p className="text-[13.5px] text-stone-600 max-w-[540px] leading-relaxed">{unico.intro}</p>
           <div className="flex items-center gap-4 mt-3 text-[12px] font-semibold text-stone-500">
-            <span className="flex items-center gap-1.5"><Gem className="w-3.5 h-3.5 text-[#4338ca]" /> {UNICO_PROPERTIES.length} immobili disponibili</span>
+            <span className="flex items-center gap-1.5"><Gem className="w-3.5 h-3.5 text-[#4338ca]" /> {properties.length} immobili disponibili</span>
             <span className="flex items-center gap-1.5"><Coins className="w-3.5 h-3.5 text-[#4338ca]" /> da {eur(minQuota)}</span>
           </div>
         </div>
@@ -245,7 +297,7 @@ const ServicePage: React.FC<{ service: typeof SHOWCASE_SERVICES[number]; onBack:
 };
 
 /* ---------------- VETRINA UNICO (immobili) ---------------- */
-const UnicoVetrina: React.FC<{ onBackHub: () => void; onOpenProperty: (p: InvestProperty) => void }> = ({ onBackHub, onOpenProperty }) => (
+const UnicoVetrina: React.FC<{ properties: VetrinaProperty[]; onBackHub: () => void; onOpenProperty: (p: VetrinaProperty) => void }> = ({ properties, onBackHub, onOpenProperty }) => (
   <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
     <button onClick={onBackHub} className="flex items-center gap-1 text-[12.5px] font-bold text-stone-500 hover:text-[#161616] mb-4">
       <ArrowLeft className="w-4 h-4" /> Tutti i servizi
@@ -266,9 +318,10 @@ const UnicoVetrina: React.FC<{ onBackHub: () => void; onOpenProperty: (p: Invest
     </p>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-      {UNICO_PROPERTIES.map((p, i) => {
+      {properties.map((p, i) => {
         const pct = p.goal ? Math.min(100, Math.round((p.raised / p.goal) * 100)) : 0;
         const st = STATUS_META[p.status];
+        const hasCinema = !!(p.videoUrl && p.scenes?.length);
         return (
           <motion.button
             key={p.id}
@@ -284,6 +337,11 @@ const UnicoVetrina: React.FC<{ onBackHub: () => void; onOpenProperty: (p: Invest
               <span className="absolute top-3 right-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#161616] border border-white/60 flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" /> {p.targetRoi}% / anno
               </span>
+              {hasCinema && (
+                <span className="absolute bottom-3 left-3 text-[10.5px] font-bold px-2.5 py-1 rounded-full bg-stone-950/80 text-white border border-white/20 flex items-center gap-1">
+                  <Film className="w-3 h-3" /> Tour video
+                </span>
+              )}
             </div>
             <div className="p-4 flex flex-col flex-1">
               <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{p.type}</span>
@@ -318,7 +376,7 @@ const UnicoVetrina: React.FC<{ onBackHub: () => void; onOpenProperty: (p: Invest
 );
 
 /* ---------------- DETTAGLIO IMMOBILE (modale) ---------------- */
-const PropertyDetail: React.FC<{ property: InvestProperty; onClose: () => void }> = ({ property: p, onClose }) => {
+const PropertyDetail: React.FC<{ property: VetrinaProperty; demo?: boolean; onClose: () => void }> = ({ property: p, demo, onClose }) => {
   const [amount, setAmount] = useState<string>(String(p.minInvestment));
   const [sent, setSent] = useState(false);
   const pct = p.goal ? Math.min(100, Math.round((p.raised / p.goal) * 100)) : 0;
@@ -424,7 +482,7 @@ const PropertyDetail: React.FC<{ property: InvestProperty; onClose: () => void }
                 </button>
                 <p className="text-[11px] text-stone-400 text-center mt-2.5 leading-snug">
                   Nessun impegno: un consulente ti contatterà per illustrarti l’operazione.
-                  Dati dimostrativi a scopo di valutazione.
+                  {demo && ' Dati dimostrativi a scopo di valutazione.'}
                 </p>
               </>
             )}
