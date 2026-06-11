@@ -18,6 +18,8 @@ interface NavbarProps {
   actionButton?: React.ReactNode;
   notificationsCount: number;
   onNotificationsClick: () => void;
+  /** richieste di accesso in attesa (admin/manager) — badge sul profilo mobile */
+  pendingCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,7 +30,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   title,
   actionButton,
   notificationsCount,
-  onNotificationsClick
+  onNotificationsClick,
+  pendingCount = 0
 }) => {
   if (!profile) return null;
 
@@ -64,18 +67,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Notification Button */}
           <button
             onClick={onNotificationsClick}
-            className="relative w-[34px] h-[34px] rounded-xl flex items-center justify-center text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 cursor-pointer transition-all active:scale-95"
+            className="relative w-[38px] h-[38px] rounded-xl flex items-center justify-center text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 cursor-pointer transition-all active:scale-95"
             aria-label="Notifiche"
           >
             <Bell className="w-4.5 h-4.5" />
             {notificationsCount > 0 && (
-              <span className="absolute top-[3px] right-[3px] w-2 h-2 rounded-full bg-red-500 ring-1.5 ring-white animate-pulse" />
+              <span className="absolute top-[4px] right-[4px] w-2 h-2 rounded-full bg-red-500 ring-1.5 ring-white animate-pulse" />
             )}
           </button>
 
           <button
             onClick={onOpenProfile}
-            className="w-[34px] h-[34px] rounded-xl flex items-center justify-center text-white text-[11px] font-bold border-none bg-[#f1f1f1] cursor-pointer"
+            className="relative w-[38px] h-[38px] rounded-xl flex items-center justify-center text-white text-[11px] font-bold border-none bg-[#f1f1f1] cursor-pointer active:scale-95 transition-transform"
+            aria-label="Profilo"
             style={{
               background:
                 profile.role === 'admin'
@@ -86,6 +90,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             }}
           >
             {initials(profile.name)}
+            {pendingCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[17px] h-[17px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white">
+                {pendingCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

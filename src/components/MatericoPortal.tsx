@@ -148,7 +148,7 @@ export const MatericoPortal: React.FC<MatericoPortalProps> = ({
         <button onClick={() => setNewOpen(true)} className="bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 cursor-pointer border-none"><Plus className="w-4 h-4" /> Nuova richiesta</button>
       </div>
 
-      <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-fit mb-4">
+      <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-fit mb-4">
         {([{ id: 'richieste', label: 'Richieste / Preventivi' }, { id: 'lavori', label: 'Lavori in corso' }] as const).map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full cursor-pointer border-none transition-all ${tab === t.id ? 'bg-[#161616] text-white' : 'text-[#8a8a8a] bg-transparent'}`}>{t.label}</button>
         ))}

@@ -804,7 +804,7 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
             {/* Sector selectors */}
             <div className="flex flex-col gap-1 w-full sm:w-auto text-left">
               <label className="text-[10px] uppercase font-black tracking-wider text-stone-400">Società</label>
-              <div className="flex bg-[#161616] rounded-xl p-1 mt-1 border border-stone-800 overflow-x-auto whitespace-nowrap scrollbar-none max-w-full">
+              <div className="pillbar flex bg-[#161616] rounded-xl p-1 mt-1 border border-stone-800 whitespace-nowrap">
                 <button
                   onClick={() => setSelectedSector('all')}
                   className={`text-[11px] font-extrabold px-3.5 py-1.5 rounded-lg transition-all ${

@@ -101,7 +101,7 @@ export const UnicoStudioView: React.FC<Props> = ({ deals, onSave, projects, canE
 
       {/* Tabs + azione */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+        <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
           {([{ id: 'operazioni', label: 'Operazioni' }, { id: 'investitori', label: 'Investitori' }] as const).map((t) => {
             const active = tab === t.id;
             return (

@@ -184,7 +184,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
         
         {/* Switch Pills */}
         <div className="flex items-center gap-3.5 flex-wrap">
-          <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+          <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
             <button
               onClick={() => {
                 onSetPeopleTab('team');
@@ -222,7 +222,7 @@ export const TeamView: React.FC<TeamViewProps> = ({
           </div>
 
           {peopleTab === 'clienti' && (
-            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] animate-[fadeIn_0.18s_ease_both]">
+            <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] animate-[fadeIn_0.18s_ease_both]">
               {(['tutti', 'studio', 'strategico', 'materico'] as const).map(sec => {
                 const label = sec === 'tutti' ? 'Tutti' 
                             : sec === 'studio' ? 'Studio' 
@@ -1029,7 +1029,7 @@ const ProductivityDashboard: React.FC<{ members: any[]; tasks: Task[] }> = ({ me
     <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-4 text-left">
       <div className="flex items-center justify-between mb-3">
         <h3 className="inline-flex items-center gap-2 text-[14.5px] font-extrabold text-[#161616]"><Compass className="w-4.5 h-4.5" /> Produttività team</h3>
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+        <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
           {(['week', 'month'] as const).map((r) => (
             <button key={r} onClick={() => setRange(r)} className={`text-[11.5px] font-bold px-3 py-1 rounded-full ${range === r ? 'bg-[#161616] text-white' : 'text-[#8a8a8a]'}`}>
               {r === 'week' ? 'Settimana' : 'Mese'}

@@ -297,7 +297,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
 
       {/* Tabs + KPI */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+        <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
           {([
             { id: 'pipeline', label: 'Pipeline commerciale' },
             { id: 'clienti', label: 'Rubrica clienti' },
@@ -404,7 +404,7 @@ export const CrmView: React.FC<CrmViewProps> = ({
       {tab === 'clienti' && (
         <div className="flex flex-col gap-4">
           {/* sotto-toggle Clienti | Partner */}
-          <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start">
+          <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start">
             {([['cliente', 'Clienti', clientCounts.cliente], ['partner', 'Partner / Imprese', clientCounts.partner]] as const).map(([id, lbl, n]) => (
               <button key={id} onClick={() => setClientCat(id as any)}
                 className={`text-[12px] font-bold px-3.5 py-1.5 rounded-full transition-colors ${clientCat === id ? 'bg-[#161616] text-white shadow-xs' : 'text-[#8a8a8a] hover:text-[#161616]'}`}>

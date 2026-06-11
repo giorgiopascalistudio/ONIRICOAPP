@@ -656,7 +656,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {calHeadLabel()}
         </div>
 
-        <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px]">
+        <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-2xl gap-[2px]">
           {(['day', 'week', 'month'] as const).map(view => (
             <button
               key={view}

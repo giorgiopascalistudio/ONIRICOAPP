@@ -2998,9 +2998,10 @@ export default function App() {
           title={formattedMobileTitle()}
           notificationsCount={liveNotifications.filter(n => !n.read).length}
           onNotificationsClick={() => setNotificationsOpen(!notificationsOpen)}
+          pendingCount={canManageAccess ? pendingAccounts.length : 0}
           actionButton={
             route === 'progetti' ? (
-              <button onClick={() => handleOpenNewProject(activeDivision)} className="w-8 h-8 rounded-full bg-[#1b1b1b] text-white flex items-center justify-center border-none">
+              <button onClick={() => handleOpenNewProject(activeDivision)} className="w-[38px] h-[38px] rounded-full bg-[#1b1b1b] text-white flex items-center justify-center border-none cursor-pointer active:scale-95 transition-transform" aria-label="Nuovo progetto">
                 <Plus className="w-4.5 h-4.5" />
               </button>
             ) : undefined

@@ -38,23 +38,24 @@ export const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#1b1a16]/42 backdrop-blur-[3px] z-[60] flex items-start justify-center p-0 md:p-10 overflow-y-auto animate-[fadeIn_0.18s_ease_both]">
+    <div className="fixed inset-0 bg-[#1b1a16]/42 backdrop-blur-[3px] z-[60] flex items-end md:items-start justify-center p-0 md:p-10 overflow-y-auto animate-[fadeIn_0.18s_ease_both]">
       <div
-        className={`bg-white border border-[#e2e2e2] rounded-t-[20px] md:rounded-[26px] w-full shadow-2xl p-4 md:p-0 my-auto animate-[popIn_0.22s_cubic-bezier(0.16,1,0.3,1)_both] ${
+        className={`bg-white border border-[#e2e2e2] rounded-t-[20px] md:rounded-[26px] w-full shadow-2xl mt-auto mb-0 md:my-auto pb-[env(safe-area-inset-bottom,0px)] md:pb-0 animate-[popIn_0.22s_cubic-bezier(0.16,1,0.3,1)_both] ${
           wide ? 'max-w-[680px]' : 'max-w-[520px]'
         }`}
         role="dialog"
         aria-modal="true"
       >
         {/* Modal Header */}
-        <div className="flex items-center gap-3 px-6 pt-5 pb-3">
+        <div className="flex items-center gap-3 px-5 md:px-6 pt-5 pb-3">
           <div className="text-left min-w-0 flex-1">
             <h2 className="font-semibold text-[21px] tracking-tight text-[#161616] m-0">{title}</h2>
             {subtitle && <p className="text-[12.5px] text-[#8a8a8a] mt-[2px] mb-0 truncate">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="w-[34px] h-[34px] rounded-lg flex items-center justify-center text-[#8a8a8a] hover:bg-[#ececec] hover:text-[#161616] transition-colors cursor-pointer"
+            className="w-[38px] h-[38px] md:w-[34px] md:h-[34px] rounded-lg flex items-center justify-center text-[#8a8a8a] hover:bg-[#ececec] hover:text-[#161616] transition-colors cursor-pointer"
+            aria-label="Chiudi"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[18px] h-[18px]">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -63,13 +64,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="px-6 py-2 max-h-[60vh] md:max-h-[62vh] overflow-y-auto text-left">
+        <div className="px-5 md:px-6 py-2 max-h-[68vh] md:max-h-[62vh] overflow-y-auto text-left">
           {children}
         </div>
 
         {/* Modal Footer */}
         {footer && (
-          <div className="flex gap-2.5 px-6 pt-4 pb-5 justify-end flex-wrap border-t border-[#f5f5f5] mt-4">
+          <div className="flex gap-2.5 px-5 md:px-6 pt-4 pb-5 justify-end flex-wrap border-t border-[#f5f5f5] mt-4">
             {footer}
           </div>
         )}

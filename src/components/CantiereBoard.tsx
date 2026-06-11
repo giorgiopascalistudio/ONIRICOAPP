@@ -164,7 +164,7 @@ export const CantiereBoard: React.FC<CantiereBoardProps> = (props) => {
         {cantieri.length === 0 ? (
           <p className="text-[12.5px] italic text-[#9a9a9a] py-2">Nessun cantiere in questo progetto. Creane uno.</p>
         ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="pillbar flex gap-2 pb-1">
             {cantieri.map((c) => {
               const active = sel?.id === c.id;
               return (
@@ -494,7 +494,7 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
       </div>
 
       {/* nav SEZIONE (livello 2) */}
-      <div className="flex gap-1 overflow-x-auto mb-3">
+      <div className="pillbar flex gap-1 mb-3">
         {areaSections.map((s) => {
           const Icon = s.icon;
           const active = section === s.id;

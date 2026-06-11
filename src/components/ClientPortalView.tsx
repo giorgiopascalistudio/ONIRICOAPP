@@ -1049,7 +1049,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
         {/* Sub-navigation tabs matching ui.unlumen.com/components/motion-tabs-menu */}
         <div className="flex justify-center my-4">
-          <div className="inline-flex items-center gap-1.5 bg-[#161616] rounded-full p-1.5 shadow-md border border-neutral-800 relative overflow-visible">
+          <div className="pillbar inline-flex items-center gap-1.5 bg-[#161616] rounded-full p-1.5 shadow-md border border-neutral-800 relative">
             {tabsList.map(tab => {
               const isActive = currentTab === tab.id;
               const Icon = tab.icon;
@@ -2376,7 +2376,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     {/* Search and Categories row */}
                     <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
                       {/* Categories tag pills */}
-                      <div className="flex items-center bg-[#eaeaea] border border-[#dcdcdc] p-[3px] rounded-2xl gap-[2px] overflow-x-auto max-w-full">
+                      <div className="pillbar flex items-center bg-[#eaeaea] border border-[#dcdcdc] p-[3px] rounded-2xl gap-[2px]">
                         {['Tutti', 'Architettura', 'Ingegneria', 'Restauro', 'Interior Design'].map(cat => (
                           <button
                             key={cat}

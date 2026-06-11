@@ -160,7 +160,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
       {/* Barra principale: Pratiche | Contratti */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center bg-[#161616] border border-neutral-800 p-[3px] rounded-full gap-[2px]">
+        <div className="pillbar flex items-center bg-[#161616] border border-neutral-800 p-[3px] rounded-full gap-[2px]">
           {([['pratiche', 'Pratiche & Archivio'], ['contratti', 'Contratti']] as const).map(([id, lbl]) => {
             const active = mainTab === id;
             return (
@@ -179,7 +179,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
         {mainTab === 'pratiche' && (
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+            <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
               {(['tutti', 'studio', 'strategico', 'materico'] as const).map((sec) => {
                 const active = sector === sec;
                 return (
