@@ -197,12 +197,31 @@ regole** e ricordare all'utente di ripubblicarle.
 
 ## 8. Agenda / Appuntamenti
 - `CalendarView` ordine **Giorno · Settimana · Mese**, tasti statici (niente
-  animazione layout). Mostra i task **dell'utente** + i suoi appuntamenti.
-- `appointments/<id>`: `{title,date,time,ownerUid,createdBy,withName,note,kind,
-  status}`. Un membro può creare un appuntamento per un altro (`ownerUid`). I
-  portali cliente/partner inviano **richieste** (`status:'pending'`) dal pulsante
-  in "Documenti & Chat"; arrivano nella **Dashboard** e nel **Centro Notifiche**
-  del membro, che conferma/rifiuta.
+  animazione layout). Mostra i task **dell'utente** (anche multi-assegnatario,
+  `Task.assignees` — `assignee` resta il primo per compatibilità) + gli
+  appuntamenti di cui è **partecipante**.
+- `appointments/<id>` è **multi-partecipante**: `participants {uid: pending|
+  confermato|rifiutato}` + `participantNames` (creatore auto-confermato). Il
+  popup "Nuovo appuntamento" ha la selezione libera **"Con"** tra team+clienti+
+  partner (rimossi "Agenda di", controparte libera e il toggle nota). Stato
+  complessivo **grigio (pending)** finché tutti confermano → **verde
+  (confermato)**; notifiche in-app su invito/conferma/rifiuto/annullamento.
+  Conferma/rifiuto = scrittura **granulare** `participants/<uid>` (le regole la
+  consentono anche ai partecipanti non-attivi) + update best-effort di `status`.
+  Appuntamenti legacy senza `participants`: fallback su `ownerUid`. I portali
+  inviano **richieste** (`status:'pending'`) come prima; Dashboard ha anche il
+  box "Messaggi & richieste" sotto l'Agenda di oggi.
+- Il popup **"Nuovo impegno"** supporta più assegnatari e suggerisce il
+  collegamento a una pratica; i task collegati (`projectId`) compaiono anche
+  nel fascicolo tecnico ("Impegni agenda collegati").
+- **Nuovo progetto**: divisione dedotta dal tab attivo (niente select);
+  indirizzo strutturato `via/civico/cap/comune/provincia` (compone
+  `indirizzoImmobile`, helper `composeAddress`); **catastali multipli**
+  (`Project.catastali[]`, primo → `foglio/particella/sub` legacy, editor
+  `CatastaliEditor`); dalla **data di inizio** i task delle fasi vengono
+  pianificati in sequenza (`durationDays`, default 2gg) e **auto-assegnati per
+  mansione** (`UserProfile.functions`, scelte da Team → "Modifica iscritto") al
+  membro col minor numero di task aperti.
 
 ## 9. Modulo Materico (flusso)
 1. Cliente (portale, sezioni "Richieste/Preventivi" e "Lavori in corso") crea una
@@ -300,6 +319,9 @@ reporting/redditività, integrazioni esterne
   possono **eliminare un proprio messaggio entro 60s** dall'invio (unsend) e il create richiede
   `from == auth.uid` (niente spoofing autore). **Ripubblicare le regole**, altrimenti l'unsend
   fallisce lato portale (per lo studio funziona comunque).
+  ⚠️ Aggiornate le regole di **`appointments`** (multi-partecipante): read estesa ai partecipanti
+  (`participants/<auth.uid>` esiste) + write granulare `participants/$uid` per il proprio stato di
+  conferma. **Ripubblicare le regole**, altrimenti gli inviti non si confermano lato portale.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
