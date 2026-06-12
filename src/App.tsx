@@ -119,6 +119,7 @@ import { Modal } from './components/Modal';
 import { AppleSwitch } from './components/AppleSwitch';
 import { injectSmartTextStyles } from './components/SmartText';
 import { AuthFlow } from './components/AuthFlow';
+import { LangProvider } from './i18n';
 import { AccessRequests } from './components/AccessRequests';
 import type { Lead, Supplier } from './components/CrmView';
 import { ConfirmDeleteModal, type ConfirmDeleteRequest } from './components/ConfirmDeleteModal';
@@ -2685,7 +2686,11 @@ export default function App() {
   }
 
   if (!gUser) {
-    return <AuthFlow gUser={null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />;
+    return (
+      <LangProvider>
+        <AuthFlow gUser={null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />
+      </LangProvider>
+    );
   }
 
   // Account creato ma non ancora caricato/approvato
@@ -2737,7 +2742,11 @@ export default function App() {
 
     // Profilo non ancora completato (primo accesso) → form registrazione/completamento
     if (!mine || !mine.profileComplete) {
-      return <AuthFlow gUser={gUser} pendingProfile={mine || null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />;
+      return (
+        <LangProvider initialLang={mine?.lang} onPersist={mine ? (l) => updateAccount(gUser.uid, { lang: l }) : undefined}>
+          <AuthFlow gUser={gUser} pendingProfile={mine || null} onToast={(m, t) => showToast(m, t)} onLogout={handleLogout} />
+        </LangProvider>
+      );
     }
 
     // Profilo completo ma ancora senza ruolo approvato → Team in attesa
@@ -2772,7 +2781,7 @@ export default function App() {
   const isPortalRole = currentUser.role === 'cliente' || currentUser.role === 'partner';
   if (isPortalRole) {
     return (
-      <>
+      <LangProvider initialLang={currentUser.lang} onPersist={(l) => updateAccount(currentUser.uid, { lang: l })}>
       <React.Suspense
         fallback={
           <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center">
@@ -2838,7 +2847,7 @@ export default function App() {
       </React.Suspense>
       {/* Doppia conferma eliminazione anche nel portale cliente/partner */}
       {confirmDel && <ConfirmDeleteModal request={confirmDel} onClose={() => setConfirmDel(null)} />}
-      </>
+      </LangProvider>
     );
   }
 

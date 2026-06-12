@@ -26,6 +26,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import type { UnicoShowcaseScene } from '../types';
 import { safeUrl } from '../utils';
+import { useLang } from '../i18n';
 
 interface CinematicShowcaseProps {
   videoUrl?: string | null;          // video continuo online (mp4 diretto)
@@ -41,11 +42,14 @@ interface CinematicShowcaseProps {
   footer?: React.ReactNode;
   /** Se presente: pulsante [ chiudi ] in alto a destra (uso overlay). */
   onClose?: () => void;
+  /** Slot in alto a sinistra, sempre visibile (es. selettore lingua in landing). */
+  cornerSlot?: React.ReactNode;
 }
 
 export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
-  videoUrl, poster, scenes, brand, brandLogo, brandSub, discoverLabel, onDiscover, footer, onClose,
+  videoUrl, poster, scenes, brand, brandLogo, brandSub, discoverLabel, onDiscover, footer, onClose, cornerSlot,
 }) => {
+  const { t } = useLang();
   // Scene ordinate e con fallback: senza scene la pagina resta statica.
   const SCENES = scenes.length ? [...scenes].sort((a, b) => a.time - b.time) : [{ time: 0, subtitle: brand, text: '' }];
 
@@ -289,6 +293,13 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         </div>
       )}
 
+      {/* 2a. Slot in alto a sinistra (es. selettore lingua nella landing). */}
+      {cornerSlot && (
+        <div className="absolute top-0 left-0 z-20 p-5 md:p-6 pointer-events-auto">
+          {cornerSlot}
+        </div>
+      )}
+
       {/* 2. Solo il pulsante chiudi (uso overlay), in alto a destra. Niente brand qui. */}
       {onClose && (
         <header className="absolute top-0 right-0 z-20 p-5 md:p-6 pointer-events-auto">
@@ -296,7 +307,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             onClick={onClose}
             className="flex items-center gap-1.5 text-[10px] font-sans font-semibold tracking-[0.15em] text-stone-300 hover:text-white transition duration-300 uppercase cursor-pointer bg-white/5 hover:bg-white/15 border border-white/15 rounded-full px-3.5 py-2"
           >
-            <X className="w-3 h-3" /> chiudi
+            <X className="w-3 h-3" /> {t('cin.close')}
           </button>
         </header>
       )}
@@ -343,7 +354,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
               <button
                 key={`${s.time}-${i}`}
                 onClick={() => changeScene(i)}
-                aria-label={`Scena ${i + 1}`}
+                aria-label={t('cin.sceneAria', { n: i + 1 })}
                 className={`rounded-full transition-all duration-500 cursor-pointer ${i === currentSceneIdx ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/30 hover:bg-white/60'}`}
               />
             ))}
@@ -358,14 +369,14 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
                 onClick={onDiscover}
                 className="cin-fade-in flex items-center gap-2 px-7 h-12 border border-white/30 hover:border-white bg-white/10 hover:bg-white text-[13.5px] text-white hover:text-stone-950 font-sans font-bold tracking-wide rounded-full transition-all duration-500 ease-out active:scale-95 cursor-pointer"
               >
-                {discoverLabel || 'Scopri di più'}
+                {discoverLabel || t('cin.discoverDefault')}
               </button>
             )}
             {footer}
           </div>
         ) : (
           <div className="cin-bounce flex flex-col items-center gap-1 text-white/70 select-none">
-            <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[10.5px]">Scorri per esplorare</span>
+            <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[10.5px]">{t('cin.scrollHint')}</span>
             <ChevronDown className="w-4 h-4" />
           </div>
         )}

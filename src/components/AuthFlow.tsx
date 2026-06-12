@@ -28,6 +28,7 @@ import {
 import type { AccountType } from '../types';
 import { LANDING_SHOWCASE } from '../showcaseData';
 import { CinematicShowcase } from './CinematicShowcase';
+import { useLang, LangToggle } from '../i18n';
 
 const OWNER_EMAIL = 'giorgio.pascali990@gmail.com';
 
@@ -35,19 +36,16 @@ const OWNER_EMAIL = 'giorgio.pascali990@gmail.com';
 const IN = 'input w-full h-11 px-3.5 text-[14px]';
 const IN_PWD = 'input w-full h-11 pl-3.5 pr-10 text-[14px]';
 
+// label risolta via t('auth.sector.<value>')
 const SECTORS = [
-  { value: 'studio', label: 'Edilizia / Architettura' },
-  { value: 'strategico', label: 'Marketing / Comunicazione' },
-  { value: 'materico', label: 'Edile / Forniture e posa' },
-  { value: 'unico', label: 'Immobiliare' },
-  { value: 'altro', label: 'Altro settore' },
+  { value: 'studio' },
+  { value: 'strategico' },
+  { value: 'materico' },
+  { value: 'unico' },
+  { value: 'altro' },
 ];
 
-const BENEFITS = [
-  'Accesso immediato al tuo portale personale',
-  'Segui ogni fase del lavoro in tempo reale',
-  'Preventivi, documenti e contratti sempre con te',
-];
+const BENEFITS = ['auth.benefit.1', 'auth.benefit.2', 'auth.benefit.3'];
 
 const GoogleMark = () => (
   <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
@@ -58,18 +56,18 @@ const GoogleMark = () => (
   </svg>
 );
 
-const authErr = (code?: string): string => {
+const authErr = (t: (k: string) => string, code?: string): string => {
   switch (code) {
-    case 'auth/email-already-in-use': return 'Esiste già un account con questa email. Usa "Accedi".';
-    case 'auth/invalid-email': return 'Email non valida.';
-    case 'auth/weak-password': return 'Password troppo debole (min. 6 caratteri).';
+    case 'auth/email-already-in-use': return t('auth.err.emailInUse');
+    case 'auth/invalid-email': return t('auth.err.invalidEmail');
+    case 'auth/weak-password': return t('auth.err.weakPassword');
     case 'auth/wrong-password':
-    case 'auth/invalid-credential': return 'Email o password non corretti.';
-    case 'auth/user-not-found': return 'Nessun account con questa email.';
-    case 'auth/too-many-requests': return 'Troppi tentativi. Riprova più tardi.';
-    case 'auth/popup-closed-by-user': return 'Accesso annullato.';
-    case 'auth/operation-not-allowed': return 'Email/Password non abilitato su Firebase. Contatta lo studio.';
-    default: return 'Operazione non riuscita. Riprova.';
+    case 'auth/invalid-credential': return t('auth.err.wrongPassword');
+    case 'auth/user-not-found': return t('auth.err.userNotFound');
+    case 'auth/too-many-requests': return t('auth.err.tooManyRequests');
+    case 'auth/popup-closed-by-user': return t('auth.err.popupClosed');
+    case 'auth/operation-not-allowed': return t('auth.err.operationNotAllowed');
+    default: return t('auth.err.default');
   }
 };
 
@@ -92,6 +90,7 @@ const Field: React.FC<{
 export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToast, onLogout }) => {
   // Se l'utente è autenticato ma senza scheda completa → forziamo il completamento.
   const completing = !!gUser;
+  const { t, lang } = useLang();
 
   const [screen, setScreen] = useState<'landing' | 'login' | 'register'>('landing');
   const [busy, setBusy] = useState(false);
@@ -159,14 +158,14 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
   };
 
   const validateProfile = (): string | null => {
-    if (!firstName.trim() || !lastName.trim()) return 'Inserisci nome e cognome.';
-    if (!telefono.trim()) return 'Inserisci un numero di telefono.';
-    if (!residenza.trim()) return 'Inserisci la residenza.';
+    if (!firstName.trim() || !lastName.trim()) return t('auth.validate.name');
+    if (!telefono.trim()) return t('auth.validate.phone');
+    if (!residenza.trim()) return t('auth.validate.residence');
     if (accountType === 'azienda') {
-      if (!companyName.trim()) return 'Inserisci la ragione sociale.';
-      if (!partitaIva.trim()) return 'Inserisci la partita IVA.';
+      if (!companyName.trim()) return t('auth.validate.companyName');
+      if (!partitaIva.trim()) return t('auth.validate.vat');
     }
-    if (!privacy) return 'Devi accettare l’informativa privacy.';
+    if (!privacy) return t('auth.validate.privacy');
     return null;
   };
 
@@ -177,9 +176,9 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
     if (vp) { setErr(vp); return; }
 
     if (!completing && via === 'email') {
-      if (!email.trim()) { setErr('Inserisci una email.'); return; }
-      if (pass.length < 6) { setErr('La password deve avere almeno 6 caratteri.'); return; }
-      if (pass !== pass2) { setErr('Le password non coincidono.'); return; }
+      if (!email.trim()) { setErr(t('auth.validate.email')); return; }
+      if (pass.length < 6) { setErr(t('auth.validate.password')); return; }
+      if (pass !== pass2) { setErr(t('auth.validate.passwordMismatch')); return; }
     }
 
     setBusy(true);
@@ -198,23 +197,23 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
       await setAccount(uid, buildRecord(uid, em, photo));
       // Da qui in poi watchOwnAccount in App rileva il record completo e instrada.
       if (accountType === 'team') {
-        onToast('Registrazione inviata. Un responsabile la approverà a breve.');
+        onToast(t('auth.toast.teamRegistered'));
       } else {
-        onToast('Benvenuto in Onirico!');
+        onToast(t('auth.toast.welcome'));
       }
     } catch (e: any) {
-      fail(authErr(e?.code));
+      fail(authErr(t, e?.code));
     }
   };
 
   const handleLogin = async () => {
     setErr(null);
-    if (!liEmail.trim() || !liPass) { setErr('Inserisci email e password.'); return; }
+    if (!liEmail.trim() || !liPass) { setErr(t('auth.validate.loginFields')); return; }
     setBusy(true);
     try {
       await loginWithEmail(liEmail, liPass);
     } catch (e: any) {
-      fail(authErr(e?.code));
+      fail(authErr(t, e?.code));
     }
   };
 
@@ -224,24 +223,24 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
     try {
       await loginWithGoogle();
     } catch (e: any) {
-      fail(authErr(e?.code));
+      fail(authErr(t, e?.code));
     }
   };
 
   const handleReset = async () => {
-    if (!liEmail.trim()) { setErr('Scrivi la tua email, poi premi di nuovo "Password dimenticata?".'); return; }
+    if (!liEmail.trim()) { setErr(t('auth.validate.resetPrompt')); return; }
     try {
       await resetPassword(liEmail);
-      onToast('Ti abbiamo inviato il link per reimpostare la password.');
+      onToast(t('auth.toast.resetSent'));
     } catch (e: any) {
-      onToast(authErr(e?.code), 'err');
+      onToast(authErr(t, e?.code), 'err');
     }
   };
 
   const TYPE_CARDS: { value: AccountType; title: string; desc: string; icon: React.ReactNode }[] = [
-    { value: 'cliente', title: 'Cliente', desc: 'Privato. Accesso immediato al tuo portale.', icon: <UserIcon className="w-5 h-5" /> },
-    { value: 'azienda', title: 'Azienda', desc: 'Società con P.IVA e dati di fatturazione.', icon: <Briefcase className="w-5 h-5" /> },
-    { value: 'team', title: 'Team', desc: 'Collaboratore. Richiede approvazione.', icon: <Users className="w-5 h-5" /> },
+    { value: 'cliente', title: t('auth.type.cliente.title'), desc: t('auth.type.cliente.desc'), icon: <UserIcon className="w-5 h-5" /> },
+    { value: 'azienda', title: t('auth.type.azienda.title'), desc: t('auth.type.azienda.desc'), icon: <Briefcase className="w-5 h-5" /> },
+    { value: 'team', title: t('auth.type.team.title'), desc: t('auth.type.team.desc'), icon: <Users className="w-5 h-5" /> },
   ];
 
   // ---------- COMPLETAMENTO PROFILO (entrato con Google, scheda mancante) ----------
@@ -249,9 +248,10 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
     return (
       <div className="min-h-screen bg-[#F5F5F3] p-4 sm:p-6 flex items-center justify-center font-sans">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="w-full max-w-[560px]">
+          <div className="flex justify-end mb-2"><LangToggle /></div>
           <div className="text-center mb-5">
-            <h1 className="font-serif text-[30px] tracking-tight text-[#161616]">Ci siamo quasi</h1>
-            <p className="text-[13.5px] text-stone-500 mt-1.5">Completa il profilo per attivare il tuo accesso.</p>
+            <h1 className="font-serif text-[30px] tracking-tight text-[#161616]">{t('auth.completing.title')}</h1>
+            <p className="text-[13.5px] text-stone-500 mt-1.5">{t('auth.completing.sub')}</p>
           </div>
           <div className="bg-white border border-[#e2e2e2] rounded-[26px] shadow-sm p-6 sm:p-7">
             {renderTypePicker()}
@@ -259,10 +259,10 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
             {renderPrivacy()}
             {err && <p className="text-[12px] text-red-600 font-semibold mt-3">{err}</p>}
             <button onClick={() => submit('email')} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[14px] w-full mt-5 h-11 transition active:scale-[0.98] disabled:opacity-60">
-              {busy ? 'Attendere…' : 'Conferma e accedi'} <ArrowRight className="w-4 h-4" />
+              {busy ? t('auth.busy.wait') : t('auth.completing.submit')} <ArrowRight className="w-4 h-4" />
             </button>
             <button onClick={onLogout} className="text-[12px] text-stone-400 hover:text-stone-600 font-semibold w-full text-center mt-3">
-              Esci ({gUser?.email})
+              {t('auth.completing.logout', { email: gUser?.email || '' })}
             </button>
           </div>
         </motion.div>
@@ -276,23 +276,24 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
       <CinematicShowcase
         videoUrl={LANDING_SHOWCASE.videoUrl}
         poster={LANDING_SHOWCASE.poster}
-        scenes={LANDING_SHOWCASE.scenes}
+        scenes={lang === 'en' ? LANDING_SHOWCASE.scenesEn : LANDING_SHOWCASE.scenes}
         brand="ONIRICO"
         brandLogo={LANDING_SHOWCASE.logoUrl}
-        brandSub="Architettura · Ingegneria · Design"
+        brandSub={t('auth.landing.brandSub')}
+        cornerSlot={<LangToggle />}
         footer={
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full max-w-md mt-2">
             <button
               onClick={() => { setScreen('register'); setErr(null); }}
               className="flex items-center justify-center gap-2 text-[13.5px] font-bold px-7 h-12 rounded-full bg-white text-stone-950 hover:bg-stone-200 transition active:scale-[0.98] w-full sm:w-auto cursor-pointer"
             >
-              Inizia il tuo progetto <ArrowRight className="w-4 h-4" />
+              {t('auth.landing.start')} <ArrowRight className="w-4 h-4" />
             </button>
             <button
               onClick={() => { setScreen('login'); setErr(null); }}
               className="text-[13.5px] font-bold px-7 h-12 rounded-full border border-white/30 text-white hover:bg-white/10 transition active:scale-[0.98] w-full sm:w-auto cursor-pointer"
             >
-              Sono già cliente
+              {t('auth.landing.already')}
             </button>
           </div>
         }
@@ -305,18 +306,21 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
     return (
       <div className="min-h-screen bg-[#F5F5F3] p-4 sm:p-6 flex items-center justify-center font-sans">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="w-full max-w-[400px]">
-          <button onClick={() => { setScreen('landing'); setErr(null); }} className="flex items-center gap-1 text-[12.5px] font-bold text-stone-500 hover:text-[#161616] mb-4">
-            <ChevronLeft className="w-4 h-4" /> Indietro
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => { setScreen('landing'); setErr(null); }} className="flex items-center gap-1 text-[12.5px] font-bold text-stone-500 hover:text-[#161616]">
+              <ChevronLeft className="w-4 h-4" /> {t('common.back')}
+            </button>
+            <LangToggle />
+          </div>
           <div className="text-center mb-6">
-            <h1 className="font-serif text-[30px] tracking-tight">Bentornato</h1>
-            <p className="text-[13.5px] text-stone-500 mt-1.5">Accedi al tuo spazio Onirico.</p>
+            <h1 className="font-serif text-[30px] tracking-tight">{t('auth.login.title')}</h1>
+            <p className="text-[13.5px] text-stone-500 mt-1.5">{t('auth.login.sub')}</p>
           </div>
           <div className="bg-white border border-[#e2e2e2] rounded-[24px] shadow-sm p-6 flex flex-col gap-3.5">
-            <Field label="Email" icon={<Mail className="w-3.5 h-3.5" />}>
-              <input type="email" value={liEmail} onChange={(e) => setLiEmail(e.target.value)} className={IN} placeholder="nome@email.it" />
+            <Field label={t('auth.field.email')} icon={<Mail className="w-3.5 h-3.5" />}>
+              <input type="email" value={liEmail} onChange={(e) => setLiEmail(e.target.value)} className={IN} placeholder={t('auth.login.emailPlaceholder')} />
             </Field>
-            <Field label="Password" icon={<Lock className="w-3.5 h-3.5" />}>
+            <Field label={t('auth.field.password')} icon={<Lock className="w-3.5 h-3.5" />}>
               <div className="relative">
                 <input type={showPass ? 'text' : 'password'} value={liPass} onChange={(e) => setLiPass(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()} className={IN_PWD} placeholder="••••••••" />
@@ -326,28 +330,28 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
               </div>
             </Field>
             <button onClick={handleReset} className="text-[11.5px] font-bold text-stone-400 hover:text-[#161616] text-right -mt-1.5">
-              Password dimenticata?
+              {t('auth.login.forgot')}
             </button>
 
             {err && <p className="text-[12px] text-red-600 font-semibold">{err}</p>}
 
             <button onClick={handleLogin} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[14px] h-11 transition active:scale-[0.98] disabled:opacity-60">
-              {busy ? 'Accesso…' : 'Accedi'}
+              {busy ? t('auth.busy.login') : t('auth.login.submit')}
             </button>
 
             <div className="flex items-center gap-3 my-1">
               <div className="h-px flex-1 bg-[#ececec]" />
-              <span className="text-[11px] font-bold text-stone-400 uppercase">oppure</span>
+              <span className="text-[11px] font-bold text-stone-400 uppercase">{t('auth.or')}</span>
               <div className="h-px flex-1 bg-[#ececec]" />
             </div>
 
             <button onClick={handleGoogle} disabled={busy} className="flex items-center justify-center gap-3 h-11 rounded-xl border border-stone-200 hover:bg-stone-50 hover:border-stone-400 font-bold text-[14px] disabled:opacity-60">
-              <GoogleMark /> Continua con Google
+              <GoogleMark /> {t('auth.googleLogin')}
             </button>
           </div>
           <p className="text-center text-[12.5px] text-stone-500 mt-5">
-            Non hai un account?{' '}
-            <button onClick={() => { setScreen('register'); setErr(null); }} className="font-bold text-[#161616] hover:underline">Registrati</button>
+            {t('auth.login.noAccount')}{' '}
+            <button onClick={() => { setScreen('register'); setErr(null); }} className="font-bold text-[#161616] hover:underline">{t('auth.login.register')}</button>
           </p>
         </motion.div>
       </div>
@@ -358,9 +362,12 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
   return (
     <div className="min-h-screen bg-[#F5F5F3] p-4 sm:p-6 flex items-center justify-center font-sans">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="w-full max-w-[940px]">
-        <button onClick={() => { setScreen('landing'); setErr(null); }} className="flex items-center gap-1 text-[12.5px] font-bold text-stone-500 hover:text-[#161616] mb-4">
-          <ChevronLeft className="w-4 h-4" /> Indietro
-        </button>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => { setScreen('landing'); setErr(null); }} className="flex items-center gap-1 text-[12.5px] font-bold text-stone-500 hover:text-[#161616]">
+            <ChevronLeft className="w-4 h-4" /> {t('common.back')}
+          </button>
+          <LangToggle />
+        </div>
 
         <div className="grid lg:grid-cols-[0.82fr_1.18fr] bg-white border border-[#e2e2e2] rounded-[28px] shadow-sm overflow-hidden">
           {/* Pannello brand (desktop) */}
@@ -368,10 +375,10 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
             <div>
               <div className="font-serif text-[22px] tracking-tight">onirico</div>
               <h2 className="font-serif text-[34px] leading-[1.08] mt-12">
-                Diamo forma<br />ai tuoi <span className="italic text-white/55">sogni.</span>
+                {t('auth.register.heroA')}<br />{t('auth.register.heroB')}<span className="italic text-white/55">{t('auth.register.heroItalic')}</span>
               </h2>
               <p className="text-[13.5px] text-white/60 mt-4 leading-relaxed">
-                Crea il tuo accesso e segui ogni progetto, dall’idea alla consegna delle chiavi.
+                {t('auth.register.heroSub')}
               </p>
             </div>
             <ul className="flex flex-col gap-3 mt-10">
@@ -380,20 +387,20 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
                   <span className="mt-0.5 w-5 h-5 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                     <Check className="w-3 h-3" />
                   </span>
-                  {b}
+                  {t(b)}
                 </li>
               ))}
             </ul>
             <p className="text-[11.5px] text-white/40 mt-10 leading-relaxed">
-              Hai già una pratica avviata con noi? Lo studio la collegherà al tuo account.
+              {t('auth.register.footnote')}
             </p>
           </div>
 
           {/* Form */}
           <div className="p-6 sm:p-8">
             <div className="mb-5">
-              <h1 className="font-serif text-[28px] tracking-tight">Crea il tuo accesso</h1>
-              <p className="text-[13px] text-stone-500 mt-1">Scegli il tipo di account e completa i dati.</p>
+              <h1 className="font-serif text-[28px] tracking-tight">{t('auth.register.title')}</h1>
+              <p className="text-[13px] text-stone-500 mt-1">{t('auth.register.sub')}</p>
             </div>
 
             {renderTypePicker()}
@@ -402,19 +409,19 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
               {renderProfileFields()}
 
               {/* Credenziali email */}
-              <Field label="Email" icon={<Mail className="w-3.5 h-3.5" />} full>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={IN} placeholder="nome@email.it" />
+              <Field label={t('auth.field.email')} icon={<Mail className="w-3.5 h-3.5" />} full>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={IN} placeholder={t('auth.login.emailPlaceholder')} />
               </Field>
-              <Field label="Password" icon={<Lock className="w-3.5 h-3.5" />}>
+              <Field label={t('auth.field.password')} icon={<Lock className="w-3.5 h-3.5" />}>
                 <div className="relative">
-                  <input type={showPass ? 'text' : 'password'} value={pass} onChange={(e) => setPass(e.target.value)} className={IN_PWD} placeholder="min. 6 caratteri" />
+                  <input type={showPass ? 'text' : 'password'} value={pass} onChange={(e) => setPass(e.target.value)} className={IN_PWD} placeholder={t('auth.register.passwordPlaceholder')} />
                   <button type="button" onClick={() => setShowPass(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </Field>
-              <Field label="Conferma password" icon={<Lock className="w-3.5 h-3.5" />}>
-                <input type={showPass ? 'text' : 'password'} value={pass2} onChange={(e) => setPass2(e.target.value)} className={IN} placeholder="ripeti password" />
+              <Field label={t('auth.register.confirmPassword')} icon={<Lock className="w-3.5 h-3.5" />}>
+                <input type={showPass ? 'text' : 'password'} value={pass2} onChange={(e) => setPass2(e.target.value)} className={IN} placeholder={t('auth.register.confirmPlaceholder')} />
               </Field>
             </div>
 
@@ -423,22 +430,22 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
             {err && <p className="text-[12px] text-red-600 font-semibold mt-3">{err}</p>}
 
             <button onClick={() => submit('email')} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[14px] w-full mt-5 h-11 transition active:scale-[0.98] disabled:opacity-60">
-              {busy ? 'Attendere…' : 'Crea account'} <ArrowRight className="w-4 h-4" />
+              {busy ? t('auth.busy.wait') : t('auth.register.submit')} <ArrowRight className="w-4 h-4" />
             </button>
 
             <div className="flex items-center gap-3 my-3.5">
               <div className="h-px flex-1 bg-[#ececec]" />
-              <span className="text-[11px] font-bold text-stone-400 uppercase">oppure</span>
+              <span className="text-[11px] font-bold text-stone-400 uppercase">{t('auth.or')}</span>
               <div className="h-px flex-1 bg-[#ececec]" />
             </div>
 
             <button onClick={() => submit('google')} disabled={busy} className="flex items-center justify-center gap-3 h-11 rounded-xl border border-stone-200 hover:bg-stone-50 hover:border-stone-400 font-bold text-[14px] w-full disabled:opacity-60">
-              <GoogleMark /> Registrati con Google
+              <GoogleMark /> {t('auth.googleRegister')}
             </button>
 
             <p className="text-center text-[12.5px] text-stone-500 mt-5">
-              Hai già un account?{' '}
-              <button onClick={() => { setScreen('login'); setErr(null); }} className="font-bold text-[#161616] hover:underline">Accedi</button>
+              {t('auth.register.haveAccount')}{' '}
+              <button onClick={() => { setScreen('login'); setErr(null); }} className="font-bold text-[#161616] hover:underline">{t('auth.register.login')}</button>
             </p>
           </div>
         </div>
@@ -473,47 +480,47 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
   function renderProfileFields() {
     return (
       <>
-        <Field label="Nome" icon={<UserIcon className="w-3.5 h-3.5" />}>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={IN} placeholder="Mario" />
+        <Field label={t('auth.field.firstName')} icon={<UserIcon className="w-3.5 h-3.5" />}>
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={IN} placeholder={t('auth.field.firstNamePlaceholder')} />
         </Field>
-        <Field label="Cognome" icon={<UserIcon className="w-3.5 h-3.5" />}>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={IN} placeholder="Rossi" />
+        <Field label={t('auth.field.lastName')} icon={<UserIcon className="w-3.5 h-3.5" />}>
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={IN} placeholder={t('auth.field.lastNamePlaceholder')} />
         </Field>
-        <Field label="Telefono" icon={<Phone className="w-3.5 h-3.5" />}>
-          <input value={telefono} onChange={(e) => setTelefono(e.target.value)} className={IN} placeholder="+39 ..." />
+        <Field label={t('auth.field.phone')} icon={<Phone className="w-3.5 h-3.5" />}>
+          <input value={telefono} onChange={(e) => setTelefono(e.target.value)} className={IN} placeholder={t('auth.field.phonePlaceholder')} />
         </Field>
-        <Field label="Residenza" icon={<MapPin className="w-3.5 h-3.5" />}>
-          <input value={residenza} onChange={(e) => setResidenza(e.target.value)} className={IN} placeholder="Via, Città" />
+        <Field label={t('auth.field.residence')} icon={<MapPin className="w-3.5 h-3.5" />}>
+          <input value={residenza} onChange={(e) => setResidenza(e.target.value)} className={IN} placeholder={t('auth.field.residencePlaceholder')} />
         </Field>
 
         {accountType === 'azienda' && (
           <>
             <div className="col-span-2 mt-1 mb-0.5 flex items-center gap-2">
               <Briefcase className="w-3.5 h-3.5 text-stone-400" />
-              <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">Dati azienda</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">{t('auth.field.companyData')}</span>
               <div className="h-px flex-1 bg-[#ececec]" />
             </div>
-            <Field label="Ragione sociale" full>
-              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={IN} placeholder="Azienda S.r.l." />
+            <Field label={t('auth.field.companyName')} full>
+              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={IN} placeholder={t('auth.field.companyNamePlaceholder')} />
             </Field>
-            <Field label="Partita IVA">
+            <Field label={t('auth.field.vat')}>
               <input value={partitaIva} onChange={(e) => setPartitaIva(e.target.value)} className={IN} placeholder="IT01234567890" />
             </Field>
-            <Field label="Codice fiscale">
+            <Field label={t('auth.field.taxCode')}>
               <input value={codiceFiscale} onChange={(e) => setCodiceFiscale(e.target.value)} className={IN} />
             </Field>
-            <Field label="PEC">
-              <input value={pec} onChange={(e) => setPec(e.target.value)} className={IN} placeholder="azienda@pec.it" />
+            <Field label={t('auth.field.pec')}>
+              <input value={pec} onChange={(e) => setPec(e.target.value)} className={IN} placeholder={t('auth.field.pecPlaceholder')} />
             </Field>
-            <Field label="Codice SDI">
+            <Field label={t('auth.field.sdi')}>
               <input value={sdi} onChange={(e) => setSdi(e.target.value)} className={IN} placeholder="0000000" />
             </Field>
-            <Field label="Sede legale" full>
-              <input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} className={IN} placeholder="Via, Città" />
+            <Field label={t('auth.field.legalAddress')} full>
+              <input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} className={IN} placeholder={t('auth.field.addressPlaceholder')} />
             </Field>
-            <Field label="Settore in cui operate" full>
+            <Field label={t('auth.field.sector')} full>
               <select value={companySector} onChange={(e) => setCompanySector(e.target.value)} className={`${IN} pr-3`}>
-                {SECTORS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {SECTORS.map((s) => <option key={s.value} value={s.value}>{t('auth.sector.' + s.value)}</option>)}
               </select>
             </Field>
           </>
@@ -530,7 +537,7 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
         </span>
         <input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} className="hidden" />
         <span className="text-[12px] text-stone-600 leading-snug">
-          Ho letto e accetto l’<b className="text-[#161616]">informativa sulla privacy</b> e il trattamento dei miei dati personali secondo il GDPR (Reg. UE 2016/679).
+          {t('auth.privacy.a')}<b className="text-[#161616]">{t('auth.privacy.bold')}</b>{t('auth.privacy.b')}
         </span>
       </label>
     );

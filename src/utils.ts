@@ -9,8 +9,19 @@ import { Task } from './types';
 // in TrashView — così App può importarlo senza tirare il chunk lazy della vista).
 export const TRASH_RETENTION_DAYS = 60;
 
-// Italian locale formatter helper
-const df = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('it-IT', options);
+// Locale corrente per date/numeri. Default italiano; il portale cliente lo
+// commuta via setI18nLocale (vedi src/i18n.tsx). Tenuto qui — senza importare
+// i18n — per evitare dipendenze circolari (i18n importa utils).
+let _intlLocale = 'it-IT';
+let _lang: 'it' | 'en' = 'it';
+
+/** Imposta la lingua per i formattatori (date/valuta) e le parole di relDay/DOW. */
+export function setI18nLocale(lang: 'it' | 'en'): void {
+  _lang = lang;
+  _intlLocale = lang === 'en' ? 'en-GB' : 'it-IT';
+}
+
+const df = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(_intlLocale, options);
 
 export function isoDate(d: Date | string | number): string {
   const x = new Date(d);
@@ -70,13 +81,24 @@ export function fmtMonthYear(d: Date): string {
 
 export function relDay(s: string): string {
   const t = todayISO();
-  if (s === t) return 'Oggi';
-  if (s === isoDate(addDays(new Date(), 1))) return 'Domani';
-  if (s === isoDate(addDays(new Date(), -1))) return 'Ieri';
+  const en = _lang === 'en';
+  if (s === t) return en ? 'Today' : 'Oggi';
+  if (s === isoDate(addDays(new Date(), 1))) return en ? 'Tomorrow' : 'Domani';
+  if (s === isoDate(addDays(new Date(), -1))) return en ? 'Yesterday' : 'Ieri';
   return fmtDay(s);
 }
 
-export const DOW = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const DOW_IT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const DOW_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Etichette giorni-settimana nella lingua corrente (lun-dom). */
+export function dowLabels(): string[] {
+  return _lang === 'en' ? DOW_EN : DOW_IT;
+}
+
+// Retro-compatibilità: DOW resta l'array italiano per il lato studio (che non
+// usa l'i18n). I componenti del portale usano dowLabels().
+export const DOW = DOW_IT;
 
 /**
  * Sanifica gli URL inseriti dagli utenti prima di usarli come href
@@ -93,7 +115,7 @@ export function safeUrl(u?: string | null): string {
 
 export function eur(n: number | string | null | undefined): string {
   const val = typeof n === 'string' ? parseFloat(n) : (n || 0);
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val);
+  return new Intl.NumberFormat(_intlLocale, { style: 'currency', currency: 'EUR' }).format(val);
 }
 
 export function numIt(v: string | number | null | undefined): number {

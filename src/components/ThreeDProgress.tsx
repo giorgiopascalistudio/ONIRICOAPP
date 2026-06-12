@@ -18,6 +18,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { SmartText } from './SmartText';
+import { useLang } from '../i18n';
 
 interface ThreeDProgressProps {
   progress: number; // 0 - 100
@@ -111,6 +112,7 @@ export const ThreeDProgress: React.FC<ThreeDProgressProps> = ({
   height = '340px',
   stageName
 }) => {
+  const { t } = useLang();
   const containerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<number>(progress);
   const loadStepRef = useRef<(n: number) => void>(() => {});
@@ -392,7 +394,7 @@ export const ThreeDProgress: React.FC<ThreeDProgressProps> = ({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-[15px] h-[15px]">
               <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
             </svg>
-            {stageName || activeStage.label}
+            {stageName || t('t3d.' + modelType + '.' + activeStage.key)}
           </div>
         </div>
         <div className="text-right flex-shrink-0">

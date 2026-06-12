@@ -89,6 +89,70 @@ export const SHOWCASE_SERVICES: ServiceShowcase[] = [
   },
 ];
 
+// Variante inglese dei servizi vetrina (selezionata da ServicesShowcase per lingua).
+export const SHOWCASE_SERVICES_EN: ServiceShowcase[] = [
+  {
+    key: 'studio',
+    name: 'Studio',
+    color: '#161616',
+    tagline: 'Architecture · Engineering',
+    intro: 'From survey to handover: we design and follow every building project, giving shape to spaces that speak of you.',
+    bullets: [
+      'Bespoke architectural and interior design',
+      'Building permits: CILA, SCIA, building permits',
+      'Cadastre, EPC, registrations and amnesties',
+      'Works management and site safety',
+    ],
+    image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80',
+    cta: 'Request a consultation',
+  },
+  {
+    key: 'materico',
+    name: 'Materico',
+    color: '#c2410c',
+    tagline: 'Turnkey supply & installation',
+    intro: 'We select fine finishes and materials and coordinate the partner firms for installation, with a single point of contact.',
+    bullets: [
+      'Bespoke specifications and finish moodboards',
+      'Floors, claddings, stoneware and natural stones',
+      'Transparent quotes with selected partner firms',
+      'Coordination and inspection of the on-site installation',
+    ],
+    image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1000&q=80',
+    cta: 'Request a quote',
+  },
+  {
+    key: 'strategico',
+    name: 'Strategico',
+    color: '#b45309',
+    tagline: 'Marketing & brand',
+    intro: 'We tell your story and grow your brand with campaigns, content and communication that converts.',
+    bullets: [
+      'Visual identity, naming and brand design',
+      'Social media, content and Meta / Google campaigns',
+      'Professional photo and video services',
+      'Growth strategy and sales funnels',
+    ],
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1000&q=80',
+    cta: 'Talk to a consultant',
+  },
+  {
+    key: 'unico',
+    name: 'Unico',
+    color: '#4338ca',
+    tagline: 'Real estate atelier · Investments',
+    intro: 'Fine properties selected in Puglia, renovated by our studio and resold. Invest with us starting from small shares.',
+    bullets: [
+      'Properties selected in the most sought-after locations',
+      'Renovation curated by Onirico Studio & Materico',
+      'Estimated expected return for each operation',
+      'Invest from small shares, periodic reports included',
+    ],
+    image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1000&q=80',
+    cta: 'Discover the properties',
+  },
+];
+
 /* ---------------- LANDING CINEMATICA (pagina di login) ---------------- */
 // Config della pagina pubblica di accesso (AuthFlow → CinematicShowcase).
 // ⚠️ Sostituire `videoUrl` con l'URL del proprio video su Firebase Storage
@@ -103,7 +167,7 @@ const asset = (rel: string) => {
 const landingVideo = asset('vetrina/landing.mp4');
 const landingLogo = asset('logo.png'); // logo bianco al centro della landing (public/logo.png)
 
-export const LANDING_SHOWCASE: { videoUrl: string; logoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
+export const LANDING_SHOWCASE: { videoUrl: string; logoUrl: string; poster: string; scenes: UnicoShowcaseScene[]; scenesEn: UnicoShowcaseScene[] } = {
   videoUrl: landingVideo,
   logoUrl: landingLogo,
   // Niente immagine in caricamento: si resta su NERO con il titolo che lampeggia
@@ -139,6 +203,38 @@ export const LANDING_SHOWCASE: { videoUrl: string; logoUrl: string; poster: stri
       time: 15,
       subtitle: 'Diamo forma ai tuoi sogni',
       text: 'Crea il tuo accesso in due minuti: segui ogni progetto in tempo reale, dall’idea alla consegna delle chiavi.',
+    },
+  ],
+  scenesEn: [
+    {
+      time: 0,
+      subtitle: 'Design your vision',
+      text: 'We turn the ideas you’ve always dreamed of into concrete, bespoke projects. Spaces that speak of you.',
+    },
+    {
+      time: 3,
+      subtitle: 'Studio • Architecture & Engineering',
+      text: 'Design, building permits, cadastre and works management: we follow every stage, from survey to handover.',
+    },
+    {
+      time: 6,
+      subtitle: 'Materico • Supplies & Installation',
+      text: 'Turnkey finishes and specifications: we select fine materials and coordinate the partner firms.',
+    },
+    {
+      time: 9,
+      subtitle: 'Strategico • Marketing & Brand',
+      text: 'Communication and campaigns that tell your story and grow your brand.',
+    },
+    {
+      time: 12,
+      subtitle: 'Unico • Real estate atelier',
+      text: 'Fine properties selected in Puglia, renovated and resold. Invest with us starting from small shares.',
+    },
+    {
+      time: 15,
+      subtitle: 'We give shape to your dreams',
+      text: 'Create your access in two minutes: follow every project in real time, from the idea to the handover of the keys.',
     },
   ],
 };
@@ -295,6 +391,142 @@ export const UNICO_PROPERTIES: InvestProperty[] = [
       'Ristrutturazione di design chiavi in mano',
       'Quartiere in forte rivalutazione',
       'Pre-registra il tuo interesse',
+    ],
+  },
+];
+
+// Variante inglese degli immobili demo (selezionata da ServicesShowcase per lingua).
+export const UNICO_PROPERTIES_EN: InvestProperty[] = [
+  {
+    id: 'masseria-lucia',
+    title: 'Masseria Lucia',
+    type: 'Historic masseria',
+    location: 'Itria Valley · Cisternino (BR)',
+    image: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1000&q=80',
+    status: 'aperto',
+    price: 1_200_000,
+    minInvestment: 25_000,
+    targetRoi: 12,
+    durationMonths: 24,
+    goal: 1_200_000,
+    raised: 780_000,
+    investors: 31,
+    summary: 'An ancient stone masseria transformed into a charming boutique hotel among the olive groves of the Itria Valley.',
+    highlights: [
+      '8 suites plus restaurant and panoramic pool',
+      'Conservative restoration of the original star vaults',
+      'Strategic location between Alberobello and Ostuni',
+      'Hospitality management already pre-contracted',
+    ],
+  },
+  {
+    id: 'trullo-aurora',
+    title: 'Trullo Aurora',
+    type: 'Trullo',
+    location: 'Alberobello (BA)',
+    image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1000&q=80',
+    status: 'aperto',
+    price: 320_000,
+    minInvestment: 10_000,
+    targetRoi: 9,
+    durationMonths: 14,
+    goal: 320_000,
+    raised: 210_000,
+    investors: 18,
+    summary: 'A historic trullo in the heart of Alberobello, philologically restored and resold as a fine residence.',
+    highlights: [
+      'Dry-stone cones recovered to the highest standard',
+      'Invisible home automation and thermal comfort',
+      'UNESCO area with very high tourist demand',
+      'Short operation, resale within 14 months',
+    ],
+  },
+  {
+    id: 'villa-maraa',
+    title: 'Villa Maràa',
+    type: 'Seafront villa',
+    location: 'Gallipoli (LE)',
+    image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=80',
+    status: 'in_corso',
+    price: 2_400_000,
+    minInvestment: 50_000,
+    targetRoi: 15,
+    durationMonths: 30,
+    goal: 2_400_000,
+    raised: 1_600_000,
+    investors: 22,
+    summary: 'A new contemporary seafront villa with an infinity pool and an infinity view over the Ionian Sea.',
+    highlights: [
+      'Iconic architectural project by Onirico',
+      '450 sqm with direct access to the cliffs',
+      'Energy class A4, fully green systems',
+      'Premium international resale target',
+    ],
+  },
+  {
+    id: 'palazzo-sole',
+    title: 'Palazzo Sole',
+    type: 'Palazzo · Subdivision',
+    location: 'Lecce · Old town',
+    image: 'https://images.unsplash.com/photo-1430285561322-7808604715df?auto=format&fit=crop&w=1000&q=80',
+    status: 'completato',
+    price: 1_800_000,
+    minInvestment: 30_000,
+    targetRoi: 11,
+    durationMonths: 28,
+    goal: 1_800_000,
+    raised: 1_800_000,
+    investors: 40,
+    summary: 'A Baroque palazzo in the centre of Lecce subdivided into 6 luxury apartments. Operation completed successfully.',
+    highlights: [
+      'Restored Lecce stone and frescoes',
+      '6 units sold 100%',
+      'Final return above expectations',
+      'Onirico Unico benchmark case study',
+    ],
+  },
+  {
+    id: 'dimora-otranto',
+    title: 'Dimora Salentina',
+    type: 'Salento courtyard house',
+    location: 'Otranto (LE)',
+    image: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1000&q=80',
+    status: 'aperto',
+    price: 640_000,
+    minInvestment: 15_000,
+    targetRoi: 10.5,
+    durationMonths: 20,
+    goal: 640_000,
+    raised: 95_000,
+    investors: 7,
+    summary: 'A historic courtyard house a stone’s throw from the sea of Otranto, converted into high-yield holiday homes.',
+    highlights: [
+      '3 independent units with a shared courtyard',
+      '600 m from the centre and the bay',
+      'Annual tourist rental income',
+      'Funding just opened: first investors',
+    ],
+  },
+  {
+    id: 'attico-bari-marina',
+    title: 'Attico Bari Marina',
+    type: 'Penthouse with harbour view',
+    location: 'Bari · Seafront',
+    image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1000&q=80',
+    status: 'in_arrivo',
+    price: 890_000,
+    minInvestment: 20_000,
+    targetRoi: 8.5,
+    durationMonths: 18,
+    goal: 890_000,
+    raised: 0,
+    investors: 0,
+    summary: 'A panoramic penthouse on the Bari seafront with a terrace overlooking the harbour. Funding opening soon.',
+    highlights: [
+      'Top floor with an 80 sqm terrace',
+      'Turnkey design renovation',
+      'Rapidly appreciating neighbourhood',
+      'Pre-register your interest',
     ],
   },
 ];

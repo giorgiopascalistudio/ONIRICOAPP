@@ -44,234 +44,11 @@ import { CantiereBoard } from './CantiereBoard';
 import { ChatDeleteButton } from './ChatDeleteButton';
 import { ImpresaArea } from './cantiere/ImpresaArea';
 import { eur, fmtDay, isoDate } from '../utils';
+import { useLang, LangToggle } from '../i18n';
+import { BLOG_POSTS_IT, BLOG_POSTS_EN } from '../blogPosts';
 import { watchNode } from '../firebase';
 import { ThreeDProgress } from './ThreeDProgressLazy';
 import { StatusCard } from './StatusCard';
-
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  category: string;
-  date: string;
-  readTime: string;
-  image: string;
-  intro: string;
-  sections: {
-    title: string;
-    paragraphs: string[];
-  }[];
-  quote?: string;
-  pointsTitle?: string;
-  points?: string[];
-}
-
-const BLOG_POSTS: BlogPost[] = [
-  {
-    id: 'trullo-marco',
-    title: 'Il fascino eterno della pietra: il recupero di Trullo Marco in Puglia',
-    excerpt: 'Scopri come coniugare il restauro conservativo delle tradizionali cupole in pietra con le più moderne tecnologie per l\'efficienza energetica e il massimo comfort abitativo.',
-    category: 'Restauro',
-    date: '14 Maggio 2026',
-    readTime: '6 min',
-    image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80',
-    intro: 'Il restauro dei trulli e delle antiche dimore storiche pugliesi non è solo un intervento di ingegneria o edilizia: è un atto d\'amore e profondo rispetto verso una sapienza costruttiva secolare. Trullo Marco rappresenta la sintesi ideale di questo approccio, combinando rispetto filologico della pietra e integrazione invisibile delle ultime tecnologie.',
-    sections: [
-      {
-        title: 'Il consolidamento e la ricomposizione delle chiancarelle',
-        paragraphs: [
-          'La prima grande sfida di Trullo Marco ha riguardato le coperture a cono stuccate dalle intemperie del tempo. Il nostro laboratorio tecnico ha avviato uno smontaggio manuale selettivo dei chiancarelli ammalorati, procedendo al recupero minuzioso di ogni singola pietra originale.',
-          'Il riposizionamento è stato eseguito a secco, secondo la regola d\'arte dei maestri trullari, interponendo uno strato impermeabilizzante e traspirante di ultima generazione, completamente celato alla vista. Questo assicura l\'impermeabilità totale mantenendo intatta la ventilazione naturale originaria.'
-        ]
-      },
-      {
-        title: 'Integrazione tecnologica invisibile e bioclimatica',
-        paragraphs: [
-          'Nel rispetto totale del manufatto storico, l\'impianto di riscaldamento e raffrescamento è stato integrato a pavimento sotto le chianche in pietra originarie levigate. Non vi sono unità esterne o split visibili che compromettano l\'estetica pastorale del trullo.',
-          'Le murature in pietra massiccia, spesse fino a un metro e mezzo, offrono un\'eccezionale inerzia termica. Abbiamo ottimizzato questo comportamento passivo con l\'installazione di infissi in legno massiccio a taglio termico con profili ultra-sottili, incassati a scomparsa nelle spesse imbotte di muratura.'
-        ]
-      }
-    ],
-    quote: 'Restaurare un trullo significa ascoltare la pietra. Non dobbiamo aggiungere rumore visivo, ma liberare l\'anima funzionale che accoglierà la vita contemporanea con rigore ed eleganza.',
-    pointsTitle: 'I cardini del restauro tecnologico di Trullo Marco:',
-    points: [
-      'Conservazione filologica della pietra calcarea locale stuccata a calce naturale.',
-      'Riscaldamento radiante a pavimento sotto le chianche storiche recuperate.',
-      'Integrazione di domotica invisibile per il controllo climatico e dell\'illuminazione.',
-      'Sistemi di ricircolo naturale dell\'aria per eliminare completamente l\'umidità di risalita.'
-    ]
-  },
-  {
-    id: 'villa-marica',
-    title: 'Villa Marica: la fusione formale tra contemporaneo ed architettura mediterranea',
-    excerpt: 'Linee geometriche pure, ampie vetrate scorrevoli a scomparsa e un legame visivo simbiotico con la macchia mediterranea. Il concept progettuale dietro a un\'opera iconica.',
-    category: 'Architettura',
-    date: '30 Aprile 2026',
-    readTime: '8 min',
-    image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-    intro: 'Collocata su un declivio naturale panoramico, Villa Marica incarna perfettamente la cifra stilistica di Onirico: "Design your vision". Il concept nasce dalla volontà di annullare i confini tra l\'involucro abitato e la natura circostante, creando una sequenza di cannocchiali visivi puntati sull\'orizzonte.',
-    sections: [
-      {
-        title: 'La poetica dello spazio aperto: il soggiorno fluido',
-        paragraphs: [
-          'La zona giorno si sviluppa come un unico grande padiglione vetrato. Grazie alle vetrate scorrevoli a triplo vetro con profili incassati nel solaio e nel pavimento, le ante scorrono completamente all\'interno delle pareti perimetrali, trasformando il soggiorno in un immenso porticato coperto.',
-          'Il pavimento in cemento spatolato a calce, che riprende i caldi toni sabbia delle rocce costiere, si estende senza soluzione di continuità verso la grande terrazza esterna e i bordi della piscina a sfioro, esaltando la fluidità visiva.'
-        ]
-      },
-      {
-        title: 'Muri in pietra a secco e solai leggeri in calcestruzzo a vista',
-        paragraphs: [
-          'I materiali scelti creano un dialogo materico d\'eccezione: da un lato la solidità atavica dei setti murari in pietra locale disposta a secco, dall\'altro la leggerezza tecnologica dei solai in cemento armato a vista con finitura liscia "faccia a vista" cassonata in legno.',
-          'Questa contrapposizione permette alla struttura di radicarsi saldamente nel territorio e, contemporaneamente, di librarsi leggera nello spazio con sbalzi audaci che ombreggiano naturalmente le facciate vetrate durante i mesi estivi.'
-        ]
-      }
-    ],
-    quote: 'La vera sostenibilità di un\'opera architettonica non è solo tecnologica, ma visiva ed emozionale: deve sembrare essere nata spontaneamente dal terreno su cui sorge.',
-    pointsTitle: 'Soluzioni architettoniche adottate in Villa Marica:',
-    points: [
-      'Orientamento scientifico secondo gli assi solstiziali per ottimizzare gli apporti solari passivi.',
-      'Sbalzi orizzontali calcolati per garantire l\'ombreggiamento estivo totale.',
-      'Piscina a sfioro con sistema di filtraggio biologico ad acqua salata integrato nel declivio.',
-      'Materiali locali a km 0 per ridurre al minimo l\'impatto ecologico di cantiere.'
-    ]
-  },
-  {
-    id: 'villa-alessandro',
-    title: 'Disegnare l\'intimità logica: il progetto di interior di Villa Alessandro',
-    excerpt: 'Come modulare la luce naturale ed utilizzare superfici strutturate e tonalità calde della terra per creare spazi accoglienti, intimi e tecnologicamente intelligenti.',
-    category: 'Interior Design',
-    date: '18 Aprile 2026',
-    readTime: '5 min',
-    image: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80',
-    intro: 'L\'interior design non si limita all\'arredo o alla scelta dei rivestimenti: è lo studio dei flussi quotidiani, della psicologia dello spazio e del benessere sensoriale dell\'individuo. Nel progetto di Villa Alessandro, abbiamo lavorato intensamente sulla luce radente e su palette cromatiche calde e materiche.',
-    sections: [
-      {
-        title: 'La luce come elemento costruttivo primario',
-        paragraphs: [
-          'Ogni stanza di Villa Alessandro è stata studiata in relazione al cammino quotidiano del sole. Abbiamo inserito asole luminose a soffitto e gole LED arretrate che simulano e prolungano la luce naturale anche nelle ore serali, evitando fastidiosi abbagliamenti diretti.',
-          'I dettagli delle gole in cartongesso ospitano profili di illuminazione intelligente dimmerabile che si adattano al ciclo circadiano degli abitanti, favorendo il rilassamento nelle ore serali con toni caldi a 2400K.'
-        ]
-      },
-      {
-        title: 'La selezione materica tra legno di rovere di recupero e metalli acidati',
-        paragraphs: [
-          'Per donare calore e carattere agli ambienti minimali, abbiamo progettato arredi su misura ad altezza totale integrando pannellature in legno di rovere spazzolato con venature in risalto, accostate a dettagli strutturali in ferro nero acidato artigianalmente.',
-          'Questa alternanza tra il calore organico del legno e la freddezza industriale del ferro sabbiato genera una complessità visiva raffinatissima, esaltata da tessuti naturali come lino grezzo e bouclé.'
-        ]
-      }
-    ],
-    quote: 'La casa deve essere un rifugio per l\'anima, un tempio di silenzio visivo in cui ogni dettaglio ha una sua motivazione ergonomica ed estetica.',
-    pointsTitle: 'Dettagli di interior design realizzati per Villa Alessandro:',
-    points: [
-      'Pannellature boiserie a scomparsa che celano porte filomuro e spazi contenitivi.',
-      'Gole luminose a LED ad alta resa cromatica (CRI > 95) tarate sul benessere circadiano.',
-      'Arredi su misura disegnati e lavorati da artigiani e falegnami del territorio.',
-      'Rivestimenti doccia e bagno in grande formato in pietra d\'Iseo a spacco naturale.'
-    ]
-  },
-  {
-    id: 'borgo-tagliaferri',
-    title: 'Borgo Tagliaferri: la rinascita di un borgo rurale come modello di bioarchitettura',
-    excerpt: 'Dalle rovine agricole alla rinascita di prestigiose residenze di campagna. Il restauro ingegneristico applicato alle antiche murature miste e l\'autosufficienza energetica.',
-    category: 'Ingegneria',
-    date: '02 Aprile 2026',
-    readTime: '7 min',
-    image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
-    intro: 'Borgo Tagliaferri rappresenta uno dei progetti ingegneristici più stimolanti affrontati dallo studio. Il recupero di questo nucleo agricolo abbandonato ha richiesto una profonda opera di consolidamento strutturale integrata fin da subito con standard termici e ad emissioni quasi zero (NZEB).',
-    sections: [
-      {
-        title: 'Il consolidamento antisismico non invasivo',
-        paragraphs: [
-          'Le strutture in muratura portante mista presentavano forti fessurazioni e cedimenti fondazionali dovuti all\'età. Abbiamo strutturato un piano di iniezioni di miscele leganti eco-compatibili a base di calce idraulica naturale NHL nelle cavità murarie, accoppiato all\'inserimento di tiranti in acciaio d\'epoca e cerchiature invisibili.',
-          'Questo approccio ha enormemente accresciuto la coesione sismica del borgo senza stravolgere lo spessore esterno o la finitura sabbiata delle murature a vista storiche.'
-        ]
-      },
-      {
-        title: 'Un micro-grid energetico centralizzato a fonti rinnovabili',
-        paragraphs: [
-          'L\'autosufficienza termica ed elettrica di Borgo Tagliaferri è stata raggiunta tramite l\'integrazione di un impianto fotovoltaico centralizzato integrato sui tetti delle vecchie stalle riconsolidate (quindi non visibile dalle residenze principali) abbinato a un sistema di accumulo agli ioni di litio da 60 kWh.',
-          'La climatizzazione invernale ed estiva sfrutta un anello geotermico a bassa entalpia con sonde verticali che scendono a 120 metri di profondità, accoppiato a pompe di calore ad altissimo rendimento. Un vero capolavoro di ingegneria verde.'
-        ]
-      }
-    ],
-    quote: 'La vera ingegneria non si impone sul patrimonio storico, ma si nasconde nelle sue pieghe per garantirne l\'eternità strutturale ed energetica con il minor impatto possibile.',
-    pointsTitle: 'Le specifiche ingegneristiche di Borgo Tagliaferri:',
-    points: [
-      'Iniezioni di calce NHL per incremento antisismico e consolidamento profondo.',
-      'Riscaldamento ed idraulica alimentati al 100% da anello geotermico a bassa entalpia.',
-      'Sistemi di accumulo energetico e solare fotovoltaico integrato ad impatto visivo zero.',
-      'Recupero totale ed uso di malte e intonaci traspiranti d\'epoca.'
-    ]
-  },
-  {
-    id: 'villa-giuseppe',
-    title: 'La luce bianca di Locorotondo: volumi geometrici e la poetica del bianco in Valle d\'Itria',
-    excerpt: 'Come coniugare forme cubiche pulite, la leggendaria luce bianca di Locorotondo e la pietra calcare per creare una residenza unifamiliare ad altissima sostenibilità.',
-    category: 'Architettura',
-    date: '19 Marzo 2026',
-    readTime: '6 min',
-    image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
-    intro: 'Progettare a Locorotondo significa confrontarsi con una delle meraviglie cromatiche della Puglia: il bianco accecante della calce che riflette i raggi del sole mediterraneo. Per Villa Giuseppe abbiamo destrutturato il concetto di abitazione rurale, reinterpretandolo attraverso una serie di volumi stereometrici puri ed eleganti.',
-    sections: [
-      {
-        title: 'Il gioco dei volumi e la gestione dell\'irraggiamento sfolgorante',
-        paragraphs: [
-          'La conformazione planimetrica si sviluppa su una pianta organizzata ad "L" volta a generare un cortile riparato dai venti del nord. Ogni volume cubico riflette la luce con angolazioni diverse durante le preziose fasi del giorno.',
-          'La finitura esterna è realizzata in scialbatura di calce naturale stesa a pennello, una scelta non solo estetica ma squisitamente funzionale: la calce permette alla muratura di respirare in modo superbo e respinge oltre il 75% della radiazione solare estiva, mantenendo i locali freschi.'
-        ]
-      },
-      {
-        title: 'Il dialogo materico tra resina e pietra locale',
-        paragraphs: [
-          'La ricercatezza degli interni risiede nel minimalismo materico: un pavimento continuo in microcemento bianco latte fa da sfondo a setti decorativi in pietra locale lasciati grezzi, integrando la forza materica pugliese all\'interno di un concept moderno.',
-          'Gli angoli delle finestre sono profilati con infissi minimalistici in alluminio color antracite, incassati nelle spalle perimetrali per inquadrare rigogliosi ulivi secolari come vere e proprie tele dipinte.'
-        ]
-      }
-    ],
-    quote: 'La luce non è solo un fenomeno fisico, è la materia prima con cui scolpiamo lo spazio. In Valle d\'Itria, il bianco non è un colore, è un silenzio visivo che amplifica ogni emozione.',
-    pointsTitle: 'Soluzioni adottate per Villa Giuseppe:',
-    points: [
-      'Scialbatura artigianale a calce naturale stesa secondo le antiche ricette a spessore.',
-      'Setti murari interni in pietra calcarea originaria spazzolata a secco.',
-      'Orientamento scientifico dei lucernari a soffitto per beneficiare esclusivamente di luce indiretta confortevole.',
-      'Isolamento termico in fibra di canapa naturale traspirante integrato nell\'intercapedine.'
-    ]
-  },
-  {
-    id: 'palazzo-alessandra',
-    title: 'Trasparenze storiche: il restauro filologico di Palazzo Alessandra nel centro storico',
-    excerpt: 'Restaurare un palazzo gentilizio rispettando i secoli di storia ma introducendo la luce naturale e il massimo comfort termico attraverso percorsi di trasparenza in vetro strutturale.',
-    category: 'Restauro',
-    date: '04 Marzo 2026',
-    readTime: '8 min',
-    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80',
-    intro: 'Nel cuore antico, Palazzo Alessandra custodisce una sequenza di volte a stella e a botte che raccontano secoli di architettura signorile. Il nostro intervento ha liberato gli spazi dalle stratificazioni novecentesche incoerenti, restituendo l\'armonia originaria attraverso una logica di trasparenza e leggerezza strutturale.',
-    sections: [
-      {
-        title: 'Il recupero delle volte e la sverniciatura dei finti intonaci plastici',
-        paragraphs: [
-          'La prima operazione ha comportato la rimozione minuziosa delle pitture sintetiche applicate negli anni, le quali soffocavano il tufo e la pietra locale. Tramite lavaggi a bassa pressione e micro-sabbiature con polvere di carbonato di calcio, abbiamo riportato alla luce le calde sfumature dorate del carparo originario.',
-          'Tutte le fughe sono state ri-consolidate utilizzando esclusivamente malte a base di calce idraulica naturale prive di cementi, per evitare la formazione di sali ammaloranti e garantire la totale traspirabilità dell\'edificio.'
-        ]
-      },
-      {
-        title: 'La passerella in vetro strutturale e il lucernario zenitale',
-        paragraphs: [
-          'Per connettere le tre ali del palazzo senza appesantire il cortile barocco interno, abbiamo introdotto una passerella aerea in vetro strutturale trasparente ad altissima resistenza. Questa struttura fluttua silenziosa tra le spesse pareti dorate, consentendo alla luce di penetrare fino al piano terra.',
-          'In corrispondenza del salone principale, la rimozione di un vecchio solaio pericolante ha permesso di installare un lucernario zenitale scorrevole motorizzato, che funge da camino di ventilazione naturale durante l\'estate.'
-        ]
-      }
-    ],
-    quote: 'Il vetro è il miglior alleato della pietra antica: non cerca di imitarla, ma si offre come trasparenza discreta che ne rivela la maestosa fisicità senza tempo.',
-    pointsTitle: 'I cardini ingegneristici ed estetici dell\'intervento:',
-    points: [
-      'Micro-sabbiatura selettiva e consolidamento antisismico delle volte a stella con fibre di carbonio.',
-      'Sverniciatura totale e risanamento delle murature umide con intonaci macro-porosi a base calce.',
-      'Passerella aerea con montanti in acciaio inox satinato e calpestatili in vetro triplo strato.',
-      'Sistema domotico KNX integrato nella pietra per una gestione invisibile di luci scenografiche e riscaldamento.'
-    ]
-  }
-];
 
 interface ClientPortalViewProps {
   profile: UserProfile;
@@ -382,6 +159,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onSaveImpresaEntity,
   onDeleteImpresaEntity
 }) => {
+  const { t, lang } = useLang();
+  const BLOG_POSTS = lang === 'en' ? BLOG_POSTS_EN : BLOG_POSTS_IT;
   const [msgInput, setMsgInput] = useState('');
   const [apptReqOpen, setApptReqOpen] = useState(false);
   const [approvedMarketingPosts, setApprovedMarketingPosts] = useState<Record<string, boolean>>({});
@@ -390,7 +169,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   const [showcaseOpen, setShowcaseOpen] = useState(false); // vetrina "Scopri i servizi"
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [blogSearch, setBlogSearch] = useState('');
-  const [blogFilter, setBlogFilter] = useState('Tutti');
+  const [blogFilter, setBlogFilter] = useState('all'); // chiave categoria stabile (indip. lingua)
   const [selectedTaskForModal, setSelectedTaskForModal] = useState<{ phase: string; title: string; done: boolean } | null>(null);
 
   // Quadro economico per progetto (snapshot scritto dallo Studio: nodo projectEconomics/<pid>).
@@ -412,8 +191,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   const [b2bCostInputs, setB2bCostInputs] = useState<Record<string, string>>({});
   const [b2bNotesInputs, setB2bNotesInputs] = useState<Record<string, string>>({});
   const [b2bMessages, setB2bMessages] = useState([
-    { id: 'm1', sender: "Arch. Giorgio (Studio Onirico)", text: "Vincenzo, ricordati che per il massetto autolivellante in Trani dobbiamo stare entro i 4.5cm di spessore complessivo.", time: "Ieri, 16:40" },
-    { id: 'm2', sender: "Vincenzo (ArredoArtigiano)", text: "Ricevuto Giorgio, ho già predisposto la miscela fibrorinforzata a basso spessore. Settimana prossima avviamo la posa del lotto 2.", time: "Ieri, 17:15" }
+    { id: 'm1', sender: "Arch. Giorgio (Studio Onirico)", text: t('b2b.seed.m1.text'), time: t('b2b.seed.m1.time') },
+    { id: 'm2', sender: "Vincenzo (ArredoArtigiano)", text: t('b2b.seed.m2.text'), time: t('b2b.seed.m2.time') }
   ]);
   const [b2bChatInput, setB2bChatInput] = useState("");
 
@@ -428,128 +207,42 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
     document.body.removeChild(link);
   };
 
-  const getTaskDetail = (title: string, phaseName?: string) => {
-    const t = title.toLowerCase();
-    
-    if (t.includes('rilie') || t.includes('soprall')) {
-      return {
-        title: title,
-        desc: "Rilievo dettagliato dello stato di fatto dell'immobile mediante strumentazione laser e rilievo fotografico. Questa operazione permette di disporre di misure millimetriche necessarie per la successiva progettazione grafica e strutturale.",
-        role: "Responsabile Rilievi",
-        dueTime: "Completato sul posto",
-        badge: "Indagine Tecnica",
-        proStep: "Verifica distanze e quote altimetriche."
-      };
-    }
-    if (t.includes('fattibili') || t.includes('analis') || t.includes('congru')) {
-      return {
-        title: title,
-        desc: "Studio di fattibilità tecnica ed economica dell'intervento. Include l'analisi della conformità urbanistica e catastale, la verifica di eventuali vincoli paesaggistici o storici, e la definizione dei margini operativi per la ristrutturazione.",
-        role: "Progettista Senior",
-        dueTime: "Fase istruttoria",
-        badge: "Studio Preliminare",
-        proStep: "Consultazione archivi storici comunali."
-      };
-    }
-    if (t.includes('cila') || t.includes('scia') || t.includes('pila') || t.includes('comun') || t.includes('permes')) {
-      return {
-        title: title,
-        desc: "Redazione e deposito telematico della pratica edilizia (CILA o SCIA) presso lo Sportello Unico per l'Edilizia (SUE) del Comune di riferimento. Permette l'avvio ufficiale dei lavori rispettando le normative nazionali e locali.",
-        role: "Ingegnere / Architetto",
-        dueTime: "Convalida 48-72h",
-        badge: "Pratica Edilizia",
-        proStep: "Firma digitale della relazione tecnica asseverata."
-      };
-    }
-    if (t.includes('catast') || t.includes('docfa') || t.includes('fogl') || t.includes('partic')) {
-      return {
-        title: title,
-        desc: "Aggiornamento catastale mediante procedura informatica DOCFA per la variazione planimetrica dell'immobile a seguito delle modifiche interne/esterne introdotte con l'intervento. Fondamentale per la commerciabilità del bene.",
-        role: "Tecnico Catastale",
-        dueTime: "Approvazione Agenzia Entrate",
-        badge: "Sito Catastale",
-        proStep: "Elaborazione elaborato planimetrico e calcolo dei vani."
-      };
-    }
-    if (t.includes('prelimin') || t.includes('layout') || t.includes('diseg') || t.includes('concept')) {
-      return {
-        title: title,
-        desc: "Fase di definizione dell'idea progettuale e distribuzione degli spazi interni. Vengono elaborate piante in scala, idee di arredo e visualizzazioni grafiche preliminari per concordare la direzione estetica dell'intervento.",
-        role: "Direttore Artistico / Design",
-        dueTime: "Sottoscritto dal cliente",
-        badge: "Progettazione Concept",
-        proStep: "Definizione degli assonometrici 3D."
-      };
-    }
-    if (t.includes('esecutiv') || t.includes('esecuz') || t.includes('costrut')) {
-      return {
-        title: title,
-        desc: "Elaborazione dei disegni di dettaglio per le maestranze in cantiere. Contiene schemi precisi degli impianti idraulici/elettrici, dettagli di finitura, sezioni costruttive e abachi degli infissi e materiali.",
-        role: "Ingegnere Strutturale",
-        dueTime: "Pronto per Cantiere",
-        badge: "Esecutivo Dettagliato",
-        proStep: "Esportazione dei file CAD-BIM definitivi."
-      };
-    }
-    if (t.includes('fotovolt') || t.includes('panne') || t.includes('solare')) {
-      return {
-        title: title,
-        desc: "Dimensionamento e progettazione dell'impianto solare fotovoltaico, inclusa l'istanza di connessione con il gestore di rete (e-Distribuzione) e la stima del rendimento energetico mensile e annuale.",
-        role: "Termotecnico",
-        dueTime: "Allacciamento finale",
-        badge: "Energia Rinnovabile",
-        proStep: "Relazione tecnica risparmio energetico ex Legge 10."
-      };
-    }
-    if (t.includes('elettr') || t.includes('quadro') || t.includes('cabl')) {
-      return {
-        title: title,
-        desc: "Dimensionamento e stesura degli schemi unifilari dell'impianto elettrico. Comprende il posizionamento dei punti luce, prese di corrente, linee dedicate alla cucina/climatizzazione e quadro generale conforme al DM 37/08.",
-        role: "Ingegnere Elettrico",
-        dueTime: "Dichiarazione conformità",
-        badge: "Impiantistica Locale",
-        proStep: "Verifica selettività interruttori magnetotermici."
-      };
-    }
-    if (t.includes('ape') || t.includes('energet') || t.includes('termic') || t.includes('legg')) {
-      return {
-        title: title,
-        desc: "Redazione dell'Attestato di Prestazione Energetica (APE) post-operam o ante-operam. Consiste nel calcolo dell'indice di prestazione energetica globale dell'involucro edilizio e classificazione da G ad A4.",
-        role: "Certificatore Abilitato",
-        dueTime: "Invio al Catasto Regionale",
-        badge: "Efficientamento",
-        proStep: "Simulazione software ponti termici e calcolo dispersioni."
-      };
-    }
-    if (t.includes('bando') || t.includes('finanz') || t.includes('detraz') || t.includes('agevol')) {
-      return {
-        title: title,
-        desc: "Analisi delle linee di finanziamento, bonus casa o incentivi fiscali regionali/europei disponibili. Predisposizione dei dossier tecnici, asseverazioni di congruità delle spese e portale ENEA per le detrazioni.",
-        role: "Ufficio Bandi & Economia",
-        dueTime: "Asseverazione finale",
-        badge: "Agevolazioni Fiscali",
-        proStep: "Computo metrico estimativo basato su listino ufficiale DEI."
-      };
-    }
-    if (t.includes('conseg') || t.includes('fin') || t.includes('collaud') || t.includes('attiv')) {
-      return {
-        title: title,
-        desc: "Fase conclusiva della pratica con rilascio del verbale di fine lavori e della Segnalazione Certificata di Agibilità (SCA). Consegna di tutti i fascicoli tecnici digitali e cartacei al committente.",
-        role: "Direttore dei Lavori",
-        dueTime: "Chiusura ufficiale",
-        badge: "Consegna & Agibilità",
-        proStep: "Verifica formale conformità delle opere eseguite."
-      };
-    }
+  // Regole keyword→slug (ordine = precedenza, come la vecchia catena di if).
+  // I testi tradotti vivono nel dizionario sotto taskdetail.<slug>.*
+  const TASK_DETAIL_RULES: { slug: string; kw: string[] }[] = [
+    { slug: 'rilievo', kw: ['rilie', 'soprall'] },
+    { slug: 'fattibilita', kw: ['fattibili', 'analis', 'congru'] },
+    { slug: 'pratica', kw: ['cila', 'scia', 'pila', 'comun', 'permes'] },
+    { slug: 'catasto', kw: ['catast', 'docfa', 'fogl', 'partic'] },
+    { slug: 'preliminare', kw: ['prelimin', 'layout', 'diseg', 'concept'] },
+    { slug: 'esecutivo', kw: ['esecutiv', 'esecuz', 'costrut'] },
+    { slug: 'fotovoltaico', kw: ['fotovolt', 'panne', 'solare'] },
+    { slug: 'elettrico', kw: ['elettr', 'quadro', 'cabl'] },
+    { slug: 'ape', kw: ['ape', 'energet', 'termic', 'legg'] },
+    { slug: 'bandi', kw: ['bando', 'finanz', 'detraz', 'agevol'] },
+    { slug: 'consegna', kw: ['conseg', 'fin', 'collaud', 'attiv'] }
+  ];
 
-    // Generico fallback:
+  const getTaskDetail = (title: string, phaseName?: string) => {
+    const tl = title.toLowerCase();
+    const rule = TASK_DETAIL_RULES.find((r) => r.kw.some((k) => tl.includes(k)));
+    if (rule) {
+      return {
+        title,
+        desc: t(`taskdetail.${rule.slug}.desc`),
+        role: t(`taskdetail.${rule.slug}.role`),
+        dueTime: t(`taskdetail.${rule.slug}.due`),
+        badge: t(`taskdetail.${rule.slug}.badge`),
+        proStep: t(`taskdetail.${rule.slug}.step`)
+      };
+    }
     return {
-      title: title,
-      desc: `Questo task fa parte della fase "${phaseName || 'Lavori'}" ed è fondamentale per completare l'iter tecnico e autorizzativo del tuo immobile. Viene eseguito dai professionisti dello studio nel rispetto del cronoprogramma stabilito.`,
-      role: "Studio Onirico S.r.l.",
-      dueTime: "In corso d'opera",
-      badge: phaseName || "Iter Tecnico",
-      proStep: "Supervisione e asseverazione interna."
+      title,
+      desc: t('taskdetail.generic.desc', { phase: phaseName || t('taskdetail.generic.phaseFallback') }),
+      role: t('taskdetail.generic.role'),
+      dueTime: t('taskdetail.generic.due'),
+      badge: phaseName || t('taskdetail.generic.badge'),
+      proStep: t('taskdetail.generic.step')
     };
   };
 
@@ -683,11 +376,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
             Onirico<span className="text-[#8a8a8a] font-normal"> · OS</span>
           </span>
           <div className="flex items-center gap-2.5">
+            <LangToggle />
             <button onClick={() => setShowcaseOpen(true)} className="bg-[#1b1b1b] hover:bg-black text-white font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
-              <Sparkles className="w-3.5 h-3.5" /> Scopri i servizi
+              <Sparkles className="w-3.5 h-3.5" /> {t('portal.discoverServices')}
             </button>
             <button onClick={onLogout} className="bg-[#f0f0f0] hover:bg-[#e4e4e4] text-[#161616] font-extrabold text-xs py-1.5 px-4 rounded-xl border-none cursor-pointer transition-all active:scale-95">
-              Esci
+              {t('common.logout')}
             </button>
           </div>
         </div>
@@ -695,10 +389,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         {profile.role === 'cliente' && onCreateClientRequest ? (
           <div className="flex-1 w-full max-w-[660px] mx-auto p-4 sm:p-6 flex flex-col gap-4">
             <div className="text-center mt-2 mb-1">
-              <h1 className="text-[22px] font-extrabold text-[#161616] tracking-tight">Benvenuto in Onirico{profile.name ? `, ${profile.name.split(' ')[0]}` : ''}</h1>
+              <h1 className="text-[22px] font-extrabold text-[#161616] tracking-tight">{profile.name ? t('portal.welcomeNamed', { name: profile.name.split(' ')[0] }) : t('portal.welcome')}</h1>
               <p className="text-[13.5px] text-[#8a8a8a] mt-1.5 leading-relaxed">
-                Non hai ancora un progetto attivo. Inizia raccontandoci la tua idea: scegli il servizio,
-                descrivi cosa hai in mente — anche con una <b className="text-[#161616]">Moodboard 3D</b> — e lo studio attiverà il tuo progetto.
+                {t('portal.noProject.a')}<b className="text-[#161616]">{t('portal.noProject.bold')}</b>{t('portal.noProject.c')}
               </p>
             </div>
             <ClientRequestPanel
@@ -715,9 +408,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-[#fafafa] border border-[#e2e2e2] text-[#161616] flex items-center justify-center mx-auto mb-4">
                 <Briefcase className="w-6 h-6" />
               </div>
-              <b className="block text-[#161616] text-[16px] font-extrabold">Progetto in preparazione</b>
+              <b className="block text-[#161616] text-[16px] font-extrabold">{t('portal.projectPrep.title')}</b>
               <p className="text-[13.5px] text-[#8a8a8a] mt-2 mb-4 leading-relaxed">
-                Il tuo progetto non è ancora disponibile. Lo studio lo attiverà a breve: qui vedrai l'avanzamento catastale, le fasi e un modello 3D della tua casa.
+                {t('portal.projectPrep.text')}
               </p>
             </div>
           </div>
@@ -737,12 +430,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h1 className="text-[20px] font-extrabold text-[#161616]">Cantieri</h1>
-              <p className="text-[12.5px] text-[#8a8a8a]">Impresa partner · {profile.name}</p>
+              <h1 className="text-[20px] font-extrabold text-[#161616]">{t('portal.cantieri')}</h1>
+              <p className="text-[12.5px] text-[#8a8a8a]">{t('portal.partnerCompany', { name: profile.name })}</p>
             </div>
+            <div className="flex items-center gap-2">
+            <LangToggle />
             <button onClick={onLogout} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e2e2] bg-white text-[12.5px] font-bold">
-              <LogOut className="w-4 h-4" /> Esci
+              <LogOut className="w-4 h-4" /> {t('common.logout')}
             </button>
+            </div>
           </div>
           <CantiereBoard
             mode="partner"
@@ -788,11 +484,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
   let curIdx = flatTasks.findIndex(t => !t.done);
   if (curIdx === -1 && flatTasks.length > 0) curIdx = flatTasks.length - 1;
-  const curTask = flatTasks[curIdx] || { title: 'Lavori completati', phase: 'Fine' };
+  const curTask = flatTasks[curIdx] || { title: t('portal.worksCompleted'), phase: t('portal.phaseEnd') };
   const nextTask = flatTasks[curIdx + 1] || null;
   const isAllDone = flatTasks.length > 0 && flatTasks.every(t => t.done);
 
-  const toTitle = nextTask ? nextTask.title : (p.dueDate ? fmtDay(p.dueDate) : 'Consegna');
+  const toTitle = nextTask ? nextTask.title : (p.dueDate ? fmtDay(p.dueDate) : t('portal.delivery'));
 
   const docs = getProjDocs(p.id);
   const msgs = getProjMessages(p.id);
@@ -801,37 +497,37 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
     switch (activePortal) {
       case 'strategico':
         return [
-          { id: 'lavori', label: 'Avanzamento', icon: ClipboardList },
-          { id: 'marketing', label: 'Instagram & Creatives', icon: Briefcase },
-          { id: 'documenti', label: 'Strategie & Brief', icon: FileText },
-          { id: 'finanze', label: 'Contabilità & Fatture', icon: DollarSign },
-          { id: 'blog', label: 'Growth Insights', icon: BookOpen }
+          { id: 'lavori', label: t('tab.avanzamento'), icon: ClipboardList },
+          { id: 'marketing', label: t('tab.marketing'), icon: Briefcase },
+          { id: 'documenti', label: t('tab.strategieBrief'), icon: FileText },
+          { id: 'finanze', label: t('tab.contabilita'), icon: DollarSign },
+          { id: 'blog', label: t('tab.growthInsights'), icon: BookOpen }
         ];
       case 'materico_cliente':
         return [
-          { id: 'lavori', label: 'Iter Posa', icon: ClipboardList },
-          { id: 'preventivi', label: 'Scelte d\'Arredo', icon: ClipboardList },
-          { id: 'documenti', label: 'Moodboard & Campioni', icon: FileText },
-          { id: 'finanze', label: 'Contabilità & Fatture', icon: DollarSign },
-          { id: 'blog', label: 'Materico Trends', icon: BookOpen }
+          { id: 'lavori', label: t('tab.iterPosa'), icon: ClipboardList },
+          { id: 'preventivi', label: t('tab.scelteArredo'), icon: ClipboardList },
+          { id: 'documenti', label: t('tab.moodboardCampioni'), icon: FileText },
+          { id: 'finanze', label: t('tab.contabilita'), icon: DollarSign },
+          { id: 'blog', label: t('tab.matericoTrends'), icon: BookOpen }
         ];
       case 'materico_partner':
         return [
-          { id: 'lavori', label: 'Posa in Cantiere', icon: ClipboardList },
-          { id: 'cantiere', label: 'Cantieri', icon: HardHat },
-          { id: 'impresa', label: 'La mia impresa', icon: Building2 },
-          { id: 'b2b_preventivi', label: 'Offerte B2B', icon: ClipboardList },
-          { id: 'documenti', label: 'Tavole & Disegni', icon: FileText },
-          { id: 'b2b_chat', label: 'Coordinamento Cantiere', icon: MessageSquare }
+          { id: 'lavori', label: t('tab.posaCantiere'), icon: ClipboardList },
+          { id: 'cantiere', label: t('portal.cantieri'), icon: HardHat },
+          { id: 'impresa', label: t('tab.impresa'), icon: Building2 },
+          { id: 'b2b_preventivi', label: t('tab.offerteB2B'), icon: ClipboardList },
+          { id: 'documenti', label: t('tab.tavoleDisegni'), icon: FileText },
+          { id: 'b2b_chat', label: t('tab.coordCantiere'), icon: MessageSquare }
         ];
       case 'studio':
       default:
         return [
-          { id: 'lavori', label: 'Avanzamento', icon: ClipboardList },
-          { id: 'documenti', label: 'Documenti & Chat', icon: FileText },
-          { id: 'arredi', label: 'Arredi & Moodboard', icon: Sofa },
-          { id: 'finanze', label: 'Contabilità & Fatture', icon: DollarSign },
-          { id: 'blog', label: 'Onirico Blog', icon: BookOpen }
+          { id: 'lavori', label: t('tab.avanzamento'), icon: ClipboardList },
+          { id: 'documenti', label: t('tab.documentiChat'), icon: FileText },
+          { id: 'arredi', label: t('tab.arredi'), icon: Sofa },
+          { id: 'finanze', label: t('tab.contabilita'), icon: DollarSign },
+          { id: 'blog', label: t('tab.blogOnirico'), icon: BookOpen }
         ];
     }
   };
@@ -843,7 +539,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
   let portalStyle = {
     themeName: "Onirico Studio",
-    slogan: "Portale Cliente · Architettura",
+    slogan: t('ps.studio.slogan'),
     headerBg: "bg-white",
     headerText: "text-[#161616]",
     headerBorder: "border-[#e5e5e5]",
@@ -852,14 +548,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
     primaryText: "text-zinc-950",
     accentColor: "#161616",
     badgeBg: "bg-zinc-100/80 text-zinc-900 border-zinc-200",
-    portalLabel: "Studio Architettura",
+    portalLabel: t('ps.studio.label'),
     accentDot: "bg-zinc-800"
   };
 
   if (activePortal === 'strategico') {
     portalStyle = {
       themeName: "Onirico Strategico",
-      slogan: "Growth & Brand Portal",
+      slogan: t('ps.strategico.slogan'),
       headerBg: "bg-white",
       headerText: "text-[#161616]",
       headerBorder: "border-[#e5e5e5]",
@@ -868,13 +564,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       primaryText: "text-[#E2A93E]",
       accentColor: "#E2A93E",
       badgeBg: "bg-amber-50 text-amber-800 border-amber-200/80",
-      portalLabel: "Strategia & Growth",
+      portalLabel: t('ps.strategico.label'),
       accentDot: "bg-amber-500"
     };
   } else if (activePortal === 'materico_cliente') {
     portalStyle = {
       themeName: "Onirico Materico",
-      slogan: "Selezione Finiture & Arredi",
+      slogan: t('ps.materico.slogan'),
       headerBg: "bg-white",
       headerText: "text-[#161616]",
       headerBorder: "border-[#e5e5e5]",
@@ -883,13 +579,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       primaryText: "text-[#C87A53]",
       accentColor: "#C87A53",
       badgeBg: "bg-orange-50 text-orange-850 border-orange-200",
-      portalLabel: "Moodboard & Finiture",
+      portalLabel: t('ps.materico.label'),
       accentDot: "bg-orange-500"
     };
   } else if (activePortal === 'materico_partner') {
     portalStyle = {
       themeName: "Onirico Materico B2B",
-      slogan: "Partner & Supplier Platform",
+      slogan: t('ps.partner.slogan'),
       headerBg: "bg-white",
       headerText: "text-[#161616]",
       headerBorder: "border-[#e5e5e5]",
@@ -898,7 +594,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       primaryText: "text-slate-800",
       accentColor: "#4B5D68",
       badgeBg: "bg-slate-100 text-slate-800 border-slate-200",
-      portalLabel: "Partner Impresa B2B",
+      portalLabel: t('ps.partner.label'),
       accentDot: "bg-slate-600"
     };
   }
@@ -933,13 +629,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       )}
       {isPreview && (
         <div className="bg-[#161616] text-[#eeeeee] text-[13px] font-bold py-2.5 px-6 flex items-center justify-between sticky top-0 z-[60]">
-          <span>Anteprima Portale Cliente — Così il cliente vede la propria pratica</span>
+          <span>{t('portal.previewBanner')}</span>
           {onExitPreview && (
             <button
               onClick={onExitPreview}
               className="bg-white hover:bg-white/95 text-[#161616] border-none font-bold py-1 px-3 rounded-lg text-xs cursor-pointer transition-all active:scale-95"
             >
-              Esci dall'anteprima
+              {t('portal.exitPreview')}
             </button>
           )}
         </div>
@@ -968,19 +664,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 const proj = projects.find(pr => pr.id === id);
                 return (
                   <option key={id} value={id}>
-                    {proj ? proj.name : 'Progetto'}
+                    {proj ? proj.name : t('portal.projectFallback')}
                   </option>
                 );
               })}
             </select>
           )}
 
+          <LangToggle />
+
           <button onClick={() => setShowcaseOpen(true)} className="bg-[#1b1b1b] hover:bg-black text-white font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
-            <Sparkles className="w-3.5 h-3.5" /> Scopri i servizi
+            <Sparkles className="w-3.5 h-3.5" /> {t('portal.discoverServices')}
           </button>
 
           <button onClick={onLogout} className="bg-[#f0f0f0] hover:bg-[#e4e4e4] text-[#161616] font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-none flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
-            <LogOut className="w-3.5 h-3.5" /> Esci
+            <LogOut className="w-3.5 h-3.5" /> {t('common.logout')}
           </button>
         </div>
       </div>
@@ -1069,17 +767,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-1">
           <div>
             <h1 className="text-[30px] md:text-[34px] font-extrabold tracking-tight text-[#161616] leading-tight font-sans">
-              Ciao, {profile.name}!
+              {t('home.greeting', { name: profile.name })}
             </h1>
             <div className="text-[13.5px] text-[#8a8a8a] mt-1 font-semibold leading-relaxed">
               {activePortal === 'strategico' ? (
-                <span>Tracciamento KPI, funnel e campagne di brand branding curate per <span className="text-[#E2A93E] font-black">{p.name}</span>.</span>
+                <span>{t('home.sub.strategico.a')}<span className="text-[#E2A93E] font-black">{p.name}</span>{t('home.sub.strategico.b')}</span>
               ) : activePortal === 'materico_cliente' ? (
-                <span>Rassegna dettagliata delle finiture di lusso, campionari e asseverazione preventivi d'arredo per <span className="text-[#C87A53] font-black">{p.name}</span>.</span>
+                <span>{t('home.sub.materico.a')}<span className="text-[#C87A53] font-black">{p.name}</span>{t('home.sub.materico.b')}</span>
               ) : activePortal === 'materico_partner' ? (
-                <span>Workspace di montaggio, schede tecniche di posa e computo d'offerta per l'impresa partner <span className="text-slate-700 font-black">{profile.name}</span> nel cantiere <span className="text-zinc-900 font-extrabold">{p.name}</span>.</span>
+                <span>{t('home.sub.partner.a')}<span className="text-slate-700 font-black">{profile.name}</span>{t('home.sub.partner.b')}<span className="text-zinc-900 font-extrabold">{p.name}</span>{t('home.sub.partner.c')}</span>
               ) : (
-                <span>Segui l'avanzamento dei lavori, i dati catastali e i documenti di <span className="text-[#161616] font-extrabold">{p.name}</span> in tempo reale.</span>
+                <span>{t('home.sub.studio.a')}<span className="text-[#161616] font-extrabold">{p.name}</span>{t('home.sub.studio.b')}</span>
               )}
             </div>
           </div>
@@ -1161,17 +859,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               {/* Flight departure board style header card - Full Visual Consistency */}
               <StatusCard
                 fromCode={codeFrom(curTask.title)}
-                fromCity={isAllDone ? 'COMPLETATO' : 'IN CORSO'}
+                fromCity={isAllDone ? t('status.completato') : t('status.inCorsoCaps')}
                 fromTime={curTask.title}
                 toCode={codeFrom(toTitle)}
-                toCity={nextTask ? 'PROSSIMO' : 'CONSEGNA'}
+                toCity={nextTask ? t('status.prossimo') : t('status.consegnaCaps')}
                 toTime={toTitle}
                 progress={pc}
-                eta={p.dueDate ? `CONSEGNA PREVISTA: ${fmtDay(p.dueDate)}` : 'SENZA SCADENZA'}
-                nextLabel={nextTask ? 'Prossimo task' : 'Stato'}
-                nextVal={nextTask ? nextTask.title : (isAllDone ? 'Tutto completato' : 'In corso')}
-                rightLabel="Fase corrente"
-                rightVal={curTask.phase || 'Avvio'}
+                eta={p.dueDate ? t('status.etaPrevista', { date: fmtDay(p.dueDate) }) : t('status.senzaScadenza')}
+                nextLabel={nextTask ? t('status.nextTask') : t('status.stato')}
+                nextVal={nextTask ? nextTask.title : (isAllDone ? t('status.tuttoCompletato') : t('status.inCorso'))}
+                rightLabel={t('status.faseCorrente')}
+                rightVal={curTask.phase || t('status.avvio')}
               />
 
               {/* 3D Model and Task checklist divided row */}
@@ -1181,29 +879,29 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div id="visual-funnel-card" className="lg:col-span-5 bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="text-[15px] font-extrabold text-[#1a1a1a] mb-1 flex items-center gap-1.5 font-sans">
-                        <Target className="w-4 h-4 text-[#E2A93E]" /> Imbuto di Conversione (Funnel)
+                        <Target className="w-4 h-4 text-[#E2A93E]" /> {t('demo.funnel.title')}
                       </h3>
                       <p className="text-[#8a8a8a] text-[12px] mb-3.5 font-semibold">
-                        Analisi stimata del traffico e dei lead generati in tempo reale.
+                        {t('demo.funnel.sub')}
                       </p>
                     </div>
 
                     <div className="bg-[#FAFAF7] border border-amber-200/50 p-4 rounded-2xl flex flex-col gap-3 font-sans mt-2">
                       <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-150 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[12px] font-bold text-gray-500">1. Awareness (Copertura)</span>
-                        <b className="text-[13px] text-zinc-950 font-mono">115.400 Visite</b>
+                        <span className="text-[12px] font-bold text-gray-500">{t('demo.funnel.s1')}</span>
+                        <b className="text-[13px] text-zinc-950 font-mono">{t('demo.funnel.s1v')}</b>
                       </div>
                       <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-gray-150 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-                        <span className="text-[12px] font-bold text-amber-600">2. Interazione (Leads)</span>
-                        <b className="text-[13px] text-zinc-950 font-mono">3.450 Clic</b>
+                        <span className="text-[12px] font-bold text-amber-600">{t('demo.funnel.s2')}</span>
+                        <b className="text-[13px] text-zinc-950 font-mono">{t('demo.funnel.s2v')}</b>
                       </div>
                       <div className="flex justify-between items-center bg-[#111111] p-2.5 rounded-xl text-[#E2A93E]">
-                        <span className="text-[12px] font-medium text-amber-100">3. Richieste Soggiorni</span>
-                        <b className="text-[14px] font-black font-mono">+142 Bookings</b>
+                        <span className="text-[12px] font-medium text-amber-100">{t('demo.funnel.s3')}</span>
+                        <b className="text-[14px] font-black font-mono">{t('demo.funnel.s3v')}</b>
                       </div>
                       <div className="text-[10px] text-gray-400 font-bold border-t border-amber-100/30 pt-2 flex items-center justify-between">
-                        <span>CPC Medio: 0,38 €</span>
-                        <span>ROI Atteso: +184%</span>
+                        <span>{t('demo.funnel.cpc')}</span>
+                        <span>{t('demo.funnel.roi')}</span>
                       </div>
                     </div>
                   </div>
@@ -1211,19 +909,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div id="visual-palette-card" className="lg:col-span-5 bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="text-[15px] font-extrabold text-[#1a1a1a] mb-1 flex items-center gap-1.5 font-sans">
-                        <Sparkle className="w-4 h-4 text-[#C87A53]" /> Palette & Campioni Materiali
+                        <Sparkle className="w-4 h-4 text-[#C87A53]" /> {t('demo.palette.title')}
                       </h3>
                       <p className="text-[#8a8a8a] text-[12px] mb-3.5 font-semibold">
-                        Campioni fisici spediti a casa tua o selezionabili. Tattilità organica.
+                        {t('demo.palette.sub')}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mt-1">
                       {[
-                        { name: 'Pietra di Trani', code: '#E6DFD3', desc: 'Bocciardata (Esterni)', status: 'spedito' },
-                        { name: 'Rovere Spazzolato', code: '#CBB49B', desc: 'Pavimenti Interni', status: 'confermato' },
-                        { name: 'Microcemento Sabbia', code: '#D9D1C5', desc: 'Rivestimento Bagni', status: 'in_scelta' },
-                        { name: 'Ottone Brunito', code: '#A68C6D', desc: 'Dettagli Rubinetteria', status: 'spedito' }
+                        { name: t('demo.palette.mat1.name'), code: '#E6DFD3', desc: t('demo.palette.mat1.desc'), status: 'spedito' },
+                        { name: t('demo.palette.mat2.name'), code: '#CBB49B', desc: t('demo.palette.mat2.desc'), status: 'confermato' },
+                        { name: t('demo.palette.mat3.name'), code: '#D9D1C5', desc: t('demo.palette.mat3.desc'), status: 'in_scelta' },
+                        { name: t('demo.palette.mat4.name'), code: '#A68C6D', desc: t('demo.palette.mat4.desc'), status: 'spedito' }
                       ].map((mat, idx) => (
                         <div key={idx} className="bg-[#FAF8F5] border border-orange-100/80 p-3 rounded-2xl flex flex-col justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] gap-2">
                           <div className="flex items-center gap-2">
@@ -1232,7 +930,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           </div>
                           <span className="text-[9.5px] text-[#C87A53] font-bold block">{mat.desc}</span>
                           <span className="text-[8px] bg-amber-50 text-amber-800 self-start border border-amber-100 font-extrabold tracking-wider px-1 rounded uppercase">
-                            {mat.status.replace('_', ' ')}
+                            {t('demo.matstatus.' + mat.status)}
                           </span>
                         </div>
                       ))}
@@ -1242,18 +940,18 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div id="visual-b2b-logistics-card" className="lg:col-span-5 bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="text-[15px] font-extrabold text-[#1a1a1a] mb-1 flex items-center gap-1.5 font-sans">
-                        <Briefcase className="w-4 h-4 text-slate-500" /> Logistica & Approvvigionamenti B2B
+                        <Briefcase className="w-4 h-4 text-slate-500" /> {t('demo.b2b.title')}
                       </h3>
                       <p className="text-[#8a8a8a] text-[12px] mb-3.5 font-semibold">
-                        Controlla lo stato di spedizione dei lotti ordinati stabiliti con Onirico.
+                        {t('demo.b2b.sub')}
                       </p>
                     </div>
 
                     <div className="flex flex-col gap-2 font-sans mt-2">
                       {[
-                        { name: 'Lotto 1: Porte Interne', qty: '8 pz', status: 'In Produzione', pct: 60 },
-                        { name: 'Lotto 2: Infissi Alluminio', qty: '4 pz', status: 'Materiale Pronto', pct: 100 },
-                        { name: 'Lotto 3: Accessori Posa', qty: '1 conf', status: 'Spedito', pct: 100 }
+                        { name: t('demo.b2b.lot1'), qty: '8 pz', status: t('demo.b2b.lot1s'), pct: 60 },
+                        { name: t('demo.b2b.lot2'), qty: '4 pz', status: t('demo.b2b.lot2s'), pct: 100 },
+                        { name: t('demo.b2b.lot3'), qty: '1 conf', status: t('demo.b2b.lot3s'), pct: 100 }
                       ].map((lot, idx) => (
                         <div key={idx} className="bg-slate-50 p-3 border border-slate-200/80 rounded-2xl shadow-2xs">
                           <div className="flex justify-between items-center text-[11px] mb-1">
@@ -1271,10 +969,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div id="visual-interactive-3d-card" className="lg:col-span-5 bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="text-[15px] font-extrabold text-[#161616] mb-1 flex items-center gap-1.5 font-sans">
-                        <Sparkles className="w-4 h-4 text-amber-500" /> Il Tuo Cantiere 3D
+                        <Sparkles className="w-4 h-4 text-amber-500" /> {t('demo.cantiere3d.title')}
                       </h3>
                       <p className="text-[#8a8a8a] text-[12px] mb-3.5 font-semibold">
-                        Ruota o zooma il modello interattivo per vedere i progressi fisici della pratica.
+                        {t('demo.cantiere3d.sub')}
                       </p>
                     </div>
                     <div className="bg-[#fcfcfc] border border-[#e2e2e2] rounded-2xl overflow-hidden shadow-inner">
@@ -1292,14 +990,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div className="flex justify-between items-center bg-white border border-[#e2e2e2] rounded-[26px] p-4 shadow-sm">
                     <div className="text-left">
                       <h3 className="text-[15px] font-extrabold text-[#161616] flex items-center gap-1.5 font-sans">
-                        <ClipboardList className="w-4 h-4 text-[#8a8a8a]" /> Piano dei Lavori Interattivo
+                        <ClipboardList className="w-4 h-4 text-[#8a8a8a]" /> {t('work.title')}
                       </h3>
                       <p className="text-[#8a8a8a] text-[12px] mt-0.5 font-semibold">
-                        Scorri le singole fasi autorizzative e tecniche della tua pratica.
+                        {t('work.sub')}
                       </p>
                     </div>
                     <span className="text-[11px] bg-[#fafafa] border border-[#e2e2e2] text-[#161616] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap">
-                      {done} di {tot} completati
+                      {t('work.completedOf', { done, tot })}
                     </span>
                   </div>
 
@@ -1333,9 +1031,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                 <b className="block text-[14px] font-extrabold text-[#161616] leading-tight truncate">{ph.name}</b>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className={`px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase tracking-wide ${phBadgeColor}`}>
-                                    {phStatus === 'completato' ? 'Completata' : phStatus === 'in_corso' ? 'In corso' : 'Da fare'}
+                                    {phStatus === 'completato' ? t('work.phaseCompleted') : phStatus === 'in_corso' ? t('status.inCorso') : t('work.phaseTodo')}
                                   </span>
-                                  <span className="text-[12.5px] text-[#8a8a8a] font-semibold">{completedCount}/{totalCount} task</span>
+                                  <span className="text-[12.5px] text-[#8a8a8a] font-semibold">{completedCount}/{totalCount} {t('work.tasksWord')}</span>
                                 </div>
                               </div>
                             </div>
@@ -1384,7 +1082,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                       </div>
                                     ))
                                   ) : (
-                                    <p className="text-[12px] text-[#8a8a8a] italic py-2 text-center">Fase vuota</p>
+                                    <p className="text-[12px] text-[#8a8a8a] italic py-2 text-center">{t('work.emptyPhase')}</p>
                                   )}
                                 </div>
                               </motion.div>
@@ -1404,15 +1102,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               {/* General Project Metadata - Real estate data box */}
               <div className="bg-white border border-[#e2e2e2] rounded-[26px] overflow-hidden shadow-sm grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
                 <div className="p-5 flex flex-col justify-center">
-                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">Indirizzo immobile</div>
+                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">{t('docs.address')}</div>
                   <b className="block text-[13.5px] mt-1 text-[#161616] truncate" title={p.indirizzoImmobile || p.location || '—'}>{p.indirizzoImmobile || p.location || '—'}</b>
                 </div>
                 <div className="p-5 flex flex-col justify-center">
-                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">Tipo Intervento</div>
+                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">{t('docs.interventionType')}</div>
                   <b className="block text-[13.5px] mt-1 text-[#161616] truncate">{p.tipoIntervento || p.templateName || '—'}</b>
                 </div>
                 <div className="p-5 flex flex-col justify-center">
-                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">Dati catastali (Foglio / Part. / Sub)</div>
+                  <div className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider">{t('docs.cadastral')}</div>
                   <b className="block text-[13.5px] mt-1 text-[#161616]">{p.foglio ? `${p.foglio} / ${p.particella} / ${p.sub || '—'}` : '—'}</b>
                 </div>
               </div>
@@ -1427,7 +1125,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center">
                           <Sparkle className="w-4 h-4" />
                         </div>
-                        <b className="font-extrabold text-[12.5px] uppercase tracking-wider">Comunicazione dallo studio</b>
+                        <b className="font-extrabold text-[12.5px] uppercase tracking-wider">{t('docs.studioMessage')}</b>
                       </div>
                       <p className="text-[13.5px] text-[#333333] leading-relaxed whitespace-pre-wrap font-semibold">
                         {p.clientMessage}
@@ -1439,12 +1137,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                       <div>
-                        <h3 className="text-[16px] font-extrabold text-[#161616]">Documenti & Pratiche</h3>
-                        <p className="text-[12px] text-[#8a8a8a]">Scarica i file inseriti o caricali direttamente.</p>
+                        <h3 className="text-[16px] font-extrabold text-[#161616]">{t('docs.title')}</h3>
+                        <p className="text-[12px] text-[#8a8a8a]">{t('docs.sub')}</p>
                       </div>
                       {!isPreview && (
                         <label className="bg-[#1b1b1b] hover:bg-black text-white text-[12px] font-bold py-1.5 px-3.5 rounded-xl flex items-center gap-1 cursor-pointer transition-all active:scale-95 border-none">
-                          <Upload className="w-3.5 h-3.5" /> Carica
+                          <Upload className="w-3.5 h-3.5" /> {t('common.upload')}
                           <input type="file" onChange={handleFileChange} multiple className="hidden" />
                         </label>
                       )}
@@ -1452,7 +1150,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
                     {uploading && (
                       <div className="text-center text-[12px] text-[#8a8a8a] py-2.5 flex items-center gap-1.5 justify-center bg-[#fafafa] border border-[#e2e2e2] rounded-xl mb-2 animate-pulse">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#161616]" /> Caricamento in corso...
+                        <Loader2 className="w-4 h-4 animate-spin text-[#161616]" /> {t('docs.uploading')}
                       </div>
                     )}
 
@@ -1465,7 +1163,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                               <span className="text-[10px] text-[#8a8a8a] font-bold uppercase">{d.size ? Math.round(d.size / 1024) + ' KB' : '—'}</span>
                             </div>
                             <div className="dw-container flex-shrink-0">
-                              <label className="dw-label" title="Scarica Documento">
+                              <label className="dw-label" title={t('chat.docDownload')}>
                                 <input 
                                   type="checkbox" 
                                   className="dw-input" 
@@ -1488,15 +1186,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   </svg>
                                   <div className="dw-square"></div>
                                 </div>
-                                <p className="dw-title">Scarica</p>
-                                <p className="dw-title">Fatto</p>
+                                <p className="dw-title">{t('common.download')}</p>
+                                <p className="dw-title">{t('chat.done')}</p>
                               </label>
                             </div>
                           </div>
                         ))
                       ) : (
                         <p className="text-[12.5px] text-[#8a8a8a] text-center italic py-8 bg-[#fafafa] rounded-xl border border-dashed border-[#e2e2e2]">
-                          Nessun documento inserito dallo studio.
+                          {t('chat.noDocs')}
                         </p>
                       )}
                     </div>
@@ -1507,15 +1205,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-5 shadow-sm flex flex-col h-[410px]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-[16px] font-extrabold text-[#161616]">Assistenza & Chat</h3>
-                      <p className="text-[12px] text-[#8a8a8a] mb-3.5">Parla direttamente con i progettisti del tuo cantiere.</p>
+                      <h3 className="text-[16px] font-extrabold text-[#161616]">{t('chat.title')}</h3>
+                      <p className="text-[12px] text-[#8a8a8a] mb-3.5">{t('chat.sub')}</p>
                     </div>
                     {!isPreview && onRequestAppointment && studioMembers && studioMembers.length > 0 && (
                       <button
                         onClick={() => setApptReqOpen(true)}
                         className="shrink-0 bg-[#161616] hover:bg-black text-white text-[11.5px] font-bold py-1.5 px-3 rounded-xl flex items-center gap-1.5 cursor-pointer border-none active:scale-95 transition-all"
                       >
-                        <Calendar className="w-3.5 h-3.5" /> Appuntamento
+                        <Calendar className="w-3.5 h-3.5" /> {t('chat.appointment')}
                       </button>
                     )}
                   </div>
@@ -1545,7 +1243,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                       })
                     ) : (
                       <div className="my-auto py-10 flex flex-col items-center text-center">
-                        <p className="text-[12.5px] text-[#8a8a8a] italic">Invia un messaggio per contattare lo studio.</p>
+                        <p className="text-[12.5px] text-[#8a8a8a] italic">{t('chat.empty')}</p>
                       </div>
                     )}
                   </div>
@@ -1559,14 +1257,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         onChange={(e) => setMsgInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
                         className="flex-1 min-h-[38px] bg-[#fafafa] border border-[#e2e2e2] rounded-xl px-3 py-1.5 text-[13px] text-[#161616] placeholder-[#8a8a8a] focus:outline-none focus:border-gray-500 transition-colors"
-                        placeholder="Scrivi un messaggio per lo studio..."
+                        placeholder={t('chat.placeholder')}
                       />
                       <button onClick={handleSend} className="bg-[#1b1b1b] hover:bg-black text-white h-[38px] w-[38px] rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-95 border-none">
                         <Send className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ) : (
-                    <p className="text-[11.5px] text-[#8a8a8a] mt-3 italic text-center flex-shrink-0">Anteprima: chat disattivata</p>
+                    <p className="text-[11.5px] text-[#8a8a8a] mt-3 italic text-center flex-shrink-0">{t('chat.previewDisabled')}</p>
                   )}
                 </div>
               </div>
@@ -1581,10 +1279,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div>
                     <h3 className="text-[17px] font-extrabold flex items-center gap-2">
                        <ClipboardList className="w-4 h-4 text-slate-600" />
-                       Gestionale Commesse & Offerte B2B
+                       {t('b2b.commesseTitle')}
                     </h3>
                     <p className="text-[12.5px] text-[#8a8a8a] mt-1 pr-6 leading-relaxed font-semibold">
-                      Compila e assevera i costi industriali dei lotti d'arredo per il cantiere <b className="text-zinc-900">{p.name}</b>. Onirico applicherà il ricarico concordato (+15%) prima della presentazione formale al cliente finale. I prezzi inseriti sono intesi per fornitura e posa in opera a regola d'arte.
+                      {t('b2b.commesseDesc.a')}<b className="text-zinc-900">{p.name}</b>{t('b2b.commesseDesc.b')}
                     </p>
                   </div>
                 </div>
@@ -1592,7 +1290,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 <div className="flex flex-col gap-4">
                   {projEstimates.length === 0 ? (
                     <div className="bg-white border border-[#ececec] rounded-2xl p-10 text-center text-zinc-500">
-                      Nessuna commessa o preventivo disponibile per questa divisione.
+                      {t('b2b.noCommesse')}
                     </div>
                   ) : (
                     projEstimates.map(est => {
@@ -1607,7 +1305,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           <div className="flex justify-between items-start flex-wrap gap-2">
                             <div>
                               <span className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2.5 py-1 rounded-md uppercase">
-                                LOTTO ID: #{est.id.slice(0, 5).toUpperCase()}
+                                {t('b2b.lotId')}{est.id.slice(0, 5).toUpperCase()}
                               </span>
                               <h4 className="text-[15.5px] font-extrabold text-[#111] mt-2">{est.itemName}</h4>
                               <p className="text-[12.5px] text-[#555] mt-1">{est.itemDescription}</p>
@@ -1619,28 +1317,28 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                               est.status === 'preventivato_partner' ? 'bg-slate-100 text-slate-700 border-slate-300' :
                               'bg-amber-50 text-amber-700 border-amber-200'
                             }`}>
-                              {est.status === 'accettato' && 'Confermato dal Cliente (In Produzione) ✓'}
-                              {est.status === 'rifiutato' && 'Rifiutato dal Cliente ✕'}
-                              {est.status === 'preventivato_partner' && 'In attesa di revisione Onirico'}
-                              {est.status === 'proposto_cliente' && 'Sotto esame del Cliente'}
-                              {est.status === 'richiesto' && 'In fase d\'offerta commissionale'}
+                              {est.status === 'accettato' && t('b2b.statusAccepted')}
+                              {est.status === 'rifiutato' && t('b2b.statusRejected')}
+                              {est.status === 'preventivato_partner' && t('b2b.statusPartner')}
+                              {est.status === 'proposto_cliente' && t('b2b.statusProposed')}
+                              {est.status === 'richiesto' && t('b2b.statusRequested')}
                             </span>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                             <div>
-                              <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Note e Specifiche Tecniche del Fornitore</label>
+                              <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">{t('b2b.notesLabel')}</label>
                               <textarea
                                 value={currentNotes}
                                 onChange={(e) => setB2bNotesInputs(prev => ({ ...prev, [est.id]: e.target.value }))}
-                                placeholder="Indica peculiarità, schede di montaggio, o giustificazioni del listino..."
+                                placeholder={t('b2b.notesPlaceholder')}
                                 className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-1 focus:ring-slate-500 font-sans min-h-[70px] resize-none"
                               />
                             </div>
 
                             <div className="flex flex-col justify-between">
                               <div>
-                                <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest block mb-1">Costo Base Industriale B2B (€)</label>
+                                <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest block mb-1">{t('b2b.costLabel')}</label>
                                 <div className="relative">
                                   <span className="absolute left-3 top-2 text-xs font-bold text-gray-400">€</span>
                                   <input
@@ -1654,7 +1352,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                               </div>
 
                               <div className="bg-slate-50/80 border border-slate-150 p-2 text-[11px] rounded-xl font-sans text-gray-500 mt-2 flex justify-between items-center">
-                                <span>Prezzo preventivato al Cliente (inc. Ricarico Onirico +{markupPct}%):</span>
+                                <span>{t('b2b.clientPrice', { pct: markupPct })}</span>
                                 <b className="font-mono text-zinc-950 font-black">{eur(calculatedClientPrice)}</b>
                               </div>
                             </div>
@@ -1670,11 +1368,11 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   status: 'preventivato_partner',
                                   finalPrice: calculatedClientPrice
                                 });
-                                alert('Preventivo inviato con successo a Onirico Studio per il ricarico e l\'approvazione del cliente! ✓');
+                                alert(t('b2b.sentAlert'));
                               }}
                               className="bg-slate-700 hover:bg-slate-800 text-white font-extrabold text-[11.5px] py-1.5 px-4 rounded-xl border-none cursor-pointer tracking-wide shadow-sm active:scale-95 transition-all"
                             >
-                              Invia Offerta Asseverata B2B ↳
+                              {t('b2b.sendOffer')}
                             </button>
                           </div>
                         </div>
@@ -1691,10 +1389,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               <div className="bg-white border border-[#ececec] rounded-3xl p-6">
                 <div className="flex items-center gap-2 mb-1">
                   <MessageSquare className="w-4 h-4 text-slate-500" />
-                  <h3 className="text-[16px] font-extrabold text-[#1a1a1a]">Canale di Coordinamento Cantiere (B2B)</h3>
+                  <h3 className="text-[16px] font-extrabold text-[#1a1a1a]">{t('b2b.chatTitle')}</h3>
                 </div>
                 <p className="text-[12.5px] text-[#8a8a8a] mb-4 leading-relaxed">
-                  Messaggistica diretta integrata per risolvere nodi tecnici, spessori di rivestimento, date di posa in cantiere con i direttori artistici di Onirico.
+                  {t('b2b.chatDesc')}
                 </p>
 
                 <div className="bg-slate-50/60 border border-gray-200 rounded-2xl p-4 min-h-[250px] max-h-[400px] overflow-y-auto flex flex-col gap-3.5 shadow-inner">
@@ -1721,13 +1419,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           id: String(Date.now()),
                           sender: `${profile.name} (Partner)`,
                           text: b2bChatInput,
-                          time: "Adesso"
+                          time: t('b2b.now')
                         };
                         setB2bMessages(prev => [...prev, newMsg]);
                         setB2bChatInput("");
                       }
                     }}
-                    placeholder="Scrivi un messaggio tecnico di cantiere..."
+                    placeholder={t('b2b.chatPlaceholder')}
                     className="flex-1 text-xs border border-gray-200 rounded-xl px-3 focus:outline-none focus:ring-1 focus:ring-neutral-400 font-sans"
                   />
                   <button
@@ -1737,14 +1435,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         id: String(Date.now()),
                         sender: `${profile.name} (Partner)`,
                         text: b2bChatInput,
-                        time: "Adesso"
+                        time: t('b2b.now')
                       };
                       setB2bMessages(prev => [...prev, newMsg]);
                       setB2bChatInput("");
                     }}
                     className="bg-[#161616] hover:bg-neutral-800 text-white font-extrabold text-xs px-4 rounded-xl border-none cursor-pointer transition-all active:scale-95"
                   >
-                    Invia
+                    {t('common.send')}
                   </button>
                 </div>
               </div>
@@ -1757,19 +1455,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white border border-[#ececec] rounded-2xl p-4.5">
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">Budget Totale</span>
+                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">{t('mkt.kpi.budget')}</span>
                     <DollarSign className="w-3.5 h-3.5 text-[#161616]" />
                   </div>
-                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">€7.500,00</p>
-                  <p className="text-[11px] text-[#8a8a8a] mt-0.5 font-sans">Allocato per la campagna</p>
+                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">{t('mkt.kpi.budgetVal')}</p>
+                  <p className="text-[11px] text-[#8a8a8a] mt-0.5 font-sans">{t('mkt.kpi.budgetSub')}</p>
                 </div>
                 <div className="bg-white border border-[#ececec] rounded-2xl p-4.5">
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">Speso Meta Ads</span>
+                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">{t('mkt.kpi.spent')}</span>
                     <TrendingUp className="w-3.5 h-3.5 text-green-500" />
                   </div>
-                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">€3.240,00</p>
-                  <p className="text-[11px] text-green-600 font-semibold mt-0.5 font-sans">Ottimizzato al 43%</p>
+                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">{t('mkt.kpi.spentVal')}</p>
+                  <p className="text-[11px] text-green-600 font-semibold mt-0.5 font-sans">{t('mkt.kpi.spentSub')}</p>
                 </div>
                 <div className="bg-white border border-[#ececec] rounded-2xl p-4.5">
                   <div className="flex justify-between items-start">
@@ -1777,15 +1475,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     <Target className="w-3.5 h-3.5 text-blue-500" />
                   </div>
                   <p className="text-[20px] font-extrabold text-[#161616] mt-2">3.82%</p>
-                  <p className="text-[11px] text-blue-600 font-semibold mt-0.5 font-sans">Media settore: 1.8%</p>
+                  <p className="text-[11px] text-blue-600 font-semibold mt-0.5 font-sans">{t('mkt.kpi.ctrSub')}</p>
                 </div>
                 <div className="bg-white border border-[#ececec] rounded-2xl p-4.5">
                   <div className="flex justify-between items-start">
-                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">Costo Acquisizione</span>
+                    <span className="text-[10px] font-mono tracking-widest text-[#8a8a8a] uppercase font-bold">{t('mkt.kpi.cpa')}</span>
                     <Smartphone className="w-3.5 h-3.5 text-[#161616]" />
                   </div>
-                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">€12,40</p>
-                  <p className="text-[11px] text-[#8a8a8a] mt-0.5 font-sans">Costo per lead (CPA)</p>
+                  <p className="text-[20px] font-extrabold text-[#161616] mt-2">{t('mkt.kpi.cpaVal')}</p>
+                  <p className="text-[11px] text-[#8a8a8a] mt-0.5 font-sans">{t('mkt.kpi.cpaSub')}</p>
                 </div>
               </div>
 
@@ -1799,34 +1497,34 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                       <h3 className="text-[16px] font-extrabold text-[#1a1a1a]">Social Feed & Campaign Approval Hub</h3>
                     </div>
                     <p className="text-[12.5px] text-[#8a8a8a] mb-5 leading-relaxed font-sans">
-                      Anteprima e approvazione dei post social e dei video creativi preparati dalla controllata Onirico Strategico prima della pubblicazione definitiva sui canali META.
+                      {t('mkt.hub.sub')}
                     </p>
 
                     <div className="flex flex-col gap-4">
                       {([
                         {
                           id: 'post-1',
-                          title: 'Video-tour emozionale camere storiche e volte a stella',
+                          title: t('mkt.post1.title'),
                           type: 'Instagram Reel',
-                          length: '15 secondi / Ratio 9:16',
+                          length: t('mkt.post1.length'),
                           src: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&q=80&w=600',
-                          caption: 'Nel cuore del Salento, dove la pietra di Lecce incontra l\'eleganza minimalista delle nostre realizzazioni sartoriali. Ogni volta racconta un segreto, ogni restauro custode di luce. ✨ #oniricostudio #masseriasalentina #interiordesign'
+                          caption: t('mkt.post1.caption')
                         },
                         {
                           id: 'post-2',
-                          title: 'Storytelling sulle origini e restauro conservativo del trullo saraceno',
+                          title: t('mkt.post2.title'),
                           type: 'Meta Ad Swipe Carousel',
-                          length: '4 Card Grafiche illustrative',
+                          length: t('mkt.post2.length'),
                           src: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=600',
-                          caption: 'La salvaguardia dell\'architettura rurale salentina come valore progettuale supremo. Scopri le 4 fasi di consolidamento strutturale che abbiamo implementato a Ostuni.'
+                          caption: t('mkt.post2.caption')
                         },
                         {
                           id: 'post-3',
-                          title: 'Drone clip: Veduta aerea del tramonto dorato sulla Masseria',
+                          title: t('mkt.post3.title'),
                           type: 'TikTok / IG Reels Video',
-                          length: '12 secondi, Drone FPV',
+                          length: t('mkt.post3.length'),
                           src: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=600',
-                          caption: 'La magia dell\'ora d\'oro sul nostro cantiere a picco sulle scogliere di Otranto. Un sogno ad occhi aperti che si materializza giorno dopo giorno. 🌅'
+                          caption: t('mkt.post3.caption')
                         }
                       ]).map(post => {
                         const approved = approvedMarketingPosts[post.id];
@@ -1847,7 +1545,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                       ? 'bg-green-50 text-green-600 border border-green-200' 
                                       : 'bg-amber-50 text-amber-600 border border-amber-200'
                                   }`}>
-                                    {approved ? 'APPROVATO DA TE ✓' : 'IN ATTESA APPROVAZIONE'}
+                                    {approved ? t('mkt.post.approved') : t('mkt.post.pending')}
                                   </span>
                                 </div>
                                 <h4 className="text-[14px] font-extrabold text-[#161616] mt-1 leading-snug">{post.title}</h4>
@@ -1859,7 +1557,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                               <div className="flex items-center justify-end gap-2 mt-3.5 border-t border-[#f5f5f5] pt-3">
                                 {approved ? (
                                   <div className="flex items-center gap-1 text-green-600 text-xs font-black">
-                                    <CheckCircle2 className="w-4 h-4" /> Approvato per la pianificazione automatica
+                                    <CheckCircle2 className="w-4 h-4" /> {t('mkt.post.approvedNote')}
                                   </div>
                                 ) : (
                                   <>
@@ -1869,7 +1567,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                       }}
                                       className="bg-[#161616] hover:bg-black text-white text-[11px] font-bold py-1.5 px-3 rounded-lg border-none cursor-pointer flex items-center gap-1 transition-all active:scale-95"
                                     >
-                                      Approva Contenuto ✓
+                                      {t('mkt.post.approveBtn')}
                                     </button>
                                   </>
                                 )}
@@ -1885,18 +1583,18 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 {/* Sidebar Campaign details */}
                 <div className="flex flex-col gap-4">
                   <div className="bg-white border border-[#ececec] rounded-3xl p-5 text-left">
-                    <h3 className="text-[14.5px] font-extrabold text-[#1a1a1a] mb-2 font-sans">Dati & Canali Campagna</h3>
+                    <h3 className="text-[14.5px] font-extrabold text-[#1a1a1a] mb-2 font-sans">{t('mkt.side.title')}</h3>
                     <div className="flex flex-col gap-3">
                       <div>
-                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">Nome Campagna Interna</span>
+                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">{t('mkt.side.campaignName')}</span>
                         <b className="text-[12.5px] text-[#161616] block mt-0.5">ONIRICO-WEB-SUMMER-2026</b>
                       </div>
                       <div>
                         <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">Geotargeting</span>
-                        <b className="text-[12.5px] text-[#161616] block mt-0.5">Puglia, Lombardia, Svizzera, Germania (Raggio 50km)</b>
+                        <b className="text-[12.5px] text-[#161616] block mt-0.5">{t('mkt.side.geoVal')}</b>
                       </div>
                       <div>
-                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">Canali Attivi</span>
+                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">{t('mkt.side.channels')}</span>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           <span className="bg-[#fafafa] border border-[#e2e2e2] text-[#161616] text-[10.5px] font-semibold py-0.5 px-2 rounded-lg">Instagram Feed</span>
                           <span className="bg-[#fafafa] border border-[#e2e2e2] text-[#161616] text-[10.5px] font-semibold py-0.5 px-2 rounded-lg">Facebook Ads</span>
@@ -1904,9 +1602,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         </div>
                       </div>
                       <div className="border-t border-[#f5f5f5] pt-3">
-                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">Referente Onirico</span>
+                        <span className="text-[10px] font-mono text-[#8a8a8a] uppercase block">{t('mkt.side.ref')}</span>
                         <b className="text-[12.5px] text-[#161616] block mt-0.5">Arch. Mario Bianchi (Brand Director & Strategist)</b>
-                        <p className="text-[11px] text-gray-400 mt-1 font-sans">Puoi inviare un messaggio nella tab "Documenti & Chat" se desideri richiedere formati alternativi o modifiche al copy.</p>
+                        <p className="text-[11px] text-gray-400 mt-1 font-sans">{t('mkt.side.refNote')}</p>
                       </div>
                     </div>
                   </div>
@@ -1924,19 +1622,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   <div>
                     <h3 className="text-[16px] font-extrabold text-[#161616] flex items-center gap-2">
                        <ClipboardList className="w-4 h-4 text-emerald-500" />
-                       Approvazione Preventivi e Forniture Partner
+                       {t('prev.title')}
                     </h3>
                     <p className="text-[12.5px] text-[#8a8a8a] mt-1 pr-6 leading-relaxed font-sans">
-                      Gestisci direttamente le proposte d’acquisto selezionate dai nostri tecnici per le finiture, infissi e arredi di pregio del tuo immobile. Onirico applica la propria marginalità di interposizione certificata. Puoi accettare o rifiutare ciascuna voce singolarmente.
+                      {t('prev.desc')}
                     </p>
                   </div>
                   <div className="bg-[#fafafa] border border-[#e2e2e2] rounded-2xl p-4 flex flex-col min-w-[200px] text-center">
-                    <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block font-bold">Totale Approvato Client</span>
+                    <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block font-bold">{t('prev.totalApproved')}</span>
                     <b className="text-[20px] font-mono font-extrabold text-emerald-600 mt-1">
                       {eur(projEstimates.filter(x => x.status === 'accettato').reduce((acc, cr) => acc + cr.finalPrice, 0))}
                     </b>
                     <span className="text-[10px] text-gray-400 mt-0.5">
-                      {projEstimates.filter(x => x.status === 'accettato').length} preventivi confermati
+                      {t('prev.confirmedCount', { n: projEstimates.filter(x => x.status === 'accettato').length })}
                     </span>
                   </div>
                 </div>
@@ -1946,9 +1644,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     <div className="w-12 h-12 rounded-2xl bg-[#fafafa] border border-[#e2e2e2] text-gray-400 flex items-center justify-center mx-auto mb-4">
                       <ClipboardList className="w-5 h-5" />
                     </div>
-                    <b className="text-[#161616] text-[15px] font-extrabold block">Nessun preventivo caricato</b>
+                    <b className="text-[#161616] text-[15px] font-extrabold block">{t('prev.empty')}</b>
                     <p className="text-[13px] text-[#8a8a8a] mt-1 max-w-[400px] mx-auto leading-relaxed font-sans">
-                      Stiamo raccogliendo e asseverando i computi tecnici dei nostri fornitori per questo cantiere. A breve compariranno qui le proposte per la tua approvazione.
+                      {t('prev.emptyDesc')}
                     </p>
                   </div>
                 ) : (
@@ -1959,7 +1657,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           <div className="flex-1 text-left">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="bg-[#f0f0f0] text-gray-700 text-[10px] font-mono py-0.5 px-2 rounded-md font-bold uppercase">
-                                Fornitore Partner: {est.partnerName}
+                                {t('prev.supplierPartner', { name: est.partnerName })}
                               </span>
                               
                               <span className={`text-[10px] font-bold uppercase py-0.5 px-2 rounded-md ${
@@ -1971,10 +1669,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                               } ${
                                 est.status === 'richiesto' ? 'bg-gray-100 text-gray-500 border border-gray-200' : ''
                               }`}>
-                                {est.status === 'accettato' && 'Approvato ✓'}
-                                {est.status === 'rifiutato' && 'Respinto ✕'}
-                                {est.status === 'proposto_cliente' && 'In attesa d\'approvazione'}
-                                {est.status === 'richiesto' && 'In fase di offerta'}
+                                {est.status === 'accettato' && t('prev.statusApproved')}
+                                {est.status === 'rifiutato' && t('prev.statusRejected')}
+                                {est.status === 'proposto_cliente' && t('prev.statusPending')}
+                                {est.status === 'richiesto' && t('prev.statusOffer')}
                               </span>
                             </div>
 
@@ -1988,19 +1686,19 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
                             {est.notes && (
                               <p className="text-[11.5px] text-[#8a8a8a] mt-1.5 leading-relaxed font-sans">
-                                <span className="font-bold text-[#161616]">Note direzione lavori:</span> {est.notes}
+                                <span className="font-bold text-[#161616]">{t('prev.dlNotes')}</span> {est.notes}
                               </p>
                             )}
                           </div>
 
                           <div className="flex flex-col items-end gap-3 min-w-[210px] w-full md:w-auto border-t md:border-t-0 border-[#f5f5f5] pt-3 md:pt-0">
                             <div className="text-right flex flex-col md:items-end w-full">
-                              <span className="text-[9px] font-mono text-[#8a8a8a] uppercase block tracking-wider font-semibold">PREZZO FINALE (IVA incl.)</span>
+                              <span className="text-[9px] font-mono text-[#8a8a8a] uppercase block tracking-wider font-semibold">{t('prev.finalPrice')}</span>
                               <b className="text-[20px] font-mono font-extrabold text-[#161616] block mt-0.5">
                                 {eur(est.finalPrice)}
                               </b>
                               <span className="text-[10px] text-[#8a8a8a] block mt-0.5 font-mono">
-                                Base: {eur(est.basePrice)} + Ricarico {est.markupPercent}%
+                                {t('prev.base', { base: eur(est.basePrice), pct: est.markupPercent })}
                               </span>
                             </div>
 
@@ -2014,7 +1712,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   }}
                                   className="flex-1 md:flex-initial bg-white hover:bg-neutral-50 text-rose-600 hover:text-rose-700 border border-[#e2e2e2] text-xs font-black py-2 px-3 rounded-xl cursor-pointer flex items-center justify-center gap-1 transition-all active:scale-95"
                                 >
-                                  <XCircle className="w-3.5 h-3.5" /> Rifiuta
+                                  <XCircle className="w-3.5 h-3.5" /> {t('prev.reject')}
                                 </button>
                                 <button
                                   onClick={() => {
@@ -2024,20 +1722,20 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   }}
                                   className="flex-1 md:flex-initial bg-[#161616] hover:bg-black text-emerald-400 hover:text-emerald-300 border-none text-xs font-black py-2 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-1 transition-all active:scale-95"
                                 >
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Accetta
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> {t('prev.accept')}
                                 </button>
                               </div>
                             )}
 
                             {est.status === 'accettato' && (
                               <div className="text-emerald-600 text-xs font-black flex items-center gap-1 mt-1 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Approvato da te
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {t('prev.approvedByYou')}
                               </div>
                             )}
 
                             {est.status === 'rifiutato' && (
                               <div className="text-rose-600 text-xs font-black flex items-center gap-1 mt-1 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-100">
-                                <XCircle className="w-3.5 h-3.5 text-rose-600" /> Respinto da te
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" /> {t('prev.rejectedByYou')}
                               </div>
                             )}
                           </div>
@@ -2128,38 +1826,38 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 <div className="bg-white border border-[#e5e5e5] rounded-[24px] p-6 shadow-xs">
                   <h3 className="text-[17px] font-extrabold flex items-center gap-2 mb-1">
                     <DollarSign className="w-4 h-4 text-emerald-600" />
-                    Contabilità e Stato dei Pagamenti
+                    {t('fin.title')}
                   </h3>
                   <p className="text-[12.5px] text-[#8a8a8a] leading-relaxed">
-                    Consulta il quadro economico della tua commessa <b className="text-[#161616]">{p.name}</b>: parcella professionale, fatture SDI e scadenziario concordato.
+                    {t('fin.desc.a')}<b className="text-[#161616]">{p.name}</b>{t('fin.desc.b')}
                   </p>
                 </div>
 
                 {/* QUADRO ECONOMICO (parcella calcolata dallo Studio) */}
                 {parc && (
                   <div className="bg-white border border-[#e5e5e5] rounded-[24px] p-6 shadow-xs">
-                    <b className="text-[14px] font-black text-[#161616] block mb-3">Quadro economico della commessa</b>
+                    <b className="text-[14px] font-black text-[#161616] block mb-3">{t('fin.quadro')}</b>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
-                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Computo lavori</span>
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">{t('fin.computo')}</span>
                         <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.computoTotal || 0)}</b>
                       </div>
                       <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
-                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi fissi e finiture</span>
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">{t('fin.arrediFissi')}</span>
                         <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.arrediFissi || 0)}</b>
                       </div>
                       <div className="bg-stone-50/60 border border-stone-200 rounded-xl p-3">
-                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">Arredi mobili</span>
+                        <span className="text-[9.5px] uppercase font-black text-stone-400 tracking-wider block">{t('fin.arrediMobili')}</span>
                         <b className="text-[14px] font-black text-[#1a1a1a]">{eur(econ?.arrediMobili || 0)}</b>
                       </div>
                       <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3">
-                        <span className="text-[9.5px] uppercase font-black text-indigo-700 tracking-wider block">Onorari Studio {Math.round((parc.feePct || 0.15) * 100)}%</span>
+                        <span className="text-[9.5px] uppercase font-black text-indigo-700 tracking-wider block">{t('fin.onorari', { pct: Math.round((parc.feePct || 0.15) * 100) })}</span>
                         <b className="text-[14px] font-black text-indigo-800">{eur(parc.onorari || 0)}</b>
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-3 bg-[#1b1b1b] text-white rounded-xl px-4 py-3">
                       <span className="text-[11px] uppercase font-black tracking-wider text-stone-300">
-                        Totale parcella professionale {parc.managesMobili ? `(incl. ${Math.round((parc.mobiliFeePct || 0.2) * 100)}% arredi mobili)` : ''}
+                        {t('fin.totaleParcella')}{parc.managesMobili ? t('fin.inclMobili', { pct: Math.round((parc.mobiliFeePct || 0.2) * 100) }) : ''}
                       </span>
                       <b className="text-[18px] font-black text-green-400">{eur(parc.totaleParcella || 0)}</b>
                     </div>
@@ -2169,21 +1867,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 {/* KPI Boxes */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white border border-[#e5e5e5] rounded-2xl p-5 shadow-xs">
-                    <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">Totale Fatturato (SDI)</span>
+                    <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">{t('fin.fatturato')}</span>
                     <b className="text-[20px] font-black mt-1 block text-stone-800">{eur(totalInvoiced)}</b>
-                    <span className="text-[11px] text-stone-500 mt-1 block">{projInvoices.length} fatture emesse ad oggi</span>
+                    <span className="text-[11px] text-stone-500 mt-1 block">{t('fin.fattureEmesse', { n: projInvoices.length })}</span>
                   </div>
 
                   <div className="bg-emerald-50/20 border border-emerald-100 rounded-2xl p-5 shadow-xs">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">Ricevuto / Pagato</span>
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">{t('fin.ricevuto')}</span>
                     <b className="text-[20px] font-black mt-1 block text-emerald-700">{eur(paidInvoices)}</b>
-                    <span className="text-[11px] text-emerald-600 mt-1 block">Importi già saldati</span>
+                    <span className="text-[11px] text-emerald-600 mt-1 block">{t('fin.giaSaldati')}</span>
                   </div>
 
                   <div className={`rounded-2xl p-5 border shadow-xs ${pendingInvoices > 0 ? 'bg-amber-50/10 border-amber-200' : 'bg-white border-[#e5e5e5]'}`}>
-                    <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">In Attesa di Saldo</span>
+                    <span className="text-[10px] uppercase font-bold text-[#8a8a8a] tracking-wider block">{t('fin.inAttesaSaldo')}</span>
                     <b className="text-[20px] font-black mt-1 block text-amber-700">{eur(pendingInvoices)}</b>
-                    <span className="text-[11px] text-stone-500 mt-1 block">A scadenze programmate</span>
+                    <span className="text-[11px] text-stone-500 mt-1 block">{t('fin.aScadenze')}</span>
                   </div>
                 </div>
 
@@ -2192,14 +1890,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   {/* Left component: SDI Invoices list */}
                   <div className="lg:col-span-7 bg-white border border-[#e5e5e5] rounded-[24px] p-6 shadow-xs">
                     <div className="flex justify-between items-center border-b border-[#f5f5f5] pb-4 mb-4">
-                      <b className="text-[14px] font-black text-[#161616]">Fatture Elettroniche Attive (SDI)</b>
-                      <span className="text-[10.5px] bg-slate-100 text-[#1a1a1a] font-bold px-2 py-0.5 rounded-lg border border-slate-200">Canale Onirico S.p.A.</span>
+                      <b className="text-[14px] font-black text-[#161616]">{t('fin.fattureAttive')}</b>
+                      <span className="text-[10.5px] bg-slate-100 text-[#1a1a1a] font-bold px-2 py-0.5 rounded-lg border border-slate-200">{t('fin.canale')}</span>
                     </div>
 
                     <div className="flex flex-col gap-3">
                       {projInvoices.length === 0 ? (
                         <div className="py-12 text-center text-stone-400 italic text-[12.5px] bg-stone-50/30 rounded-2xl border border-dashed border-stone-200">
-                          Nessuna fattura emessa per questa commessa.
+                          {t('fin.noFatture')}
                         </div>
                       ) : (
                         projInvoices.map((inv: any) => (
@@ -2211,7 +1909,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   <span className="text-[9.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded uppercase">SAL</span>
                                 )}
                               </div>
-                              <span className="text-[11px] text-stone-500 font-medium block mt-1">{inv.description || inv.desc || 'Acconto onorari professionali'}</span>
+                              <span className="text-[11px] text-stone-500 font-medium block mt-1">{inv.description || inv.desc || t('fin.invDescFallback')}</span>
                               <span className="text-[10px] text-stone-400 font-semibold block mt-1 font-mono">{fmtDay(inv.date || inv.dueDate)}</span>
                             </div>
                             <div className="flex items-center gap-3 mt-2 sm:mt-0 font-mono">
@@ -2221,7 +1919,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : 'bg-amber-50 text-amber-700 border-amber-200'
                               }`}>
-                                {inv.status === 'pagata' || inv.status === 'Paid' ? 'PAGATA ✓' : 'PENDENTE'}
+                                {inv.status === 'pagata' || inv.status === 'Paid' ? t('fin.paid') : t('fin.pending')}
                               </span>
                             </div>
                           </div>
@@ -2233,26 +1931,26 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   {/* Right component: Expected scadenze milestone */}
                   <div className="lg:col-span-5 bg-white border border-[#e5e5e5] rounded-[24px] p-6 shadow-xs">
                     <div className="border-b border-[#f5f5f5] pb-4 mb-4">
-                      <b className="text-[14px] font-black block text-[#161616]">Scadenziario dei Pagamenti</b>
-                      <span className="text-[11px] text-[#8a8a8a] mt-0.5 block">Monitora le date di scadenza per acconti e saldi.</span>
+                      <b className="text-[14px] font-black block text-[#161616]">{t('fin.scadenziario')}</b>
+                      <span className="text-[11px] text-[#8a8a8a] mt-0.5 block">{t('fin.scadSub')}</span>
                     </div>
 
                     <div className="flex flex-col gap-3">
                       {projScadenze.length === 0 ? (
                         <div className="py-8 text-center text-stone-400 italic text-[12px] bg-stone-50/30 rounded-2xl border border-dashed border-stone-200">
-                          Nessuna scadenza programmata per questo progetto.
+                          {t('fin.noScadenze')}
                         </div>
                       ) : (
                         projScadenze.map((sc: any) => (
                           <div key={sc.id} className="p-3.5 rounded-xl border border-stone-150 flex justify-between items-center bg-stone-50/25">
                             <div>
-                              <b className="text-[12.5px] font-bold text-stone-800 block leading-tight">{sc.desc || sc.description || 'Acconto lavori'}</b>
+                              <b className="text-[12.5px] font-bold text-stone-800 block leading-tight">{sc.desc || sc.description || t('fin.scadDescFallback')}</b>
                               <span className="text-[10.5px] text-stone-400 font-semibold block mt-1 font-mono">{fmtDay(sc.date || sc.dueDate)}</span>
                             </div>
                             <div className="text-right font-mono">
                               <span className="text-[13px] font-black block text-stone-800">{eur(Number(sc.amount))}</span>
                               <span className={`text-[10px] font-bold ${sc.isPaid ? 'text-emerald-700' : 'text-amber-600'}`}>
-                                {sc.isPaid ? 'SALDATA' : 'DA SALDARE'}
+                                {sc.isPaid ? t('fin.saldata') : t('fin.daSaldare')}
                               </span>
                             </div>
                           </div>
@@ -2267,7 +1965,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
           {currentTab === 'blog' && (() => {
             const filteredBlogPosts = BLOG_POSTS.filter(post => {
-              const matchesCategory = blogFilter === 'Tutti' || post.category === blogFilter;
+              const matchesCategory = blogFilter === 'all' || post.category === t('blog.cat.' + blogFilter);
               const matchesSearch = post.title.toLowerCase().includes(blogSearch.toLowerCase()) || 
                                     post.excerpt.toLowerCase().includes(blogSearch.toLowerCase()) ||
                                     post.category.toLowerCase().includes(blogSearch.toLowerCase());
@@ -2292,7 +1990,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         onClick={() => setSelectedPostId(null)}
                         className="inline-flex items-center gap-2 text-[12.5px] font-extrabold text-[#8a8a8a] hover:text-[#161616] mb-6 border-none bg-transparent cursor-pointer transition-colors"
                       >
-                        <ArrowLeft className="w-4 h-4" /> Torna a tutti gli articoli
+                        <ArrowLeft className="w-4 h-4" /> {t('blog.backAll')}
                       </button>
 
                       {/* Post Hero Image */}
@@ -2314,7 +2012,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           <Calendar className="w-3.5 h-3.5" /> {post.date}
                         </span>
                         <span className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5" /> {post.readTime} di lettura
+                          <Clock className="w-3.5 h-3.5" /> {post.readTime}{t('blog.readTimeSuffix')}
                         </span>
                       </div>
 
@@ -2344,7 +2042,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         {post.quote && (
                           <div className="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-5 my-4 italic text-amber-900 font-bold relative text-[13px]">
                             <span className="absolute -top-3 left-4 bg-white border border-amber-200/50 text-[9px] font-extrabold uppercase py-0.5 px-2.5 rounded-full text-amber-800">
-                              Punto di vista Onirico
+                              {t('blog.quoteLabel')}
                             </span>
                             "{post.quote}"
                           </div>
@@ -2368,21 +2066,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                             ON
                           </span>
                           <div className="text-left">
-                            <b className="block text-[13px] font-extrabold text-[#161616]">Team Onirico Design</b>
-                            <small className="block text-[11px] text-[#8a8a8a] font-semibold">Studio Associato d\'Ingegneria & Design</small>
+                            <b className="block text-[13px] font-extrabold text-[#161616]">{t('blog.author')}</b>
+                            <small className="block text-[11px] text-[#8a8a8a] font-semibold">{t('blog.authorRole')}</small>
                           </div>
                         </div>
 
                         <button
                           onClick={() => {
                             if (p && p.id) {
-                              onSendClientMessage(p.id, `Salve, ho letto l\'articolo del blog "${post.title}" e vorrei fare delle domande su questi approcci applicati al mio cantiere.`);
+                              onSendClientMessage(p.id, t('blog.discussMsg', { title: post.title }));
                             }
                             setActiveSubTab('documenti');
                           }}
                           className="bg-[#161616] hover:bg-black text-white text-[12.5px] font-extrabold py-2.5 px-4 rounded-xl flex items-center gap-2 cursor-pointer transition-all border-none font-sans"
                         >
-                          <MessageSquare className="w-4 h-4" /> Discuti l\'articolo in chat
+                          <MessageSquare className="w-4 h-4" /> {t('blog.discussBtn')}
                         </button>
                       </div>
                     </motion.div>
@@ -2398,7 +2096,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         </div>
                         <h2 className="text-[21px] md:text-[24px] font-black tracking-tight leading-tight mb-2">Onirico Blog</h2>
                         <p className="text-[12.5px] text-[#cccccc] font-semibold max-w-[500px]">
-                          Approfondimenti tecnici, tendenze progettuali e i retroscena costruttivi delle nostre realizzazioni in tempo reale.
+                          {t('blog.headerSub')}
                         </p>
                       </div>
                       <a
@@ -2407,7 +2105,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         rel="noopener noreferrer"
                         className="bg-white/10 hover:bg-white text-white hover:text-black font-extrabold text-[12px] py-2 px-4 rounded-xl border border-white/20 hover:border-transparent flex items-center gap-1.5 transition-all cursor-pointer select-none shrink-0"
                       >
-                        Visita oniricodesign.com <ArrowRight className="w-3.5 h-3.5" />
+                        {t('blog.visitSite')} <ArrowRight className="w-3.5 h-3.5" />
                       </a>
                     </div>
 
@@ -2415,17 +2113,17 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
                       {/* Categories tag pills */}
                       <div className="pillbar flex items-center bg-[#eaeaea] border border-[#dcdcdc] p-[3px] rounded-2xl gap-[2px]">
-                        {['Tutti', 'Architettura', 'Ingegneria', 'Restauro', 'Interior Design'].map(cat => (
+                        {['all', 'architettura', 'ingegneria', 'restauro', 'interior'].map(cat => (
                           <button
                             key={cat}
                             onClick={() => setBlogFilter(cat)}
                             className={`text-[12px] font-extrabold px-[14px] py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap border-none ${
-                              blogFilter === cat 
-                                ? 'bg-[#161616] text-white shadow-xs' 
+                              blogFilter === cat
+                                ? 'bg-[#161616] text-white shadow-xs'
                                 : 'text-[#555] hover:text-[#161616] bg-transparent'
                             }`}
                           >
-                            {cat}
+                            {t('blog.cat.' + cat)}
                           </button>
                         ))}
                       </div>
@@ -2437,7 +2135,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                           type="text"
                           value={blogSearch}
                           onChange={(e) => setBlogSearch(e.target.value)}
-                          placeholder="Cerca un articolo..."
+                          placeholder={t('blog.searchPlaceholder')}
                           className="pl-9 pr-4 py-1.5 text-[12px] font-black text-[#161616] rounded-xl border border-[#e2e2e2] bg-white focus:outline-none focus:border-[#161616] w-full sm:w-[220px] placeholder-gray-400 font-sans shadow-2xs"
                         />
                       </div>
@@ -2494,7 +2192,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
                             <div className="px-5 pb-5 pt-1">
                               <span className="text-[12px] font-black text-[#161616] group-hover:text-black flex items-center gap-1 border-b border-transparent group-hover:border-[#161616] w-fit pb-0.5 transition-all">
-                                Leggi articolo <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                                {t('blog.readArticle')} <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                               </span>
                             </div>
                           </motion.div>
@@ -2503,7 +2201,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     ) : (
                       <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-200">
                         <BookOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                        <p className="text-[13px] text-gray-400 italic font-semibold">Nessun articolo blog corrisponde ai filtri impostati.</p>
+                        <p className="text-[13px] text-gray-400 italic font-semibold">{t('blog.noMatch')}</p>
                       </div>
                     )}
                   </div>
@@ -2533,21 +2231,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 <div className="bg-white p-6 pb-4 border-b border-[#f5f5f5] flex flex-col gap-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] tracking-wider font-extrabold uppercase bg-amber-400 text-black px-2.5 py-0.5 rounded font-mono">
-                      {info.badge || 'Iter Tecnico'}
+                      {info.badge || t('taskdetail.generic.badge')}
                     </span>
                   </div>
                   <h3 className="text-[17.5px] font-black leading-tight tracking-tight mt-1 text-[#161616]">
                     {selectedTaskForModal.title}
                   </h3>
                   <p className="text-[10px] text-[#8a8a8a] tracking-wide uppercase font-bold">
-                    Fase: {selectedTaskForModal.phase}
+                    {t('taskmodal.phase', { phase: selectedTaskForModal.phase })}
                   </p>
                 </div>
 
                 {/* Content body */}
                 <div className="p-6 flex flex-col gap-4 font-sans text-sm">
                   <div>
-                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">Descrizione di dettaglio</h4>
+                    <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">{t('taskmodal.descLabel')}</h4>
                     <p className="text-[#333] text-[13.5px] leading-relaxed font-semibold">
                       {info.desc}
                     </p>
@@ -2557,15 +2255,15 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">Professionista Incaricato</h4>
+                      <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">{t('taskmodal.roleLabel')}</h4>
                       <p className="text-[#161616] text-[13px] font-extrabold">
                         {info.role}
                       </p>
                     </div>
                     <div>
-                      <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">Tempistica Prevista</h4>
+                      <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#8a8a8a] mb-1">{t('taskmodal.dueLabel')}</h4>
                       <p className="text-[#161616] text-[13px] font-extrabold">
-                        {selectedTaskForModal.done ? '✓ Completato' : info.dueTime}
+                        {selectedTaskForModal.done ? t('taskmodal.completed') : info.dueTime}
                       </p>
                     </div>
                   </div>
@@ -2574,13 +2272,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onSendClientMessage(p.id, `Salve, vorrei ricevere maggiori informazioni riguardo al task "${selectedTaskForModal.title}" nella fase "${selectedTaskForModal.phase}".`);
+                        onSendClientMessage(p.id, t('taskmodal.askMsg', { title: selectedTaskForModal.title, phase: selectedTaskForModal.phase }));
                         setSelectedTaskForModal(null);
                         setActiveSubTab('documenti');
                       }}
                       className="w-full bg-[#161616] hover:bg-black text-white text-[12.5px] font-extrabold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 border-none shadow-sm font-sans"
                     >
-                      <MessageSquare className="w-4 h-4" /> Chiedi più informazioni allo studio
+                      <MessageSquare className="w-4 h-4" /> {t('taskmodal.askBtn')}
                     </button>
                   </div>
                 </div>
@@ -2594,14 +2292,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
                     )}
                     <span className="text-[11.5px] font-extrabold text-[#555]">
-                      Stato: {selectedTaskForModal.done ? 'Pratica Evasa' : 'In Lavorazione'}
+                      {t('taskmodal.statusLabel', { status: selectedTaskForModal.done ? t('taskmodal.statusDone') : t('taskmodal.statusWip') })}
                     </span>
                   </div>
                   <button
                     onClick={() => setSelectedTaskForModal(null)}
                     className="bg-[#f0f0f0] hover:bg-gray-200 text-[#161616] border border-[#e2e2e2] text-[12.5px] font-extrabold py-2 px-5 rounded-xl cursor-pointer transition-all"
                   >
-                    Chiudi
+                    {t('common.close')}
                   </button>
                 </div>
               </motion.div>
@@ -2620,6 +2318,7 @@ const AppointmentRequestModal: React.FC<{
   members: UserProfile[];
   onRequest: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
 }> = ({ open, onClose, members, onRequest }) => {
+  const { t } = useLang();
   const [done, setDone] = useState(false);
   const [member, setMember] = useState(members[0]?.uid || '');
   const [date, setDate] = useState('');
@@ -2648,38 +2347,38 @@ const AppointmentRequestModal: React.FC<{
             {done ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <b className="text-[16px] text-[#161616] block">Richiesta inviata</b>
-                <p className="text-[13px] text-[#8a8a8a] mt-1">Il membro dello studio dovrà confermare l'appuntamento.</p>
+                <b className="text-[16px] text-[#161616] block">{t('appt.requestSent')}</b>
+                <p className="text-[13px] text-[#8a8a8a] mt-1">{t('appt.requestSentSub')}</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[17px] font-black text-[#161616]">Richiedi appuntamento</h3>
+                  <h3 className="text-[17px] font-black text-[#161616]">{t('appt.title')}</h3>
                   <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><XCircle className="w-5 h-5" /></button>
                 </div>
                 <div className="flex flex-col gap-3 text-left">
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Con</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{t('appt.with')}</span>
                     <select value={member} onChange={(e) => setMember(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]">
                       {members.map((m) => <option key={m.uid} value={m.uid}>{m.name}</option>)}
                     </select>
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Data</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{t('common.date')}</span>
                       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]" />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Ora</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{t('appt.time')}</span>
                       <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 border border-[#e2e2e2] rounded-xl px-3 text-[14px]" />
                     </label>
                   </div>
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">Motivo</span>
-                    <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none" placeholder="Es. sopralluogo, revisione progetto…" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a8a8a]">{t('appt.reason')}</span>
+                    <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="border border-[#e2e2e2] rounded-xl p-3 text-[14px] resize-none" placeholder={t('appt.reasonPlaceholder')} />
                   </label>
                   <button onClick={submit} className="mt-1 py-2.5 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] cursor-pointer border-none flex items-center justify-center gap-2">
-                    <Send className="w-4 h-4" /> Invia richiesta
+                    <Send className="w-4 h-4" /> {t('appt.sendRequest')}
                   </button>
                 </div>
               </>

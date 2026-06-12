@@ -23,6 +23,7 @@ export interface UserProfile {
   sector?: 'studio' | 'strategico' | 'materico' | 'unico' | 'partner' | 'altro';
   // Controllo accessi (Firebase)
   status?: 'pending' | 'approved' | 'rejected';
+  lang?: 'it' | 'en';            // lingua preferita del portale (default: italiano)
   photoURL?: string;
   approvedBy?: string;
   approvedAt?: number;

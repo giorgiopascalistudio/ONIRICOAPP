@@ -23,6 +23,7 @@ import {
 
 import { Furnishing, Project } from '../types';
 import { todayISO, eur, safeUrl } from '../utils';
+import { useLang } from '../i18n';
 import { arrediTotals, STUDIO_FEE_PCT, ARREDI_MOBILI_FEE_PCT } from '../finance';
 import { Box, Maximize2, Loader2 } from 'lucide-react';
 import { MoodboardErrorBoundary } from './moodboard3d/MoodboardErrorBoundary';
@@ -44,21 +45,21 @@ interface FurnishingsBoardProps {
 
 type Section = 'fissi' | 'mobili' | 'moodboard';
 
-const SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: 'fissi', label: 'Arredi fissi e finiture', icon: Sofa },
-  { id: 'mobili', label: 'Arredi mobili', icon: LayoutGrid },
-  { id: 'moodboard', label: 'Moodboard', icon: Palette }
+// label risolta via t('fb.sec.<id>')
+const SECTIONS: { id: Section; icon: React.ElementType }[] = [
+  { id: 'fissi', icon: Sofa },
+  { id: 'mobili', icon: LayoutGrid },
+  { id: 'moodboard', icon: Palette }
 ];
 
+// Valori canonici memorizzati (italiano); display tradotto via CAT_KEY → t('fbcat.<key>')
 const CATEGORIES = ['Sanitari', 'Cucina', 'Armadi a incasso', 'Illuminazione', 'Tessili', 'Pavimenti', 'Rivestimenti', 'Altro'];
+const CAT_KEY: Record<string, string> = {
+  'Sanitari': 'sanitari', 'Cucina': 'cucina', 'Armadi a incasso': 'armadi', 'Illuminazione': 'illuminazione',
+  'Tessili': 'tessili', 'Pavimenti': 'pavimenti', 'Rivestimenti': 'rivestimenti', 'Altro': 'altro',
+};
 
 const STATUS_FLOW: Furnishing['status'][] = ['da_scegliere', 'proposto', 'scelto', 'confermato'];
-const STATUS_LABEL: Record<Furnishing['status'], string> = {
-  da_scegliere: 'Da scegliere',
-  proposto: 'Proposto',
-  scelto: 'Scelto',
-  confermato: 'Confermato'
-};
 const STATUS_STYLE: Record<Furnishing['status'], string> = {
   da_scegliere: 'bg-[#f1f1f1] text-[#6b6b6b]',
   proposto: 'bg-amber-50 text-amber-700',
@@ -90,6 +91,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
   moodboard3dElements,
   onSaveMoodboard3d
 }) => {
+  const { t } = useLang();
+  const catLabel = (c?: string | null) => (c && CAT_KEY[c] ? t('fbcat.' + CAT_KEY[c]) : (c || ''));
   const [section, setSection] = useState<Section>('fissi');
   const [modalKind, setModalKind] = useState<Furnishing['kind'] | null>(null);
   const [editItem, setEditItem] = useState<Furnishing | null>(null);   // arredo in modifica (solo non confermati)
@@ -251,22 +254,22 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               <b className="text-[13.5px] text-[#161616] truncate" title={item.title}>{item.title}</b>
               <span className="flex items-center gap-1.5 flex-shrink-0">
                 {item.status !== 'confermato' && (
-                  <button onClick={() => openEdit(item)} className="text-gray-300 hover:text-[#161616] transition-colors" title="Modifica">
+                  <button onClick={() => openEdit(item)} className="text-gray-300 hover:text-[#161616] transition-colors" title={t('common.edit')}>
                     <Pencil className="w-4 h-4" />
                   </button>
                 )}
-                <button onClick={() => onDeleteItem(pid, item.id)} className="text-gray-300 hover:text-red-500 transition-colors" title="Rimuovi">
+                <button onClick={() => onDeleteItem(pid, item.id)} className="text-gray-300 hover:text-red-500 transition-colors" title={t('fb.remove')}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               </span>
             </div>
-            {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{item.category}</div>}
+            {item.category && <div className="text-[10.5px] text-[#8a8a8a] font-semibold mt-0.5">{catLabel(item.category)}</div>}
             {item.price != null && (
               <div className="text-[11px] font-bold text-[#161616] mt-0.5 flex flex-wrap items-center gap-1.5">
                 <span>{eur(item.price)}{(item.quantity ?? 1) !== 1 ? ` × ${item.quantity} = ${eur((item.price || 0) * (item.quantity || 1))}` : ''}</span>
                 {item.status === 'confermato' && (
                   <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold uppercase tracking-wide bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full">
-                    <Check className="w-2.5 h-2.5" /> in contabilità
+                    <Check className="w-2.5 h-2.5" /> {t('fb.inAccounting')}
                   </span>
                 )}
               </div>
@@ -275,9 +278,9 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
               <button
                 onClick={() => cycleStatus(item)}
                 className={`text-[10px] font-bold px-2 py-1 rounded-full transition-opacity hover:opacity-80 ${STATUS_STYLE[item.status]}`}
-                title="Avanza stato"
+                title={t('fb.advanceStatus')}
               >
-                {STATUS_LABEL[item.status]}
+                {t('fbstatus.' + item.status)}
               </button>
               {showDeadline && item.deadline && (
                 <span
@@ -300,11 +303,11 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
         <div className="flex items-center gap-3 text-[11px] font-semibold">
           {item.link && (
             <a href={safeUrl(item.link) || '#'} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-1">
-              <LinkIcon className="w-3 h-3" /> Riferimento
+              <LinkIcon className="w-3 h-3" /> {t('fb.reference')}
             </a>
           )}
           <button onClick={() => toggleBoard(item)} className="text-[#6b6b6b] hover:text-[#161616] inline-flex items-center gap-1 ml-auto">
-            <Palette className="w-3 h-3" /> {item.board ? 'Rimuovi dalla lavagna' : 'Aggiungi al moodboard'}
+            <Palette className="w-3 h-3" /> {item.board ? t('fb.removeFromBoard') : t('fb.addToMoodboard')}
           </button>
         </div>
       </div>
@@ -315,8 +318,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
     <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 shadow-sm text-left">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4 border-b border-[#f5f5f5] pb-3">
         <div>
-          <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">Arredi & Moodboard</h3>
-          <p className="text-[10.5px] text-[#8a8a8a] mt-0.5 font-medium">Scelte materiali, capitolato e lavagna riferimenti</p>
+          <h3 className="text-[14px] font-extrabold text-[#161616] font-sans tracking-tight">{t('tab.arredi')}</h3>
+          <p className="text-[10.5px] text-[#8a8a8a] mt-0.5 font-medium">{t('fb.header.sub')}</p>
         </div>
         {/* Barra a pillole sezioni */}
         <div className="inline-flex items-center gap-1 bg-[#f1f1f1] rounded-full p-1">
@@ -331,7 +334,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
                   active ? 'bg-[#1b1b1b] text-white' : 'text-[#6b6b6b] hover:text-[#161616]'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" /> {s.label}
+                <Icon className="w-3.5 h-3.5" /> {t('fb.sec.' + s.id)}
               </button>
             );
           })}
@@ -343,16 +346,14 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <p className="text-[11.5px] text-[#8a8a8a] font-medium">
-              {section === 'fissi'
-                ? 'Finiture e arredi con impatto progettuale (impianti, dimensioni): da definire entro la scadenza. '
-                : 'Scelte estetiche, senza impatto sulla progettazione. '}
-              {isStudio && <span className="text-[#6b6b6b]">Porta una voce a <b>“Confermato”</b> per inserirla in contabilità.</span>}
+              {section === 'fissi' ? t('fb.descFissi') : t('fb.descMobili')}
+              {isStudio && <span className="text-[#6b6b6b]">{t('fb.confirmNote.a')}<b>{t('fb.confirmNote.bold')}</b>{t('fb.confirmNote.b')}</span>}
             </p>
             <button
               onClick={() => openModal(section === 'fissi' ? 'fisso' : 'mobile')}
               className="bg-[#1b1b1b] hover:bg-black text-white text-[11.5px] font-bold py-1.5 px-3.5 rounded-full inline-flex items-center gap-1 transition-colors flex-shrink-0"
             >
-              <Plus className="w-3.5 h-3.5" /> Aggiungi
+              <Plus className="w-3.5 h-3.5" /> {t('common.add')}
             </button>
           </div>
 
@@ -361,17 +362,17 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
             {section === 'fissi' ? (
               <>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">In contabilità · arredi fissi e finiture (confermati)</span>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">{t('fb.accFissi')}</span>
                   <b className="text-[15px] font-black text-[#161616]">{eur(totals.fissiConfermati)}</b>
                   {totals.fissi > totals.fissiConfermati && (
                     <span className="text-[10px] text-[#8a8a8a] block mt-0.5">
-                      su {eur(totals.fissi)} selezionati · conferma una voce per inserirla in contabilità
+                      {t('fb.outOf', { total: eur(totals.fissi) })}
                     </span>
                   )}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">
-                    Onorari Studio ({Math.round((project.studioFeePct ?? STUDIO_FEE_PCT) * 100)}% — concorre alla parcella)
+                    {t('fb.studioFees', { pct: Math.round((project.studioFeePct ?? STUDIO_FEE_PCT) * 100) })}
                   </span>
                   <b className="text-[14px] font-black text-indigo-700">{eur(feeFissi)}</b>
                 </div>
@@ -379,11 +380,11 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
             ) : (
               <>
                 <div>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">In contabilità · arredi mobili (confermati)</span>
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">{t('fb.accMobili')}</span>
                   <b className="text-[15px] font-black text-[#161616]">{eur(totals.mobiliConfermati)}</b>
                   {totals.mobili > totals.mobiliConfermati && (
                     <span className="text-[10px] text-[#8a8a8a] block mt-0.5">
-                      su {eur(totals.mobili)} selezionati · conferma una voce per inserirla in contabilità
+                      {t('fb.outOf', { total: eur(totals.mobili) })}
                     </span>
                   )}
                 </div>
@@ -395,16 +396,16 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
                       onChange={(e) => onToggleStudioManagesMobili?.(pid, e.target.checked)}
                     />
                     <span className="text-[11.5px] font-bold text-[#161616] leading-tight">
-                      Lo Studio gestisce scelta + approvvigionamento
+                      {t('fb.studioManages')}
                       <span className="block text-[10.5px] font-semibold text-[#8a8a8a]">
-                        → fee {Math.round((project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) * 100)}%: <b className="text-indigo-700">{eur(feeMobili)}</b>
+                        {t('fb.feeLine', { pct: Math.round((project.arrediMobiliFeePct ?? ARREDI_MOBILI_FEE_PCT) * 100) })}<b className="text-indigo-700">{eur(feeMobili)}</b>
                       </span>
                     </span>
                   </label>
                 ) : (
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">Gestione Studio</span>
-                    <b className="text-[13px] font-black text-[#161616]">{managesMobili ? `Sì — fee ${eur(feeMobili)}` : 'No'}</b>
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-[#8a8a8a] block">{t('fb.studioMgmt')}</span>
+                    <b className="text-[13px] font-black text-[#161616]">{managesMobili ? t('fb.yesFee', { fee: eur(feeMobili) }) : t('common.no')}</b>
                   </div>
                 )}
               </>
@@ -416,7 +417,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
           </div>
           {(section === 'fissi' ? fissi : mobili).length === 0 && (
             <div className="text-center text-[12px] text-[#9a9a9a] py-8 border border-dashed border-[#e2e2e2] rounded-[18px]">
-              Nessun arredo {section === 'fissi' ? 'fisso' : 'mobile'} ancora.
+              {section === 'fissi' ? t('fb.emptyFisso') : t('fb.emptyMobile')}
             </div>
           )}
         </div>
@@ -434,21 +435,21 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
                   <Box className="w-6 h-6" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[16px] font-extrabold text-[#161616] tracking-tight">Moodboard 3D</h3>
+                  <h3 className="text-[16px] font-extrabold text-[#161616] tracking-tight">{t('req.mb3d')}</h3>
                   <p className="text-[12.5px] text-[#8a8a8a] mt-1 max-w-xl">
-                    Componi la scena materica del progetto in 3D: campioni di materiali, forme, luci e modelli, su un tavolo virtuale.
-                    {count > 0 ? <> Scena salvata con <b className="text-[#161616]">{count}</b> element{count === 1 ? 'o' : 'i'}.</> : ' Nessuna scena ancora: aprila per iniziare.'}
+                    {t('fb.mb.desc')}
+                    {count > 0 ? (count === 1 ? t('fb.mb.savedOne', { count }) : t('fb.mb.savedMany', { count })) : t('fb.mb.none')}
                   </p>
                 </div>
                 <button
                   onClick={() => setMb3dOpen(true)}
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#1b1b1b] hover:bg-black text-white text-[13px] font-bold cursor-pointer shrink-0"
                 >
-                  <Maximize2 className="w-4 h-4" /> Apri moodboard 3D
+                  <Maximize2 className="w-4 h-4" /> {t('fb.mb.open')}
                 </button>
               </div>
             </div>
-            <p className="text-[11px] text-[#9a9a9a]">L'editor si apre a schermo intero. Le modifiche vengono salvate sul progetto (anche dal portale cliente).</p>
+            <p className="text-[11px] text-[#9a9a9a]">{t('fb.mb.footer')}</p>
           </div>
         );
       })()}
@@ -459,7 +460,7 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
           <Suspense fallback={
             <div className="fixed inset-0 z-[120] bg-[#F5F5F3] flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-7 h-7 text-[#161616] animate-spin" />
-              <span className="text-[12.5px] font-bold text-[#8a8a8a]">Caricamento moodboard 3D…</span>
+              <span className="text-[12.5px] font-bold text-[#8a8a8a]">{t('fb.mb.loading')}</span>
             </div>
           }>
             <Moodboard3D
@@ -479,57 +480,59 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
           <div className="bg-white rounded-[24px] w-full max-w-md p-6 shadow-xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-[15px] font-extrabold text-[#161616]">
-                {editItem ? 'Modifica arredo' : 'Nuovo arredo'} {modalKind === 'fisso' ? 'fisso' : 'mobile'}
+                {editItem
+                  ? (modalKind === 'fisso' ? t('fb.modal.editFisso') : t('fb.modal.editMobile'))
+                  : (modalKind === 'fisso' ? t('fb.modal.newFisso') : t('fb.modal.newMobile'))}
               </h4>
               <button onClick={() => { setModalKind(null); setEditItem(null); }} className="text-gray-400 hover:text-[#161616]"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex flex-col gap-3">
               <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
-                Titolo *
-                <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Es. Lavabo sospeso 60cm" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                {t('fb.f.title')}
+                <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder={t('fb.f.titlePlaceholder')} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
               </label>
               <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
-                Categoria
+                {t('fb.f.category')}
                 <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] bg-white">
-                  <option value="">Categoria…</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <option value="">{t('fb.f.categoryPlaceholder')}</option>
+                  {CATEGORIES.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
                 </select>
               </label>
               {modalKind === 'fisso' && (
                 <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
-                  Scadenza scelta
+                  {t('fb.f.deadline')}
                   <input type="date" value={fDeadline} onChange={(e) => setFDeadline(e.target.value)} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
                 </label>
               )}
               <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
-                URL immagine di riferimento
+                {t('fb.f.imageUrl')}
                 <input value={fImageUrl} onChange={(e) => setFImageUrl(e.target.value)} placeholder="https://…" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
               </label>
               <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1">
-                Link prodotto/riferimento
+                {t('fb.f.link')}
                 <input value={fLink} onChange={(e) => setFLink(e.target.value)} placeholder="https://…" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
               </label>
               <div className="flex gap-2">
                 <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 flex-1">
-                  Prezzo unitario (€)
-                  <input type="number" inputMode="decimal" value={fPrice} onChange={(e) => setFPrice(e.target.value)} placeholder="es. 450" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
+                  {t('fb.f.price')}
+                  <input type="number" inputMode="decimal" value={fPrice} onChange={(e) => setFPrice(e.target.value)} placeholder={t('fb.f.pricePlaceholder')} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
                 </label>
                 <label className="text-[11px] font-semibold text-[#6b6b6b] flex flex-col gap-1 w-24">
-                  Quantità
+                  {t('fb.f.quantity')}
                   <input type="number" inputMode="decimal" value={fQuantity} onChange={(e) => setFQuantity(e.target.value)} placeholder="1" className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b]" />
                 </label>
               </div>
               <div className="flex items-center gap-2">
                 <input type="color" value={fColor || '#cccccc'} onChange={(e) => setFColor(e.target.value)} className="w-10 h-10 rounded-[10px] border border-[#e2e2e2] cursor-pointer" />
-                <span className="text-[11.5px] text-[#8a8a8a]">Campione colore (opzionale)</span>
-                {fColor && <button onClick={() => setFColor('')} className="text-[11px] text-gray-400 hover:text-red-500 ml-auto">Rimuovi colore</button>}
+                <span className="text-[11.5px] text-[#8a8a8a]">{t('fb.f.colorSample')}</span>
+                {fColor && <button onClick={() => setFColor('')} className="text-[11px] text-gray-400 hover:text-red-500 ml-auto">{t('fb.f.removeColor')}</button>}
               </div>
-              <textarea value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder="Note" rows={2} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] resize-none" />
+              <textarea value={fNote} onChange={(e) => setFNote(e.target.value)} placeholder={t('common.notes')} rows={2} className="w-full border border-[#e2e2e2] rounded-[14px] px-3 py-2.5 text-[13px] outline-none focus:border-[#1b1b1b] resize-none" />
             </div>
             <div className="flex gap-2 mt-5">
-              <button onClick={() => { setModalKind(null); setEditItem(null); }} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">Annulla</button>
+              <button onClick={() => { setModalKind(null); setEditItem(null); }} className="flex-1 border border-[#e2e2e2] rounded-full py-2.5 text-[12.5px] font-bold text-[#6b6b6b] hover:bg-[#f5f5f5]">{t('common.cancel')}</button>
               <button onClick={saveNew} disabled={!fTitle.trim()} className="flex-1 bg-[#1b1b1b] hover:bg-black disabled:opacity-40 text-white rounded-full py-2.5 text-[12.5px] font-bold inline-flex items-center justify-center gap-1">
-                <Check className="w-4 h-4" /> {editItem ? 'Salva modifiche' : 'Salva'}
+                <Check className="w-4 h-4" /> {editItem ? t('fb.f.saveEdit') : t('common.save')}
               </button>
             </div>
           </div>

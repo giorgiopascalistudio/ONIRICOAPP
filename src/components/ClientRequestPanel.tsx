@@ -21,31 +21,35 @@ import {
 } from 'lucide-react';
 import type { ClientRequest, MatericoRequest, UserProfile } from '../types';
 import { COMPANY_COLOR } from '../finance';
+import { useLang } from '../i18n';
+import { fmtDay } from '../utils';
 
 const Moodboard3D = lazy(() => import('./moodboard3d/Moodboard3D'));
 
 type Division = 'studio' | 'materico' | 'strategico' | 'unico';
 
-const DIVISIONS: { key: Division; name: string; sub: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: 'studio', name: 'Studio', sub: 'Architettura & Ingegneria', desc: 'Progetto, ristrutturazione, pratiche edilizie.', icon: Building2 },
-  { key: 'materico', name: 'Materico', sub: 'Forniture & Posa', desc: 'Finiture, materiali e posa chiavi in mano.', icon: Boxes },
-  { key: 'strategico', name: 'Strategico', sub: 'Marketing & Brand', desc: 'Comunicazione, social e campagne.', icon: Megaphone },
-  { key: 'unico', name: 'Unico', sub: 'Atelier immobiliare', desc: 'Compravendita e investimenti immobiliari.', icon: Home },
+// name = brand (uguale in IT/EN); sub/desc tradotti via t('div.<key>.sub|desc')
+const DIVISIONS: { key: Division; name: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: 'studio', name: 'Studio', icon: Building2 },
+  { key: 'materico', name: 'Materico', icon: Boxes },
+  { key: 'strategico', name: 'Strategico', icon: Megaphone },
+  { key: 'unico', name: 'Unico', icon: Home },
 ];
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
+// Solo le classi colore (le label si risolvono via t('reqstatus.<status>')).
+const STATUS_CLS: Record<string, string> = {
   // ClientRequest
-  inviata: { label: 'Inviata', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  presa_in_carico: { label: 'Presa in carico', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  convertita: { label: 'Attivata', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  chiusa: { label: 'Chiusa', cls: 'bg-stone-100 text-stone-500 border-stone-200' },
+  inviata: 'bg-amber-50 text-amber-700 border-amber-200',
+  presa_in_carico: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  convertita: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  chiusa: 'bg-stone-100 text-stone-500 border-stone-200',
   // MatericoRequest
-  nuova: { label: 'Inviata', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  inoltrata: { label: 'In valutazione', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  offerte: { label: 'Offerte ricevute', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  inviata_cliente: { label: 'Proposta pronta', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  accettata: { label: 'Accettata', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  rifiutata: { label: 'Rifiutata', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+  nuova: 'bg-amber-50 text-amber-700 border-amber-200',
+  inoltrata: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  offerte: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  inviata_cliente: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  accettata: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rifiutata: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
 interface ClientRequestPanelProps {
@@ -59,6 +63,7 @@ interface ClientRequestPanelProps {
 export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
   profile, requests, matericoRequests, onCreate, onCreateMatericoRequest,
 }) => {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [division, setDivision] = useState<Division>('studio');
@@ -80,8 +85,8 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
   const close = () => { setOpen(false); reset(); };
 
   const submit = () => {
-    if (!title.trim()) { setErr('Dai un titolo alla tua idea.'); return; }
-    if (!description.trim()) { setErr('Descrivi la tua idea, anche in poche righe.'); return; }
+    if (!title.trim()) { setErr(t('req.errTitle')); return; }
+    if (!description.trim()) { setErr(t('req.errDesc')); return; }
     const links = linksText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
     const now = Date.now();
 
@@ -92,7 +97,7 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
         clientName: profile.name,
         title: title.trim(),
         description: description.trim(),
-        note: budget.trim() ? `Budget indicativo: ${budget.trim()}` : undefined,
+        note: budget.trim() ? t('req.budgetNote', { budget: budget.trim() }) : undefined,
         links: links.length ? links : undefined,
         status: 'nuova',
         createdAt: now,
@@ -133,17 +138,17 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
       <div className="flex items-center justify-between gap-3 p-5 sm:p-6 border-b border-[#f0f0f0]">
         <div className="min-w-0">
           <h3 className="text-[16px] font-extrabold text-[#161616] flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#161616]" /> Racconta la tua idea
+            <Sparkles className="w-4 h-4 text-[#161616]" /> {t('req.tellIdea')}
           </h3>
           <p className="text-[12.5px] text-[#8a8a8a] mt-0.5 leading-snug">
-            Avvia una nuova richiesta: scegli il servizio, descrivi cosa hai in mente e — se vuoi — componi una <b className="text-[#161616] font-bold">Moodboard 3D</b>. Lo studio la valuterà e ti ricontatterà.
+            {t('req.tellIdeaSub.a')}<b className="text-[#161616] font-bold">{t('req.tellIdeaSub.bold')}</b>{t('req.tellIdeaSub.b')}
           </p>
         </div>
         <button
           onClick={() => { reset(); setOpen(true); }}
           className="shrink-0 inline-flex items-center gap-1.5 bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] py-2.5 px-4 rounded-xl cursor-pointer transition-all active:scale-95"
         >
-          <Plus className="w-4 h-4" /> Nuova richiesta
+          <Plus className="w-4 h-4" /> {t('req.new')}
         </button>
       </div>
 
@@ -151,13 +156,14 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
       <div className="p-4 sm:p-5">
         {unified.length === 0 ? (
           <p className="text-[12.5px] text-[#a3a3a3] text-center py-3">
-            Non hai ancora inviato richieste. La tua prima idea parte da qui.
+            {t('req.emptyList')}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
             {unified.map((r) => {
               const m = divMeta(r.division);
-              const st = STATUS_META[r.status] || { label: r.status, cls: 'bg-stone-100 text-stone-500 border-stone-200' };
+              const stCls = STATUS_CLS[r.status] || 'bg-stone-100 text-stone-500 border-stone-200';
+              const stLabel = STATUS_CLS[r.status] ? t('reqstatus.' + r.status) : r.status;
               return (
                 <div key={r.id} className="flex items-center gap-3 p-3 rounded-2xl border border-[#ececec] bg-[#fafafa]">
                   <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: COMPANY_COLOR[r.division] }}>
@@ -172,9 +178,9 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
                         </span>
                       )}
                     </div>
-                    <span className="text-[11.5px] text-[#8a8a8a]">{m.name} · {new Date(r.at).toLocaleDateString('it-IT')}</span>
+                    <span className="text-[11.5px] text-[#8a8a8a]">{m.name} · {fmtDay(new Date(r.at))}</span>
                   </div>
-                  <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
+                  <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full border ${stCls}`}>{stLabel}</span>
                 </div>
               );
             })}
@@ -198,8 +204,8 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
                   </button>
                 )}
                 <div>
-                  <b className="text-[15px] text-[#161616]">{step === 1 ? 'Che servizio ti serve?' : 'Descrivi la tua idea'}</b>
-                  <div className="text-[11.5px] text-[#8a8a8a]">Passo {step} di 2</div>
+                  <b className="text-[15px] text-[#161616]">{step === 1 ? t('req.step1Title') : t('req.step2Title')}</b>
+                  <div className="text-[11.5px] text-[#8a8a8a]">{t('req.stepOf', { step })}</div>
                 </div>
               </div>
               <button onClick={close} className="w-8 h-8 rounded-lg hover:bg-[#f2f2f0] flex items-center justify-center cursor-pointer">
@@ -223,8 +229,8 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
                           <d.icon className="w-5 h-5" />
                         </div>
                         <b className="block text-[14px]">{d.name}</b>
-                        <span className={`block text-[10.5px] font-bold uppercase tracking-wide mt-0.5 ${on ? 'text-white/70' : 'text-stone-400'}`}>{d.sub}</span>
-                        <span className={`block text-[11.5px] leading-snug mt-1.5 ${on ? 'text-white/80' : 'text-stone-500'}`}>{d.desc}</span>
+                        <span className={`block text-[10.5px] font-bold uppercase tracking-wide mt-0.5 ${on ? 'text-white/70' : 'text-stone-400'}`}>{t('div.' + d.key + '.sub')}</span>
+                        <span className={`block text-[11.5px] leading-snug mt-1.5 ${on ? 'text-white/80' : 'text-stone-500'}`}>{t('div.' + d.key + '.desc')}</span>
                       </button>
                     );
                   })}
@@ -235,46 +241,46 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
                 <div className="flex flex-col gap-3.5">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white px-3 py-2 rounded-xl" style={{ backgroundColor: COMPANY_COLOR[division] }}>
                     {React.createElement(divMeta(division).icon, { className: 'w-4 h-4' })}
-                    {divMeta(division).name} · {divMeta(division).sub}
+                    {divMeta(division).name} · {t('div.' + division + '.sub')}
                   </div>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11.5px] font-bold text-[#555] flex items-center gap-1.5"><PenSquare className="w-3.5 h-3.5" /> Titolo</span>
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ristrutturazione appartamento, nuova immagine social…" className="input w-full h-11 px-3.5 text-[14px]" />
+                    <span className="text-[11.5px] font-bold text-[#555] flex items-center gap-1.5"><PenSquare className="w-3.5 h-3.5" /> {t('req.title')}</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('req.titlePlaceholder')} className="input w-full h-11 px-3.5 text-[14px]" />
                   </label>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11.5px] font-bold text-[#555]">La tua idea</span>
-                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Raccontaci cosa hai in mente: spazi, stile, obiettivi, tempi…" className="input w-full px-3.5 py-2.5 text-[14px] resize-y" />
+                    <span className="text-[11.5px] font-bold text-[#555]">{t('req.idea')}</span>
+                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder={t('req.ideaPlaceholder')} className="input w-full px-3.5 py-2.5 text-[14px] resize-y" />
                   </label>
 
                   <div className="grid grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[11.5px] font-bold text-[#555]">Budget indicativo</span>
-                      <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="€ (facoltativo)" className="input w-full h-11 px-3.5 text-[14px]" />
+                      <span className="text-[11.5px] font-bold text-[#555]">{t('req.budget')}</span>
+                      <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder={t('req.budgetPlaceholder')} className="input w-full h-11 px-3.5 text-[14px]" />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-[11.5px] font-bold text-[#555]">Dove</span>
-                      <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Città / zona (facoltativo)" className="input w-full h-11 px-3.5 text-[14px]" />
+                      <span className="text-[11.5px] font-bold text-[#555]">{t('req.where')}</span>
+                      <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t('req.wherePlaceholder')} className="input w-full h-11 px-3.5 text-[14px]" />
                     </label>
                   </div>
 
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11.5px] font-bold text-[#555]">Link di ispirazione</span>
-                    <input value={linksText} onChange={(e) => setLinksText(e.target.value)} placeholder="Incolla uno o più link, separati da virgola (facoltativo)" className="input w-full h-11 px-3.5 text-[14px]" />
+                    <span className="text-[11.5px] font-bold text-[#555]">{t('req.links')}</span>
+                    <input value={linksText} onChange={(e) => setLinksText(e.target.value)} placeholder={t('req.linksPlaceholder')} className="input w-full h-11 px-3.5 text-[14px]" />
                   </label>
 
                   {/* Moodboard 3D */}
                   {useMoodboard && (
                     <div className="rounded-2xl border border-[#e6e6e6] bg-[#fafafa] p-3.5 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <b className="text-[13px] text-[#161616] flex items-center gap-1.5"><Layers className="w-4 h-4 text-indigo-600" /> Moodboard 3D</b>
+                        <b className="text-[13px] text-[#161616] flex items-center gap-1.5"><Layers className="w-4 h-4 text-indigo-600" /> {t('req.mb3d')}</b>
                         <span className="block text-[11.5px] text-[#8a8a8a] mt-0.5">
-                          {moodboard.length ? `${moodboard.length} elementi composti` : 'Componi la tua idea in 3D (facoltativo).'}
+                          {moodboard.length ? t('req.mbComposed', { n: moodboard.length }) : t('req.mbCompose')}
                         </span>
                       </div>
                       <button onClick={() => setMbOpen(true)} className="shrink-0 inline-flex items-center gap-1.5 bg-white border border-[#1b1b1b] hover:bg-[#1b1b1b] hover:text-white text-[#161616] font-bold text-[12.5px] py-2 px-3.5 rounded-xl cursor-pointer transition-all active:scale-95">
-                        <Box className="w-4 h-4" /> {moodboard.length ? 'Modifica' : 'Apri'}
+                        <Box className="w-4 h-4" /> {moodboard.length ? t('common.edit') : t('common.open')}
                       </button>
                     </div>
                   )}
@@ -286,14 +292,14 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
 
             {/* footer */}
             <div className="sticky bottom-0 bg-white border-t border-[#f0f0f0] px-5 sm:px-6 py-4 flex items-center justify-between gap-3">
-              <button onClick={close} className="text-[12.5px] font-bold text-stone-500 hover:text-[#161616]">Annulla</button>
+              <button onClick={close} className="text-[12.5px] font-bold text-stone-500 hover:text-[#161616]">{t('common.cancel')}</button>
               {step === 1 ? (
                 <button onClick={() => setStep(2)} className="inline-flex items-center gap-2 bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13.5px] h-11 px-5 rounded-xl cursor-pointer transition-all active:scale-[0.98]">
-                  Continua <ArrowRight className="w-4 h-4" />
+                  {t('req.continue')} <ArrowRight className="w-4 h-4" />
                 </button>
               ) : (
                 <button onClick={submit} className="inline-flex items-center gap-2 bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13.5px] h-11 px-5 rounded-xl cursor-pointer transition-all active:scale-[0.98]">
-                  <Check className="w-4 h-4" /> Invia richiesta
+                  <Check className="w-4 h-4" /> {t('req.send')}
                 </button>
               )}
             </div>
@@ -303,11 +309,11 @@ export const ClientRequestPanel: React.FC<ClientRequestPanelProps> = ({
 
       {/* Overlay Moodboard 3D (lazy) */}
       {mbOpen && (
-        <Suspense fallback={<div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center text-white text-sm font-bold">Carico la moodboard 3D…</div>}>
+        <Suspense fallback={<div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center text-white text-sm font-bold">{t('req.mbLoading')}</div>}>
           <Moodboard3D
             open={mbOpen}
             onClose={() => setMbOpen(false)}
-            projectName={title.trim() || 'La tua idea'}
+            projectName={title.trim() || t('req.ideaFallback')}
             elements={moodboard}
             onSave={(els: any[]) => setMoodboard(els)}
           />
