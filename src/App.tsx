@@ -37,6 +37,7 @@ import {
   MatericoEstimate,
   Appointment,
   MatericoRequest,
+  ClientRequest,
   UnicoDeal,
   UnicoShowcaseEntry,
   Furnishing,
@@ -109,6 +110,7 @@ const InteractiveView = React.lazy(() => import('./components/InteractiveView').
 const DocumentsView = React.lazy(() => import('./components/DocumentsView').then((m) => ({ default: m.DocumentsView })));
 const CrmView = React.lazy(() => import('./components/CrmView').then((m) => ({ default: m.CrmView })));
 const TrashView = React.lazy(() => import('./components/TrashView').then((m) => ({ default: m.TrashView })));
+const ClientRequestsView = React.lazy(() => import('./components/ClientRequestsView').then((m) => ({ default: m.ClientRequestsView })));
 
 // Subcomponents
 import { Sidebar } from './components/Sidebar';
@@ -324,6 +326,7 @@ export default function App() {
 
   // Materico — richieste forniture/posa
   const [matericoRequests, setMatericoRequests] = useState<Record<string, MatericoRequest>>({});
+  const [clientRequests, setClientRequests] = useState<Record<string, ClientRequest>>({});
   const [estimates, setEstimates] = useState<Record<string, MatericoEstimate>>({});
 
   // Active session profile
@@ -797,6 +800,81 @@ export default function App() {
     showToast(accept ? 'Offerta accettata. Lavoro avviato.' : 'Offerta rifiutata.', accept ? 'ok' : 'err');
   };
 
+  // ---- RICHIESTE CLIENTI ("La tua idea": Studio/Strategico/Unico) ----
+  const saveClientRequest = (req: ClientRequest) => {
+    setClientRequests((prev) => ({ ...prev, [req.id]: req }));
+    writeNode(`clientRequests/${req.clientUid}/${req.id}`, req).catch(() => showToast('Errore salvataggio richiesta.', 'err'));
+  };
+  const handleCreateClientRequest = (req: ClientRequest) => {
+    saveClientRequest(req);
+    showToast('Richiesta inviata allo studio.');
+  };
+  const handleTakeChargeClientRequest = (req: ClientRequest) => {
+    saveClientRequest({ ...req, status: 'presa_in_carico', handledBy: currentUser!.uid, handledByName: currentUser!.name, updatedAt: Date.now() });
+    showToast('Richiesta presa in carico.');
+  };
+  const handleCloseClientRequest = (req: ClientRequest) => {
+    saveClientRequest({ ...req, status: 'chiusa', updatedAt: Date.now() });
+    showToast('Richiesta chiusa.');
+  };
+  const handleConvertClientRequest = (req: ClientRequest) => {
+    const pid = `p-${Date.now()}`;
+    const proj: Project = {
+      id: pid,
+      name: req.title,
+      status: 'attivo',
+      division: req.division,
+      clientUid: req.clientUid || null,
+      client: req.clientName || null,
+      location: req.location || null,
+      icon: 'folder',
+      phases: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setProjects((prev) => {
+      const next = autoUpdateProjectsCompletion({ ...prev, [pid]: proj });
+      syncState('projects', next);
+      return next;
+    });
+    // La descrizione dell'idea diventa nota interna del progetto
+    if (req.description) {
+      setProjectsInternal((prev) => {
+        const next = { ...prev, [pid]: { ...prev[pid], notes: req.description } };
+        syncState('projectsInternal', next);
+        return next;
+      });
+    }
+    // Collega il cliente al progetto (projectIds)
+    if (req.clientUid) {
+      setUsers((prev) => {
+        const u = prev[req.clientUid!];
+        if (!u) return prev;
+        const nextUsers = { ...prev, [req.clientUid!]: { ...u, projectIds: { ...(u.projectIds || {}), [pid]: true } } };
+        syncState('users', nextUsers);
+        return nextUsers;
+      });
+    }
+    // Porta la moodboard 3D dell'idea sul progetto
+    if ((req.moodboard || []).length) handleSaveMoodboard3d(pid, req.moodboard as any[]);
+    // Aggiorna la richiesta come convertita
+    saveClientRequest({ ...req, status: 'convertita', projectId: pid, handledBy: currentUser!.uid, handledByName: currentUser!.name, updatedAt: Date.now() });
+    // Avvisa il cliente
+    if (req.clientUid) {
+      pushNotification(req.clientUid, { type: 'progetto', title: 'La tua richiesta è stata attivata', body: `"${req.title}" è ora un progetto: seguilo dal tuo portale.`, link: `#progetto/${pid}` });
+    }
+    showToast('Progetto creato dalla richiesta.');
+    window.location.hash = `#progetto/${pid}`;
+  };
+  const handleDeleteClientRequest = (req: ClientRequest) => {
+    askDelete('Eliminare la richiesta?', `"${req.title}" di ${req.clientName}`, () => {
+      moveToTrash('richiesta_cliente', req.title || 'Richiesta', req, undefined, req.clientName);
+      setClientRequests((prev) => { const n = { ...prev }; delete n[req.id]; return n; });
+      removeNode(`clientRequests/${req.clientUid}/${req.id}`).catch(() => {});
+      showToast('Richiesta spostata nel Cestino.', 'err');
+    });
+  };
+
   const seededRef = useRef(false);
   useEffect(() => {
     if (!currentUser) return;
@@ -861,6 +939,14 @@ export default function App() {
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      // Richieste clienti (nodo annidato per uid → appiattito per id)
+      subs.push(watchNode('clientRequests', (v) => {
+        const flat: Record<string, ClientRequest> = {};
+        Object.values(v || {}).forEach((byUid: any) =>
+          Object.entries(byUid || {}).forEach(([id, req]: any) => { flat[id] = req; })
+        );
+        setClientRequests(flat);
+      }, () => {}));
       // Cantiere (studio vede tutto)
       add('cantieri', setCantieri);
       add('cantiereRapportini', setCantRapportini);
@@ -886,6 +972,8 @@ export default function App() {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      // Le proprie richieste (clientRequests/<uid>/<id> → keyed per id)
+      subs.push(watchNode(`clientRequests/${currentUser.uid}`, (v) => setClientRequests(v || {}), () => {}));
       // Vetrina Unico pubblicata (snapshot pubblici, leggibili da ogni autenticato)
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
       const pids = Object.keys(currentUser.projectIds || {});
@@ -1016,6 +1104,10 @@ export default function App() {
         case 'materico':
           setMatericoRequests((prev) => ({ ...prev, [id]: pl }));
           writeNode(`matericoRequests/${id}`, pl).catch(() => {});
+          break;
+        case 'richiesta_cliente':
+          setClientRequests((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`clientRequests/${pl.clientUid}/${id}`, pl).catch(() => {});
           break;
         case 'estimates':
           setEstimates((prev) => { const n = { ...prev, [id]: pl }; syncState('estimates', n); return n; });
@@ -2709,6 +2801,8 @@ export default function App() {
         onCreateMatericoRequest={handleCreateMatericoRequest}
         onAcceptMatericoOffer={handleAcceptMatericoOffer}
         onSubmitMatericoOffer={handleSubmitMatericoOffer}
+        clientRequests={Object.values(clientRequests)}
+        onCreateClientRequest={handleCreateClientRequest}
         unicoShowcase={Object.values(unicoShowcase)}
         projectMessages={projectMessages}
         documents={documents}
@@ -3072,6 +3166,18 @@ export default function App() {
           />
         );
 
+      case 'richieste-clienti':
+        if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
+        return (
+          <ClientRequestsView
+            requests={Object.values(clientRequests)}
+            onTakeCharge={handleTakeChargeClientRequest}
+            onConvert={handleConvertClientRequest}
+            onCloseRequest={handleCloseClientRequest}
+            onDelete={handleDeleteClientRequest}
+          />
+        );
+
       case 'interactive':
         return <InteractiveView />;
 
@@ -3320,7 +3426,8 @@ export default function App() {
         profile={currentUser}
         counts={{
           todoToday: Object.values(tasks).filter((t: any) => sameDay(t.date, todayISO()) && !t.done).length,
-          activeProjects: Object.values(projects).filter((p: any) => p.status === 'attivo').length
+          activeProjects: Object.values(projects).filter((p: any) => p.status === 'attivo').length,
+          newClientRequests: Object.values(clientRequests).filter((r) => r.status === 'inviata').length
         }}
         onNav={(r) => {
           setRoute(r);

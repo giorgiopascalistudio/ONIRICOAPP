@@ -154,6 +154,15 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   In Nuovo/Modifica progetto il select "Cliente (rubrica)" auto-compila i campi (`Project.clientRecordId`);
   collegamento all'account portale resta separato e opzionale (`clientUid`).
 - `matericoRequests/<id>` — flusso Materico (vedi §9).
+- `clientRequests/<clientUid>/<id>` — **richieste cliente / "La tua idea"** (`ClientRequest`): brief inviato
+  dal cliente dal portale per Studio/Strategico/Unico (titolo, descrizione, budget, dove, link e
+  **moodboard 3D** opzionale). Annidato per uid come `notifications`: il cliente legge/scrive il proprio
+  ramo, lo studio attivo legge tutto. Lo studio (admin/manager) la valuta in **Richieste clienti**
+  (`ClientRequestsView`, route `#richieste-clienti`, voce sidebar/navbar): "Prendi in carico" /
+  **"Converti in progetto"** (crea `projects/<pid>`, collega il cliente, porta la moodboard su
+  `projectMoodboard3d`, notifica il cliente) / "Chiudi". Lato cliente: `ClientRequestPanel`
+  (CTA "Nuova richiesta" + lista unificata con le proprie MatericoRequest). **Materico** dal flusso
+  unificato genera comunque una `MatericoRequest` (bidding partner invariato).
 - `notifications/<uid>/<id>` — **notifiche persistenti** (`Notification`): scritte dall'app
   (`pushNotification`/`notifyStudio` in App) e dalle **Cloud Functions** (Admin SDK). Sostituiscono
   le vecchie notifiche solo-in-memoria; il Centro Notifiche mostra queste + le richieste appuntamento.
@@ -332,6 +341,10 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiornate le regole di **`appointments`** (multi-partecipante): read estesa ai partecipanti
   (`participants/<auth.uid>` esiste) + write granulare `participants/$uid` per il proprio stato di
   conferma. **Ripubblicare le regole**, altrimenti gli inviti non si confermano lato portale.
+  ⚠️ Aggiunto il nodo **`clientRequests/<clientUid>`** (richieste cliente "La tua idea", §6 — il cliente
+  legge/scrive il proprio ramo, lo studio attivo non-cliente/non-partner legge tutto; convert→progetto
+  riservato ad admin/manager): **ripubblicare le regole**, altrimenti l'invio richieste fallisce in
+  silenzio lato portale e lo studio non le vede in "Richieste clienti".
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;

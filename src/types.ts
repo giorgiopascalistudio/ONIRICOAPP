@@ -684,3 +684,32 @@ export interface MatericoRequest {
   createdAt: number;
   updatedAt?: number;
 }
+
+// ============================================================
+// Richiesta cliente / "La tua idea" (nodo clientRequests/<clientUid>/<id>)
+// Brief inviato dal cliente per Studio/Strategico/Unico, con descrizione libera
+// e moodboard 3D opzionale. Lo studio la valuta e la converte in progetto.
+// (Per Materico il flusso resta MatericoRequest col bidding partner.)
+// ============================================================
+export type ClientRequestStatus = 'inviata' | 'presa_in_carico' | 'convertita' | 'chiusa';
+
+export interface ClientRequest {
+  id: string;
+  clientUid: string;
+  clientName: string;
+  clientEmail?: string | null;
+  division: 'studio' | 'strategico' | 'unico';   // Materico → MatericoRequest separata
+  title: string;
+  description: string;                            // "descrivi la tua idea"
+  budget?: number | null;
+  location?: string | null;                       // dove (indirizzo/zona libera)
+  links?: string[] | null;
+  moodboard?: any[] | null;                       // elementi moodboard 3D (BoardElement[]) — idea visiva
+  status: ClientRequestStatus;
+  projectId?: string | null;                      // progetto creato alla conversione
+  studioNote?: string | null;                     // nota interna dello studio
+  handledBy?: string | null;
+  handledByName?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}

@@ -37,8 +37,9 @@ import {
   Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry, ClientRequest } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
+import { ClientRequestPanel } from './ClientRequestPanel';
 import { CantiereBoard } from './CantiereBoard';
 import { ChatDeleteButton } from './ChatDeleteButton';
 import { ImpresaArea } from './cantiere/ImpresaArea';
@@ -287,6 +288,8 @@ interface ClientPortalViewProps {
   onRequestAppointment?: (memberUid: string, memberName: string, date: string, time: string, note: string) => void;
   matericoRequests?: MatericoRequest[];
   onCreateMatericoRequest?: (req: MatericoRequest) => void;
+  clientRequests?: ClientRequest[];
+  onCreateClientRequest?: (req: ClientRequest) => void;
   onAcceptMatericoOffer?: (reqId: string, accept: boolean) => void;
   onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
   /** Vetrina Unico pubblicata (snapshot dal nodo `unicoShowcase`; vuoto → demo). */
@@ -343,6 +346,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   onCreateMatericoRequest,
   onAcceptMatericoOffer,
   onSubmitMatericoOffer,
+  clientRequests,
+  onCreateClientRequest,
   unicoShowcase,
   projectMessages,
   documents,
@@ -687,17 +692,36 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 max-w-[500px] mx-auto flex items-center justify-center p-6">
-          <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-8 shadow-sm text-center">
-            <div className="w-12 h-12 rounded-2xl bg-[#fafafa] border border-[#e2e2e2] text-[#161616] flex items-center justify-center mx-auto mb-4">
-              <Briefcase className="w-6 h-6" />
+        {profile.role === 'cliente' && onCreateClientRequest ? (
+          <div className="flex-1 w-full max-w-[660px] mx-auto p-4 sm:p-6 flex flex-col gap-4">
+            <div className="text-center mt-2 mb-1">
+              <h1 className="text-[22px] font-extrabold text-[#161616] tracking-tight">Benvenuto in Onirico{profile.name ? `, ${profile.name.split(' ')[0]}` : ''}</h1>
+              <p className="text-[13.5px] text-[#8a8a8a] mt-1.5 leading-relaxed">
+                Non hai ancora un progetto attivo. Inizia raccontandoci la tua idea: scegli il servizio,
+                descrivi cosa hai in mente — anche con una <b className="text-[#161616]">Moodboard 3D</b> — e lo studio attiverà il tuo progetto.
+              </p>
             </div>
-            <b className="block text-[#161616] text-[16px] font-extrabold">Progetto in preparazione</b>
-            <p className="text-[13.5px] text-[#8a8a8a] mt-2 mb-4 leading-relaxed">
-              Il tuo progetto non è ancora disponibile. Lo studio lo attiverà a breve: qui vedrai l'avanzamento catastale, le fasi e un modello 3D della tua casa.
-            </p>
+            <ClientRequestPanel
+              profile={profile}
+              requests={clientRequests || []}
+              matericoRequests={(matericoRequests || []).filter((r) => r.clientUid === profile.uid)}
+              onCreate={onCreateClientRequest}
+              onCreateMatericoRequest={onCreateMatericoRequest}
+            />
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 max-w-[500px] mx-auto flex items-center justify-center p-6">
+            <div className="bg-white border border-[#e2e2e2] rounded-[26px] p-8 shadow-sm text-center">
+              <div className="w-12 h-12 rounded-2xl bg-[#fafafa] border border-[#e2e2e2] text-[#161616] flex items-center justify-center mx-auto mb-4">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <b className="block text-[#161616] text-[16px] font-extrabold">Progetto in preparazione</b>
+              <p className="text-[13.5px] text-[#8a8a8a] mt-2 mb-4 leading-relaxed">
+                Il tuo progetto non è ancora disponibile. Lo studio lo attiverà a breve: qui vedrai l'avanzamento catastale, le fasi e un modello 3D della tua casa.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -890,7 +914,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         />
       )}
 
-      {matericoRequests && (profile.role === 'partner' || (profile.role === 'cliente' && profile.sector === 'materico')) && (
+      {matericoRequests && (profile.role === 'partner' || (profile.role === 'cliente' && (profile.sector === 'materico' || (matericoRequests || []).some((r) => r.clientUid === profile.uid)))) && (
         <div className="max-w-[1100px] w-full mx-auto px-4 sm:px-6 pt-6">
           <MatericoPortal
             role={profile.role === 'partner' ? 'partner' : 'cliente'}
@@ -962,7 +986,18 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       </div>
 
       <div className="flex-1 max-w-[1080px] mx-auto w-full p-4 md:p-6 flex flex-col gap-6 text-left">
-        
+
+        {/* Racconta la tua idea: nuova richiesta per qualsiasi divisione + moodboard 3D */}
+        {profile.role === 'cliente' && onCreateClientRequest && (
+          <ClientRequestPanel
+            profile={profile}
+            requests={clientRequests || []}
+            matericoRequests={(matericoRequests || []).filter((r) => r.clientUid === profile.uid)}
+            onCreate={onCreateClientRequest}
+            onCreateMatericoRequest={onCreateMatericoRequest}
+          />
+        )}
+
         {/* COMPREHENSIVE PORTAL SIMULATOR SELECTOR BAR - Only shown to Admin, Staff, or in Preview */}
         {showSimulator && (
           <div className="bg-white border border-[#e5e5e5] rounded-[24px] p-4 shadow-xs">
