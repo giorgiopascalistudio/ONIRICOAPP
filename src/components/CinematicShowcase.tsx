@@ -31,8 +31,9 @@ interface CinematicShowcaseProps {
   videoUrl?: string | null;          // video continuo online (mp4 diretto)
   poster?: string | null;            // immagine sfondo SOLO se non c'è video (deal Unico senza tour)
   scenes: UnicoShowcaseScene[];      // scene ordinate per time (s)
-  brand: string;                     // header sx riga 1 (es. "ONIRICO" o titolo immobile)
-  brandSub?: string;                 // header sx riga 2
+  brand: string;                     // titolo centrale (es. "ONIRICO" o titolo immobile)
+  brandLogo?: string | null;         // se presente: logo (img) al posto del testo `brand` al centro
+  brandSub?: string;                 // sottotitolo sotto il brand
   /** CTA mostrata al posto del testo sull'ULTIMA scena (come il prototipo). */
   discoverLabel?: string;
   onDiscover?: () => void;
@@ -43,7 +44,7 @@ interface CinematicShowcaseProps {
 }
 
 export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
-  videoUrl, poster, scenes, brand, brandSub, discoverLabel, onDiscover, footer, onClose,
+  videoUrl, poster, scenes, brand, brandLogo, brandSub, discoverLabel, onDiscover, footer, onClose,
 }) => {
   // Scene ordinate e con fallback: senza scene la pagina resta statica.
   const SCENES = scenes.length ? [...scenes].sort((a, b) => a.time - b.time) : [{ time: 0, subtitle: brand, text: '' }];
@@ -60,6 +61,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
   const src = safeUrl(videoUrl || '');
   const posterSrc = safeUrl(poster || '');
+  const logoSrc = safeUrl(brandLogo || '');
   const hasVideo = !!src && !videoFailed;
 
   const rafRef = useRef<number | null>(null);
@@ -244,20 +246,9 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         .cin-blink { animation: cinBlink 1.6s ease-in-out infinite; }
         @keyframes cinBounce { 0%,100% { transform: translateY(0); opacity: 0.55; } 50% { transform: translateY(6px); opacity: 1; } }
         .cin-bounce { animation: cinBounce 1.7s ease-in-out infinite; }
-        /* Desktop/tablet: il video riempie lo schermo. */
+        /* Video a TUTTO SCHERMO (desktop e mobile): il video 1:1 riempie il viewport;
+           le "sfumature nere" sono le vignettature alto/basso qui sotto. */
         .cin-video { width: 100%; height: 100%; object-fit: cover; }
-        /* Mobile: video GRANDE (~2.6x rispetto a "contain"), centrato, con i bordi
-           alto/basso SFUMATI sul fondo nero (mask) → niente stacco netto. I lati
-           escono dallo schermo (nessuna banda nera laterale), così resta grande. */
-        @media (max-width: 639px) {
-          .cin-video {
-            position: absolute; left: 50%; top: 50%;
-            height: auto; object-fit: contain;
-            transform: translate(-50%, -50%) scale(2.6);
-            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
-            mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
-          }
-        }
       `}</style>
 
       {/* 1. Sfondo: video continuo (o, in assenza di video, immagine del deal) */}
@@ -284,12 +275,16 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         <div className="absolute bottom-0 left-0 w-full h-[70%] bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none" />
       </div>
 
-      {/* 1b. Velo NERO in caricamento col titolo che lampeggia (niente immagine) */}
+      {/* 1b. Velo NERO in caricamento: lampeggia il logo (o il testo del brand) finché il video non è pronto */}
       {hasVideo && !ready && (
         <div className="absolute inset-0 z-30 bg-black flex items-center justify-center px-6 pointer-events-none">
-          <span className="cin-blink text-center font-serif font-light text-white tracking-wide text-[26px] leading-tight sm:text-4xl md:text-5xl">
-            {loadingText}
-          </span>
+          {logoSrc ? (
+            <img src={logoSrc} alt={brand} referrerPolicy="no-referrer" className="cin-blink w-[72%] max-w-[360px] sm:max-w-[460px] object-contain" />
+          ) : (
+            <span className="cin-blink text-center font-sans font-semibold text-white tracking-wide text-[26px] leading-tight sm:text-4xl md:text-5xl">
+              {loadingText}
+            </span>
+          )}
         </div>
       )}
 
@@ -305,11 +300,20 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         </header>
       )}
 
-      {/* 3. Brand UNICO, FISSO e centrato (non cambia con le scene). */}
+      {/* 3. Brand UNICO, FISSO e centrato (non cambia con le scene): logo se presente, altrimenti testo. */}
       <section className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-6 flex flex-col items-center justify-center text-center gap-3">
-        <h2 className="cin-fade-in font-sans font-semibold text-white tracking-wide leading-[1.04] text-[42px] sm:text-6xl md:text-7xl lg:text-[88px]">
-          {brand}
-        </h2>
+        {logoSrc ? (
+          <img
+            src={logoSrc}
+            alt={brand}
+            referrerPolicy="no-referrer"
+            className="cin-fade-in w-[82%] max-w-[420px] sm:max-w-[520px] md:max-w-[600px] object-contain select-none pointer-events-none"
+          />
+        ) : (
+          <h2 className="cin-fade-in font-sans font-semibold text-white tracking-wide leading-[1.04] text-[42px] sm:text-6xl md:text-7xl lg:text-[88px]">
+            {brand}
+          </h2>
+        )}
         {brandSub && (
           <p className="cin-fade-in font-sans uppercase tracking-[0.3em] text-stone-300 text-[10.5px] sm:text-[12px]">
             {brandSub}

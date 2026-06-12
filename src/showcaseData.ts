@@ -96,13 +96,16 @@ export const SHOWCASE_SERVICES: ServiceShowcase[] = [
 // Video della landing servito DAL SITO (public/vetrina/landing.mp4): deployato
 // col push, già 720p mobile-safe (H.264 High L4.0 yuv420p faststart, ~7MB).
 // Risolto in URL assoluto same-origin così supera safeUrl (whitelist http/https).
-const landingVideo = (() => {
-  const rel = (import.meta.env.BASE_URL || '/') + 'vetrina/landing.mp4';
-  try { return new URL(rel, window.location.href).href; } catch { return rel; }
-})();
+const asset = (rel: string) => {
+  const p = (import.meta.env.BASE_URL || '/') + rel;
+  try { return new URL(p, window.location.href).href; } catch { return p; }
+};
+const landingVideo = asset('vetrina/landing.mp4');
+const landingLogo = asset('logo.png'); // logo bianco al centro della landing (public/logo.png)
 
-export const LANDING_SHOWCASE: { videoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
+export const LANDING_SHOWCASE: { videoUrl: string; logoUrl: string; poster: string; scenes: UnicoShowcaseScene[] } = {
   videoUrl: landingVideo,
+  logoUrl: landingLogo,
   // Niente immagine in caricamento: si resta su NERO con il titolo che lampeggia
   // (CinematicShowcase) finché il video non è pronto.
   poster: '',

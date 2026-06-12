@@ -278,6 +278,7 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({ gUser, pendingProfile, onToa
         poster={LANDING_SHOWCASE.poster}
         scenes={LANDING_SHOWCASE.scenes}
         brand="ONIRICO"
+        brandLogo={LANDING_SHOWCASE.logoUrl}
         brandSub="Architettura · Ingegneria · Design"
         footer={
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full max-w-md mt-2">
