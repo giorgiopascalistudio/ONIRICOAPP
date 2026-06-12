@@ -246,14 +246,14 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         .cin-bounce { animation: cinBounce 1.7s ease-in-out infinite; }
         /* Desktop/tablet: il video riempie lo schermo. */
         .cin-video { width: 100%; height: 100%; object-fit: cover; }
-        /* Mobile: video ~doppio rispetto a "contain", centrato, con i bordi alto/basso
-           SFUMATI sul fondo nero (mask) → niente stacco netto. I lati escono dallo
-           schermo (nessuna banda nera laterale), così resta grande. */
+        /* Mobile: video GRANDE (~2.6x rispetto a "contain"), centrato, con i bordi
+           alto/basso SFUMATI sul fondo nero (mask) → niente stacco netto. I lati
+           escono dallo schermo (nessuna banda nera laterale), così resta grande. */
         @media (max-width: 639px) {
           .cin-video {
             position: absolute; left: 50%; top: 50%;
             height: auto; object-fit: contain;
-            transform: translate(-50%, -50%) scale(1.85);
+            transform: translate(-50%, -50%) scale(2.6);
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
             mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
           }
@@ -307,7 +307,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
       {/* 3. Brand UNICO, FISSO e centrato (non cambia con le scene). */}
       <section className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-6 flex flex-col items-center justify-center text-center gap-3">
-        <h2 className="cin-fade-in font-serif font-light text-white tracking-wide leading-[1.04] text-[42px] sm:text-6xl md:text-7xl lg:text-[88px]">
+        <h2 className="cin-fade-in font-sans font-semibold text-white tracking-wide leading-[1.04] text-[42px] sm:text-6xl md:text-7xl lg:text-[88px]">
           {brand}
         </h2>
         {brandSub && (
