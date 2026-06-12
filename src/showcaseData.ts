@@ -109,7 +109,7 @@ export const LANDING_SHOWCASE: { videoUrl: string; poster: string; scenes: Unico
   scenes: [
     {
       time: 0,
-      subtitle: 'Onirico • Design your vision',
+      subtitle: 'Design your vision',
       text: 'Trasformiamo le idee che hai sempre sognato in progetti concreti e personalizzati. Spazi che parlano di te.',
     },
     {

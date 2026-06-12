@@ -229,7 +229,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
   const isLast = currentSceneIdx === SCENES.length - 1;
   const scene = SCENES[currentSceneIdx];
-  const loadingText = SCENES[0].subtitle || brand;
+  const loadingText = brand || SCENES[0].subtitle;
 
   return (
     <div
@@ -244,6 +244,20 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         .cin-blink { animation: cinBlink 1.6s ease-in-out infinite; }
         @keyframes cinBounce { 0%,100% { transform: translateY(0); opacity: 0.55; } 50% { transform: translateY(6px); opacity: 1; } }
         .cin-bounce { animation: cinBounce 1.7s ease-in-out infinite; }
+        /* Desktop/tablet: il video riempie lo schermo. */
+        .cin-video { width: 100%; height: 100%; object-fit: cover; }
+        /* Mobile: video ~doppio rispetto a "contain", centrato, con i bordi alto/basso
+           SFUMATI sul fondo nero (mask) → niente stacco netto. I lati escono dallo
+           schermo (nessuna banda nera laterale), così resta grande. */
+        @media (max-width: 639px) {
+          .cin-video {
+            position: absolute; left: 50%; top: 50%;
+            height: auto; object-fit: contain;
+            transform: translate(-50%, -50%) scale(1.85);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+          }
+        }
       `}</style>
 
       {/* 1. Sfondo: video continuo (o, in assenza di video, immagine del deal) */}
@@ -252,8 +266,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <video
             ref={videoRef}
             src={src}
-            /* mobile: object-contain → si vede TUTTO il fotogramma (niente taglio); da sm in su riempie */
-            className="w-full h-full object-contain sm:object-cover select-none"
+            className="cin-video select-none"
             muted
             autoPlay
             playsInline
@@ -280,51 +293,45 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         </div>
       )}
 
-      {/* 2. Header sottile (logo persistente) */}
-      <header className="relative z-10 w-full px-6 py-6 md:px-12 md:py-8 flex items-start justify-between pointer-events-auto">
-        <div className="flex flex-col">
-          <h1 className="text-[12px] md:text-[14px] font-light uppercase tracking-[0.35em] text-white">{brand}</h1>
-          {brandSub && (
-            <p className="text-[7.5px] md:text-[8px] tracking-[0.4em] uppercase text-stone-400 font-medium mt-1">{brandSub}</p>
-          )}
-        </div>
-        {onClose && (
+      {/* 2. Solo il pulsante chiudi (uso overlay), in alto a destra. Niente brand qui. */}
+      {onClose && (
+        <header className="absolute top-0 right-0 z-20 p-5 md:p-6 pointer-events-auto">
           <button
             onClick={onClose}
             className="flex items-center gap-1.5 text-[10px] font-sans font-semibold tracking-[0.15em] text-stone-300 hover:text-white transition duration-300 uppercase cursor-pointer bg-white/5 hover:bg-white/15 border border-white/15 rounded-full px-3.5 py-2"
           >
             <X className="w-3 h-3" /> chiudi
           </button>
-        )}
-      </header>
+        </header>
+      )}
 
-      {/* 3. Blocco scena CENTRATO e GRANDE */}
-      <section className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-6 flex flex-col items-center justify-center text-center gap-5">
-        <h2
-          key={`sub-${currentSceneIdx}`}
-          className="cin-fade-in font-serif font-light text-white tracking-wide leading-[1.08] text-[28px] sm:text-4xl md:text-5xl lg:text-[56px] max-w-2xl"
-        >
-          {scene.subtitle}
+      {/* 3. Brand UNICO, FISSO e centrato (non cambia con le scene). */}
+      <section className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-6 flex flex-col items-center justify-center text-center gap-3">
+        <h2 className="cin-fade-in font-serif font-light text-white tracking-wide leading-[1.04] text-[42px] sm:text-6xl md:text-7xl lg:text-[88px]">
+          {brand}
         </h2>
+        {brandSub && (
+          <p className="cin-fade-in font-sans uppercase tracking-[0.3em] text-stone-300 text-[10.5px] sm:text-[12px]">
+            {brandSub}
+          </p>
+        )}
+      </section>
 
-        <div className="max-w-md min-h-[44px] flex items-center justify-center">
-          {isLast && onDiscover ? (
-            <button
-              onClick={onDiscover}
-              className="cin-fade-in flex items-center gap-2 px-7 h-12 border border-white/30 hover:border-white bg-white/10 hover:bg-white text-[13.5px] text-white hover:text-stone-950 font-sans font-bold tracking-wide rounded-full transition-all duration-500 ease-out active:scale-95 cursor-pointer"
-            >
-              {discoverLabel || 'Scopri di più'}
-            </button>
-          ) : (
-            <p key={`txt-${currentSceneIdx}`} className="cin-fade-in text-[13px] sm:text-[14px] md:text-[15px] text-stone-300 font-light leading-relaxed tracking-wide">
+      {/* 4. Barra inferiore: descrizione del settore (cambia con lo scroll) + pallini +
+             (solo all'ultima scena) CTA/footer; prima, indizio di scroll. */}
+      <div className="relative z-10 w-full px-6 pb-10 md:pb-12 flex flex-col items-center gap-4 pointer-events-auto">
+        {/* Descrizione settore: piccola, font del sito (sans), niente corsivo. */}
+        <div className="text-center max-w-lg min-h-[58px] flex flex-col items-center justify-end gap-1">
+          <h3 key={`sub-${currentSceneIdx}`} className="cin-fade-in font-sans font-semibold text-white tracking-wide text-[14px] sm:text-[15.5px]">
+            {scene.subtitle}
+          </h3>
+          {scene.text && (
+            <p key={`txt-${currentSceneIdx}`} className="cin-fade-in font-sans font-light text-stone-300 leading-relaxed text-[11.5px] sm:text-[12.5px]">
               {scene.text}
             </p>
           )}
         </div>
-      </section>
 
-      {/* 4. Barra inferiore: pallini scene + (solo all'ultima scena) footer; prima, indizio di scroll */}
-      <div className="relative z-10 w-full px-6 pb-10 md:pb-12 flex flex-col items-center gap-5 pointer-events-auto">
         {SCENES.length > 1 && (
           <div className="flex items-center gap-1.5">
             {SCENES.map((s, i) => (
@@ -337,15 +344,26 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             ))}
           </div>
         )}
-        {/* I tasti d'accesso (footer) compaiono SOLO alla fine; prima, indizio "scorri" */}
-        {isLast && footer ? (
-          footer
-        ) : !isLast ? (
+
+        {/* CTA "Scopri" (deal Unico) e/o tasti d'accesso (footer) SOLO alla fine; prima, indizio "scorri". */}
+        {isLast ? (
+          <div className="flex flex-col items-center gap-3">
+            {onDiscover && (
+              <button
+                onClick={onDiscover}
+                className="cin-fade-in flex items-center gap-2 px-7 h-12 border border-white/30 hover:border-white bg-white/10 hover:bg-white text-[13.5px] text-white hover:text-stone-950 font-sans font-bold tracking-wide rounded-full transition-all duration-500 ease-out active:scale-95 cursor-pointer"
+              >
+                {discoverLabel || 'Scopri di più'}
+              </button>
+            )}
+            {footer}
+          </div>
+        ) : (
           <div className="cin-bounce flex flex-col items-center gap-1 text-white/70 select-none">
             <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[10.5px]">Scorri per esplorare</span>
             <ChevronDown className="w-4 h-4" />
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
