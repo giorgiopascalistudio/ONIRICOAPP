@@ -23,7 +23,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 import type { UnicoShowcaseScene } from '../types';
 import { safeUrl } from '../utils';
 
@@ -74,37 +74,72 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
   // Porta il video al secondo `target`. In AVANTI riproduce a velocità maggiorata
   // (decode lineare = fluido su PC e mobile, niente seek per-frame); all'INDIETRO
-  // un solo seek. Alla fine PAUSA: il frame resta (il decoder ha già riprodotto,
-  // quindi anche su iOS il fotogramma è renderizzato, non nero). Niente loop.
-  const TRANSITION_RATE = 2.6;
+  // si ANIMA il riavvolgimento (currentTime decrescente via rAF) così il rewind è
+  // VISIBILE, non un salto secco. Alla fine PAUSA: il frame resta (il decoder ha già
+  // riprodotto, quindi anche su iOS il fotogramma è renderizzato, non nero). Niente loop.
+  const TRANSITION_RATE = 2.6; // velocità play-forward verso la scena
+  const REWIND_RATE = 2.4;     // secondi/sec del riavvolgimento visibile
   const applyTarget = (target: number, instant = false) => {
     const v = videoRef.current;
     if (!v || !v.duration || isNaN(v.duration)) return;
     cancelRaf();
+    forceMuted();
     const tgt = Math.max(0, Math.min(target, v.duration - 0.05));
-    if (instant || tgt <= v.currentTime + 0.05) {
-      forceMuted();
+
+    // Posizionamento istantaneo (solo per l'innesco iniziale del decoder).
+    if (instant) {
       try { v.currentTime = tgt; } catch { /* seek non pronto */ }
       v.pause();
       return;
     }
-    forceMuted();
-    v.playbackRate = TRANSITION_RATE;
-    const p = v.play();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
-    const tick = () => {
-      const vv = videoRef.current;
-      if (!vv) { rafRef.current = null; return; }
-      if (vv.currentTime >= tgt - 0.04 || vv.ended) {
-        try { vv.currentTime = tgt; } catch { /* noop */ }
-        vv.pause();
-        vv.playbackRate = 1;
-        rafRef.current = null;
-        return;
-      }
+
+    // AVANTI → riproduzione lineare accelerata fino al target, poi pausa.
+    if (tgt > v.currentTime + 0.05) {
+      v.playbackRate = TRANSITION_RATE;
+      const p = v.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+      const tick = () => {
+        const vv = videoRef.current;
+        if (!vv) { rafRef.current = null; return; }
+        if (vv.currentTime >= tgt - 0.04 || vv.ended) {
+          try { vv.currentTime = tgt; } catch { /* noop */ }
+          vv.pause();
+          vv.playbackRate = 1;
+          rafRef.current = null;
+          return;
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      };
       rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    // INDIETRO → riavvolgimento animato e visibile (currentTime decrescente).
+    if (tgt < v.currentTime - 0.05) {
+      v.pause();
+      v.playbackRate = 1;
+      let prev = performance.now();
+      const tick = (now: number) => {
+        const vv = videoRef.current;
+        if (!vv) { rafRef.current = null; return; }
+        const dt = Math.min(0.05, (now - prev) / 1000); // clamp anti-scatto
+        prev = now;
+        const next = vv.currentTime - REWIND_RATE * dt;
+        if (next <= tgt + 0.02) {
+          try { vv.currentTime = tgt; } catch { /* noop */ }
+          rafRef.current = null;
+          return;
+        }
+        try { vv.currentTime = next; } catch { /* noop */ }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    // Già sulla scena.
+    try { v.currentTime = tgt; } catch { /* noop */ }
+    v.pause();
   };
 
   // Cambio scena: aggiorna il testo + muovi il video alla scena.
@@ -136,22 +171,25 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, hasVideo]);
 
-  // Rete di sicurezza: se l'autoplay è bloccato a freddo, il primo gesto utente
-  // (tap/click ovunque) avvia la riproduzione e quindi prima il decoder.
+  // Rete di sicurezza: SOLO se l'autoplay è bloccato a freddo, il primo gesto utente
+  // innesca il decoder. Una volta innescato (primedRef) NON tocca più il video → un
+  // semplice click non fa più partire il play "normale".
   useEffect(() => {
     if (!hasVideo) return;
     const kick = () => {
+      if (primedRef.current) { detach(); return; } // già innescato: niente play sui click
       forceMuted();
       const v = videoRef.current;
       const p = v && v.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
     };
-    document.addEventListener('touchstart', kick, { passive: true });
-    document.addEventListener('pointerdown', kick);
-    return () => {
+    const detach = () => {
       document.removeEventListener('touchstart', kick);
       document.removeEventListener('pointerdown', kick);
     };
+    document.addEventListener('touchstart', kick, { passive: true });
+    document.addEventListener('pointerdown', kick);
+    return detach;
   }, [hasVideo]);
 
   useEffect(() => () => cancelRaf(), []);
@@ -204,6 +242,8 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         .cin-fade-in { animation: cinFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes cinBlink { 0%,100% { opacity: 0.25; } 50% { opacity: 1; } }
         .cin-blink { animation: cinBlink 1.6s ease-in-out infinite; }
+        @keyframes cinBounce { 0%,100% { transform: translateY(0); opacity: 0.55; } 50% { transform: translateY(6px); opacity: 1; } }
+        .cin-bounce { animation: cinBounce 1.7s ease-in-out infinite; }
       `}</style>
 
       {/* 1. Sfondo: video continuo (o, in assenza di video, immagine del deal) */}
@@ -212,7 +252,8 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <video
             ref={videoRef}
             src={src}
-            className="w-full h-full object-cover select-none"
+            /* mobile: object-contain → si vede TUTTO il fotogramma (niente taglio); da sm in su riempie */
+            className="w-full h-full object-contain sm:object-cover select-none"
             muted
             autoPlay
             playsInline
@@ -233,7 +274,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       {/* 1b. Velo NERO in caricamento col titolo che lampeggia (niente immagine) */}
       {hasVideo && !ready && (
         <div className="absolute inset-0 z-30 bg-black flex items-center justify-center px-6 pointer-events-none">
-          <span className="cin-blink text-center font-serif italic font-light text-white tracking-wide text-[26px] leading-tight sm:text-4xl md:text-5xl">
+          <span className="cin-blink text-center font-serif font-light text-white tracking-wide text-[26px] leading-tight sm:text-4xl md:text-5xl">
             {loadingText}
           </span>
         </div>
@@ -250,7 +291,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 text-[9px] font-mono tracking-widest text-stone-300 hover:text-white transition duration-300 uppercase cursor-pointer bg-white/5 hover:bg-white/15 border border-white/15 rounded-full px-3.5 py-2"
+            className="flex items-center gap-1.5 text-[10px] font-sans font-semibold tracking-[0.15em] text-stone-300 hover:text-white transition duration-300 uppercase cursor-pointer bg-white/5 hover:bg-white/15 border border-white/15 rounded-full px-3.5 py-2"
           >
             <X className="w-3 h-3" /> chiudi
           </button>
@@ -261,7 +302,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       <section className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-6 flex flex-col items-center justify-center text-center gap-5">
         <h2
           key={`sub-${currentSceneIdx}`}
-          className="cin-fade-in font-serif font-light text-white italic tracking-wide leading-[1.08] text-[28px] sm:text-4xl md:text-5xl lg:text-[56px] max-w-2xl"
+          className="cin-fade-in font-serif font-light text-white tracking-wide leading-[1.08] text-[28px] sm:text-4xl md:text-5xl lg:text-[56px] max-w-2xl"
         >
           {scene.subtitle}
         </h2>
@@ -270,7 +311,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           {isLast && onDiscover ? (
             <button
               onClick={onDiscover}
-              className="cin-fade-in px-6 py-3 border border-white/25 hover:border-white/80 bg-white/5 hover:bg-white text-[11px] text-stone-200 hover:text-stone-950 font-mono uppercase tracking-[0.25em] rounded-full transition-all duration-500 ease-out active:scale-95 cursor-pointer"
+              className="cin-fade-in flex items-center gap-2 px-7 h-12 border border-white/30 hover:border-white bg-white/10 hover:bg-white text-[13.5px] text-white hover:text-stone-950 font-sans font-bold tracking-wide rounded-full transition-all duration-500 ease-out active:scale-95 cursor-pointer"
             >
               {discoverLabel || 'Scopri di più'}
             </button>
@@ -282,7 +323,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         </div>
       </section>
 
-      {/* 4. Barra inferiore: pallini scene + footer (es. tasti login) */}
+      {/* 4. Barra inferiore: pallini scene + (solo all'ultima scena) footer; prima, indizio di scroll */}
       <div className="relative z-10 w-full px-6 pb-10 md:pb-12 flex flex-col items-center gap-5 pointer-events-auto">
         {SCENES.length > 1 && (
           <div className="flex items-center gap-1.5">
@@ -296,7 +337,15 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             ))}
           </div>
         )}
-        {footer}
+        {/* I tasti d'accesso (footer) compaiono SOLO alla fine; prima, indizio "scorri" */}
+        {isLast && footer ? (
+          footer
+        ) : !isLast ? (
+          <div className="cin-bounce flex flex-col items-center gap-1 text-white/70 select-none">
+            <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[10.5px]">Scorri per esplorare</span>
+            <ChevronDown className="w-4 h-4" />
+          </div>
+        ) : null}
       </div>
     </div>
   );
