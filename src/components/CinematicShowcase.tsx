@@ -270,9 +270,10 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <img src={posterSrc} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
         ) : null}
 
-        {/* Vignettature alto/basso per il contrasto dei testi */}
+        {/* Vignettature alto/basso per il contrasto dei testi.
+            Su mobile la sfumatura nera in basso è PIÙ ALTA (h-[90%]) → stacco più morbido. */}
         <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-black/80 via-black/20 to-transparent pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-full h-[70%] bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-full h-[90%] sm:h-[70%] bg-gradient-to-t from-black via-black/75 to-transparent pointer-events-none" />
       </div>
 
       {/* 1b. Velo NERO in caricamento: lampeggia il logo (o il testo del brand) finché il video non è pronto */}
