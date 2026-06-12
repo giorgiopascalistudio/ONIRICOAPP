@@ -84,7 +84,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   // VISIBILE, non un salto secco. Alla fine PAUSA: il frame resta (il decoder ha già
   // riprodotto, quindi anche su iOS il fotogramma è renderizzato, non nero). Niente loop.
   const TRANSITION_RATE = 2.6; // velocità play-forward verso la scena
-  const REWIND_STEP = 0.05;    // passo all'indietro per fotogramma RENDERIZZATO (seek-gated)
+  const REWIND_RATE = 2.0;     // secondi di video al secondo reale durante il rewind
   const applyTarget = (target: number, instant = false) => {
     const v = videoRef.current;
     if (!v || !v.duration || isNaN(v.duration)) return;
@@ -120,26 +120,32 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       return;
     }
 
-    // INDIETRO → riavvolgimento VISIBILE e fluido. Il punto chiave su mobile: NON
-    // sparare un seek a ogni frame (il decoder li coalescizza e SALTA i fotogrammi
-    // → scatti/salto secco). Si emette il seek all'indietro SOLO quando il
-    // precedente è stato renderizzato (v.seeking === false): così ogni fotogramma
-    // viene davvero mostrato e il rewind scorre. La cadenza la detta il decoder
-    // (più i keyframe sono fitti, più è veloce). rAF-based → cancelRaf lo annulla.
+    // INDIETRO → riavvolgimento VISIBILE e fluido su PC e mobile. Due accorgimenti:
+    //  (1) si emette un nuovo seek SOLO quando il precedente è stato renderizzato
+    //      (!v.seeking) → su MOBILE i fotogrammi non vengono coalescizzati/saltati;
+    //  (2) il passo è proporzionale al TEMPO reale trascorso (REWIND_RATE) → su PC,
+    //      dove i seek sono istantanei, la velocità resta costante e morbida invece
+    //      di precipitare a scatti. rAF-based → cancelRaf lo annulla a un nuovo swipe.
     if (tgt < v.currentTime - 0.05) {
       v.pause();
       v.playbackRate = 1;
+      let prev = performance.now();
       const tick = () => {
         const vv = videoRef.current;
         if (!vv) { rafRef.current = null; return; }
         if (!vv.seeking) { // il fotogramma precedente è stato mostrato
-          const next = vv.currentTime - REWIND_STEP;
-          if (next <= tgt + 0.02) {
-            try { vv.currentTime = tgt; } catch { /* noop */ }
-            rafRef.current = null;
-            return;
+          const now = performance.now();
+          const step = REWIND_RATE * Math.min(0.1, (now - prev) / 1000); // clamp anti-salto
+          if (step >= 0.008) {
+            prev = now;
+            const next = vv.currentTime - step;
+            if (next <= tgt + 0.02) {
+              try { vv.currentTime = tgt; } catch { /* noop */ }
+              rafRef.current = null;
+              return;
+            }
+            try { vv.currentTime = next; } catch { /* noop */ }
           }
-          try { vv.currentTime = next; } catch { /* noop */ }
         }
         rafRef.current = requestAnimationFrame(tick);
       };
@@ -267,7 +273,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <video
             ref={videoRef}
             src={src}
-            className="cin-video select-none object-contain sm:object-cover scale-[1.3] origin-center sm:scale-100"
+            className="cin-video select-none object-contain sm:object-cover scale-[1.6] origin-center sm:scale-100"
             muted
             autoPlay
             playsInline
@@ -282,7 +288,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
 
         {/* Vignettature alto/basso per il contrasto dei testi.
             Su mobile la sfumatura nera in basso è PIÙ ALTA (h-[90%]) → stacco più morbido. */}
-        <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-black/80 via-black/20 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-0 w-full h-[34%] sm:h-40 bg-gradient-to-b from-black sm:from-black/80 via-black/45 sm:via-black/20 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-full h-[90%] sm:h-[70%] bg-gradient-to-t from-black via-black/75 to-transparent pointer-events-none" />
       </div>
 
