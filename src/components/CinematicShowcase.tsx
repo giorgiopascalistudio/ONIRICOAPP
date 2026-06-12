@@ -56,6 +56,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
   const [ready, setReady] = useState(false); // il video ha iniziato a riprodurre → via il velo nero
+  const [showTapHint, setShowTapHint] = useState(false); // iPad: autoplay bloccato → invita a toccare
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -177,15 +178,29 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
     applyTarget(SCENES[idxRef.current].time, true);
   };
 
-  // Tenta il play appena il src è pronto (desktop parte qui; mobile via autoplay).
-  useEffect(() => {
-    if (!hasVideo) return;
+  // Tentativo di avvio muto, ripetibile (src pronto, buffer pronto, tocco utente).
+  const tryPlay = () => {
+    if (primedRef.current) return;
     forceMuted();
     const v = videoRef.current;
     const p = v && v.play();
     if (p && typeof p.catch === 'function') p.catch(() => {});
+  };
+
+  // Tenta il play appena il src è pronto (desktop parte qui; mobile via autoplay).
+  useEffect(() => {
+    if (!hasVideo) return;
+    tryPlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, hasVideo]);
+
+  // iPad/Safari desktop-mode: l'autoplay di un video CON audio è spesso bloccato →
+  // dopo un attimo, se ancora nero, mostra l'invito a toccare per avviare.
+  useEffect(() => {
+    if (!hasVideo || ready) { setShowTapHint(false); return; }
+    const id = setTimeout(() => setShowTapHint(true), 1500);
+    return () => clearTimeout(id);
+  }, [hasVideo, ready]);
 
   // Rete di sicurezza: SOLO se l'autoplay è bloccato a freddo, il primo gesto utente
   // innesca il decoder. Una volta innescato (primedRef) NON tocca più il video → un
@@ -280,6 +295,8 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
             preload="auto"
             disablePictureInPicture
             onPlaying={handlePlaying}
+            onLoadedData={tryPlay}
+            onCanPlay={tryPlay}
             onError={() => setVideoFailed(true)}
           />
         ) : posterSrc ? (
@@ -292,14 +309,23 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         <div className="absolute bottom-0 left-0 w-full h-[90%] sm:h-[70%] bg-gradient-to-t from-black via-black/75 to-transparent pointer-events-none" />
       </div>
 
-      {/* 1b. Velo NERO in caricamento: lampeggia il logo (o il testo del brand) finché il video non è pronto */}
+      {/* 1b. Velo NERO in caricamento: lampeggia il logo finché il video non è pronto.
+             TOCCABILE: su iPad (autoplay bloccato per via dell'audio) un tocco avvia il video. */}
       {hasVideo && !ready && (
-        <div className="absolute inset-0 z-30 bg-black flex items-center justify-center px-6 pointer-events-none">
+        <div
+          onPointerDown={tryPlay}
+          className="absolute inset-0 z-30 bg-black flex flex-col items-center justify-center px-6 gap-5 pointer-events-auto cursor-pointer"
+        >
           {logoSrc ? (
             <img src={logoSrc} alt={brand} referrerPolicy="no-referrer" className="cin-blink w-[72%] max-w-[360px] sm:max-w-[460px] object-contain" />
           ) : (
             <span className="cin-blink text-center font-sans font-semibold text-white tracking-wide text-[26px] leading-tight sm:text-4xl md:text-5xl">
               {loadingText}
+            </span>
+          )}
+          {showTapHint && (
+            <span className="cin-bounce font-sans font-semibold uppercase tracking-[0.2em] text-white/70 text-[10.5px] sm:text-[11.5px]">
+              {t('cin.tapToStart')}
             </span>
           )}
         </div>

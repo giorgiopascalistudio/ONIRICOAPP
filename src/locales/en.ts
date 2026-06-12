@@ -669,6 +669,7 @@ export const en: Record<keyof typeof it, string> = {
   'cin.sceneAria': 'Scene {n}',
   'cin.discoverDefault': 'Discover more',
   'cin.scrollHint': 'Scroll to explore',
+  'cin.tapToStart': 'Tap to start',
 
   // —— ServicesShowcase (Discover the services + Unico showcase) ——————————
   'psstatus.aperto': 'Funding open',

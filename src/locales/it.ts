@@ -671,6 +671,7 @@ export const it = {
   'cin.sceneAria': 'Scena {n}',
   'cin.discoverDefault': 'Scopri di più',
   'cin.scrollHint': 'Scorri per esplorare',
+  'cin.tapToStart': 'Tocca per avviare',
 
   // —— ServicesShowcase (Scopri i servizi + vetrina Unico) ————————————————
   'psstatus.aperto': 'Raccolta aperta',
