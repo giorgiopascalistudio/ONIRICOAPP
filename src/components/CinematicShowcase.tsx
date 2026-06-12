@@ -84,7 +84,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
   // VISIBILE, non un salto secco. Alla fine PAUSA: il frame resta (il decoder ha già
   // riprodotto, quindi anche su iOS il fotogramma è renderizzato, non nero). Niente loop.
   const TRANSITION_RATE = 2.6; // velocità play-forward verso la scena
-  const REWIND_RATE = 2.4;     // secondi/sec del riavvolgimento visibile
+  const REWIND_STEP = 0.05;    // passo all'indietro per fotogramma RENDERIZZATO (seek-gated)
   const applyTarget = (target: number, instant = false) => {
     const v = videoRef.current;
     if (!v || !v.duration || isNaN(v.duration)) return;
@@ -120,23 +120,27 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       return;
     }
 
-    // INDIETRO → riavvolgimento animato e visibile (currentTime decrescente).
+    // INDIETRO → riavvolgimento VISIBILE e fluido. Il punto chiave su mobile: NON
+    // sparare un seek a ogni frame (il decoder li coalescizza e SALTA i fotogrammi
+    // → scatti/salto secco). Si emette il seek all'indietro SOLO quando il
+    // precedente è stato renderizzato (v.seeking === false): così ogni fotogramma
+    // viene davvero mostrato e il rewind scorre. La cadenza la detta il decoder
+    // (più i keyframe sono fitti, più è veloce). rAF-based → cancelRaf lo annulla.
     if (tgt < v.currentTime - 0.05) {
       v.pause();
       v.playbackRate = 1;
-      let prev = performance.now();
-      const tick = (now: number) => {
+      const tick = () => {
         const vv = videoRef.current;
         if (!vv) { rafRef.current = null; return; }
-        const dt = Math.min(0.05, (now - prev) / 1000); // clamp anti-scatto
-        prev = now;
-        const next = vv.currentTime - REWIND_RATE * dt;
-        if (next <= tgt + 0.02) {
-          try { vv.currentTime = tgt; } catch { /* noop */ }
-          rafRef.current = null;
-          return;
+        if (!vv.seeking) { // il fotogramma precedente è stato mostrato
+          const next = vv.currentTime - REWIND_STEP;
+          if (next <= tgt + 0.02) {
+            try { vv.currentTime = tgt; } catch { /* noop */ }
+            rafRef.current = null;
+            return;
+          }
+          try { vv.currentTime = next; } catch { /* noop */ }
         }
-        try { vv.currentTime = next; } catch { /* noop */ }
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -263,7 +267,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <video
             ref={videoRef}
             src={src}
-            className="cin-video select-none object-contain sm:object-cover"
+            className="cin-video select-none object-contain sm:object-cover scale-[1.3] origin-center sm:scale-100"
             muted
             autoPlay
             playsInline
