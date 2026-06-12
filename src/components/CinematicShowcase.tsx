@@ -250,9 +250,11 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
         .cin-blink { animation: cinBlink 1.6s ease-in-out infinite; }
         @keyframes cinBounce { 0%,100% { transform: translateY(0); opacity: 0.55; } 50% { transform: translateY(6px); opacity: 1; } }
         .cin-bounce { animation: cinBounce 1.7s ease-in-out infinite; }
-        /* Video a TUTTO SCHERMO (desktop e mobile): il video 1:1 riempie il viewport;
-           le "sfumature nere" sono le vignettature alto/basso qui sotto. */
-        .cin-video { width: 100%; height: 100%; object-fit: cover; }
+        /* Video di sfondo. Su MOBILE → object-contain (fotogramma intero, niente crop
+           aggressivo su schermo verticale; le bande si fondono con lo sfondo nero); da
+           tablet/desktop (sm+) → object-cover a tutto schermo. object-fit gestito via
+           classi Tailwind sull'elemento (object-contain sm:object-cover). */
+        .cin-video { width: 100%; height: 100%; }
       `}</style>
 
       {/* 1. Sfondo: video continuo (o, in assenza di video, immagine del deal) */}
@@ -261,7 +263,7 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
           <video
             ref={videoRef}
             src={src}
-            className="cin-video select-none"
+            className="cin-video select-none object-contain sm:object-cover"
             muted
             autoPlay
             playsInline
