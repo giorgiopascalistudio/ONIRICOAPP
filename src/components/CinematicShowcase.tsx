@@ -374,13 +374,14 @@ export const CinematicShowcase: React.FC<CinematicShowcaseProps> = ({
       {/* 4. Barra inferiore: descrizione del settore (cambia con lo scroll) + pallini +
              (solo all'ultima scena) CTA/footer; prima, indizio di scroll. */}
       <div className="relative z-10 w-full px-6 pb-10 md:pb-12 flex flex-col items-center gap-4 pointer-events-auto">
-        {/* Descrizione settore: piccola, font del sito (sans), niente corsivo. */}
-        <div className="text-center max-w-lg min-h-[58px] flex flex-col items-center justify-end gap-1">
-          <h3 key={`sub-${currentSceneIdx}`} className="cin-fade-in font-sans font-semibold text-white tracking-wide text-[14px] sm:text-[15.5px]">
+        {/* Descrizione settore: font del sito (sans), niente corsivo. Testo più grande
+            e con ombra per restare leggibile sopra il video. */}
+        <div className="text-center max-w-xl min-h-[68px] flex flex-col items-center justify-end gap-1.5 [text-shadow:0_2px_14px_rgba(0,0,0,0.85)]">
+          <h3 key={`sub-${currentSceneIdx}`} className="cin-fade-in font-sans font-bold text-white tracking-wide text-[18px] sm:text-[22px] md:text-[24px]">
             {scene.subtitle}
           </h3>
           {scene.text && (
-            <p key={`txt-${currentSceneIdx}`} className="cin-fade-in font-sans font-light text-stone-300 leading-relaxed text-[11.5px] sm:text-[12.5px]">
+            <p key={`txt-${currentSceneIdx}`} className="cin-fade-in font-sans font-normal text-stone-100 leading-relaxed text-[13.5px] sm:text-[15px] md:text-[16px]">
               {scene.text}
             </p>
           )}
