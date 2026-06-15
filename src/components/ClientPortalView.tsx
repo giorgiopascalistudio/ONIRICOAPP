@@ -2219,13 +2219,13 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
         {selectedTaskForModal && (() => {
           const info = getTaskDetail(selectedTaskForModal.title, selectedTaskForModal.phase);
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 15 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 15 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className="bg-white rounded-[28px] max-w-[485px] w-full border border-[#e2e2e2] shadow-2xl overflow-hidden text-left flex flex-col"
+                className="bg-white rounded-t-[28px] sm:rounded-[28px] sm:max-w-[485px] w-full max-h-[92vh] border border-[#e2e2e2] shadow-2xl overflow-hidden text-left flex flex-col"
               >
                 {/* Header section - Luxury light theme matching app */}
                 <div className="bg-white p-6 pb-4 border-b border-[#f5f5f5] flex flex-col gap-1.5">
@@ -2342,8 +2342,8 @@ const AppointmentRequestModal: React.FC<{
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-          <div className="bg-white rounded-[24px] w-full max-w-[420px] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+          <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-[420px] max-h-[92vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             {done ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />

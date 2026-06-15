@@ -149,8 +149,8 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
 
       {/* DETTAGLIO RICHIESTA */}
       {active && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setOpenId(null)}>
-          <div className="bg-white rounded-[24px] w-full max-w-[620px] max-h-[88vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setOpenId(null)}>
+          <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-[620px] max-h-[92vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="min-w-0">
                 <h3 className="text-[18px] font-black text-[#161616]">{active.title}</h3>

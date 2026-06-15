@@ -39,7 +39,7 @@ export const MobileHomeHint: React.FC = () => {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/50 backdrop-blur-[2px] animate-[fadeIn_0.2s_ease_both]" onClick={close}>
+    <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease_both]" onClick={close}>
       <div
         className="w-full max-w-[460px] bg-white rounded-t-[26px] sm:rounded-[26px] sm:mb-6 border border-[#e2e2e2] shadow-2xl p-5 pb-7 text-left animate-[riseIn_0.28s_cubic-bezier(0.16,1,0.3,1)_both]"
         onClick={(e) => e.stopPropagation()}

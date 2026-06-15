@@ -735,8 +735,8 @@ export const CrmView: React.FC<CrmViewProps> = ({
 
 // --- helpers UI ---
 const Overlay: React.FC<{ children: React.ReactNode; onClose: () => void }> = ({ children, onClose }) => (
-  <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-[fadeIn_0.18s_ease_both]" onClick={onClose}>
-    <div className="bg-white rounded-[24px] w-full max-w-[480px] max-h-[88vh] overflow-y-auto p-5 sm:p-6 shadow-2xl text-left" onClick={(e) => e.stopPropagation()}>
+  <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeIn_0.18s_ease_both]" onClick={onClose}>
+    <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-[480px] max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl text-left" onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   </div>

@@ -2078,8 +2078,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
             {/* MODALE Registra costo/ricavo/scadenza */}
             {qaKind && (
-              <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQaKind(null)}>
-                <div className="bg-white rounded-[24px] w-full max-w-sm p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setQaKind(null)}>
+                <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-sm p-6 shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                   <h4 className="text-[15px] font-extrabold text-[#161616] mb-4">
                     {qaKind === 'costo' ? 'Registra costo (fornitore)' : qaKind === 'ricavo' ? 'Registra ricavo / incasso' : 'Aggiungi scadenza'}
                   </h4>

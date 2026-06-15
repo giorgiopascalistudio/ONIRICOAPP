@@ -3600,7 +3600,7 @@ export default function App() {
         {/* Mobile Notification Drawer */}
         {notificationsOpen && (
           <div className="md:hidden fixed inset-0 z-[100] flex items-end justify-center">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={() => setNotificationsOpen(false)} />
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setNotificationsOpen(false)} />
             <div className="relative bg-white w-full rounded-t-3xl max-h-[80vh] p-5 flex flex-col shadow-2xl z-20 animate-in slide-in-from-bottom duration-250 select-none text-left">
               <div className="w-12 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
               

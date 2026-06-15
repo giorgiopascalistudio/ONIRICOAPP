@@ -476,8 +476,8 @@ export const FurnishingsBoard: React.FC<FurnishingsBoardProps> = ({
 
       {/* MODALE NUOVO ARREDO */}
       {modalKind && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setModalKind(null); setEditItem(null); }}>
-          <div className="bg-white rounded-[24px] w-full max-w-md p-6 shadow-xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setModalKind(null); setEditItem(null); }}>
+          <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-md p-6 shadow-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-[15px] font-extrabold text-[#161616]">
                 {editItem

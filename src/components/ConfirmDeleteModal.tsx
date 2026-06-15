@@ -36,8 +36,8 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ request,
   };
 
   return (
-    <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-[24px] w-full max-w-sm p-6 shadow-xl text-left animate-[riseIn_0.2s_ease_both]" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-sm p-6 shadow-2xl text-left animate-[riseIn_0.2s_ease_both]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3.5">
           <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${armed ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600'}`}>
             {armed ? <AlertTriangle className="w-5 h-5" /> : <Trash2 className="w-5 h-5" />}

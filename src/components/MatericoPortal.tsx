@@ -191,8 +191,8 @@ export const MatericoPortal: React.FC<MatericoPortalProps> = ({
 
       {/* FORM NUOVA RICHIESTA */}
       {newOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setNewOpen(false)}>
-          <div className="bg-white rounded-[24px] w-full max-w-[520px] max-h-[88vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setNewOpen(false)}>
+          <div className="bg-white rounded-t-[26px] sm:rounded-[26px] w-full sm:max-w-[520px] max-h-[92vh] overflow-y-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[17px] font-black text-[#161616]">{t('mat.form.title')}</h3>
               <button onClick={() => setNewOpen(false)} className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 border-none bg-transparent cursor-pointer"><X className="w-4 h-4" /></button>
