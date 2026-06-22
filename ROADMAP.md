@@ -57,7 +57,7 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 - 🟢 Export PDF/Excel — da aggiungere (jsPDF / SheetJS lato app)
 
 ## Modulo Immobiliare (Flipping/Crowdfunding)
-- 🟢 Portafoglio immobili · scheda immobile · investitori · ROI · SPV · update investitori — modulo nuovo da costruire
+- ✅ Portafoglio immobili · scheda immobile · investitori · ROI · **SPV/cap table** · **update investitori** · **portale investitore** · **rendiconto/distribuzioni** — **FATTO** (Unico, `UnicoStudioView` + `unicoInvestorPositions`)
 
 ## Modulo Energia Rinnovabile
 - 🟢 Censimento lotti · stato pratiche · offerte · scadenze — modulo nuovo da costruire

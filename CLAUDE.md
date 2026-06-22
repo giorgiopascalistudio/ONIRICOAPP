@@ -148,6 +148,15 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   scritto in write-through da `saveUnicoDeals` (App) per i soli deal `published`; SOLO campi
   divulgabili (no costi acquisto/ristrutturazione, no nomi investitori). Read: ogni autenticato;
   write: admin/manager.
+- `unicoInvestorPositions/<uid>/<dealId>` — **snapshot PRIVATO per investitore** (`UnicoInvestorPosition`):
+  scritto in write-through da `saveUnicoDeals` (App, helper `dealToInvestorPositions` in showcaseData) per
+  ogni `UnicoDeal.investors[].investorUid` (account portale collegato). Contiene SOLO la posizione del
+  destinatario (conferito, quota%, n° quote, rendimento atteso, aggiornamenti, sue distribuzioni) — niente
+  costi né nomi/importi altrui. Read: solo `auth.uid==$uid`; write: studio attivo non-cliente/non-partner.
+  Letto dal portale (`ClientPortalView` → pannello "I miei investimenti", `MyInvestmentsPanel`). Cleanup
+  delle posizioni di investitori scollegati via `prevInvestorUidsRef` in App. Il modulo Unico lato studio
+  (`UnicoStudioView`) ora ha SPV/cap table (`spvName`/`spvVat`/`unitPrice`), tab **Rendiconto** (riparto
+  profitto + distribuzioni) e pannello **Aggiornamenti** (notifica gli investitori collegati).
 - `crmLeads`, `crmSuppliers` — array CRM (pipeline + fornitori/partner).
 - `clients/<id>` — **Rubrica clienti** (anagrafica riutilizzabile, anche clienti **senza login**:
   privato/azienda con CF/P.IVA/PEC/SDI/indirizzo). Gestita in CRM → tab "Clienti" (admin/manager).
@@ -295,9 +304,11 @@ regole** e ricordare all'utente di ripubblicarle.
 ## 12. Stato / roadmap
 Fatto: login+ruoli, DB condiviso, Documenti+generatore modulistica, Finanza
 condivisa, CRM, Agenda/appuntamenti, colori settore, Materico (flusso base).
-Fatto (in parte): modulo **Unico** lato studio (operazioni immobiliari,
-investitori, ROI/margine — `unicoDeals`); fatta la **pubblicazione in vetrina**
-(editor per-deal + nodo `unicoShowcase` + pagina cinematica, §21); mancano SPV/quote.
+Fatto: modulo **Unico** lato studio (operazioni immobiliari, investitori, ROI/margine — `unicoDeals`);
+**pubblicazione in vetrina** (editor per-deal + nodo `unicoShowcase` + pagina cinematica, §21);
+**SPV/cap table** (`spvName`/`spvVat`/`unitPrice` + quote/quota per investitore), **portale investitore**
+(`unicoInvestorPositions` → "I miei investimenti"), **aggiornamenti** agli investitori (con notifica) e
+**rendiconto** (riparto profitto + distribuzioni). Manca: integrazione con i nodi finanza dedicati.
 Fatto: modulo **Cantiere** (§15) ampliato alla struttura del PDF a 3 aree (Campi condivisi /
 Area Tecnici / Area Impresa): record `cantieri` + sotto-collezioni + registri generici
 (`cantiereRecords`/`cantiereDocumenti` con `section`) + chat (`cantiereMessages`) + Area Impresa
@@ -352,6 +363,9 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunto il nodo **`unicoShowcase`** (vetrina Unico pubblicata, §21 — read ogni autenticato,
   write admin/manager): **ripubblicare le regole**, altrimenti la pubblicazione vetrina fallisce
   in silenzio e i clienti continuano a vedere i dati demo.
+  ⚠️ Aggiunto il nodo **`unicoInvestorPositions/<uid>`** (posizione privata dell'investitore Unico, §6 —
+  read solo `auth.uid==$uid`, write studio attivo): **ripubblicare le regole**, altrimenti il portale
+  investitore ("I miei investimenti") resta vuoto e la write-through dello studio fallisce in silenzio.
   ⚠️ Aggiornate le regole di **`projectMessages` e `cantiereMessages`** (chat): cliente/partner
   possono **eliminare un proprio messaggio entro 60s** dall'invio (unsend) e il create richiede
   `from == auth.uid` (niente spoofing autore). **Ripubblicare le regole**, altrimenti l'unsend

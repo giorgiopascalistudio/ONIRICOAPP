@@ -34,10 +34,16 @@ import {
   Target,
   Sofa,
   HardHat,
-  Building2
+  Building2,
+  Gem,
+  Wallet,
+  Percent,
+  MapPin,
+  Megaphone,
+  HandCoins
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry, ClientRequest } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry, UnicoInvestorPosition, ClientRequest } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { ClientRequestPanel } from './ClientRequestPanel';
 import { CantiereBoard } from './CantiereBoard';
@@ -71,6 +77,8 @@ interface ClientPortalViewProps {
   onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
   /** Vetrina Unico pubblicata (snapshot dal nodo `unicoShowcase`; vuoto → demo). */
   unicoShowcase?: UnicoShowcaseEntry[];
+  /** Le mie posizioni da investitore Unico (snapshot privato, sola lettura). */
+  unicoPositions?: UnicoInvestorPosition[];
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   furnishings?: Record<string, Record<string, Furnishing>>;
@@ -126,6 +134,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   clientRequests,
   onCreateClientRequest,
   unicoShowcase,
+  unicoPositions,
   projectMessages,
   documents,
   furnishings = {},
@@ -394,6 +403,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 {t('portal.noProject.a')}<b className="text-[#161616]">{t('portal.noProject.bold')}</b>{t('portal.noProject.c')}
               </p>
             </div>
+            {(unicoPositions || []).length > 0 && <MyInvestmentsPanel positions={unicoPositions || []} />}
             <ClientRequestPanel
               profile={profile}
               requests={clientRequests || []}
@@ -684,6 +694,9 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       </div>
 
       <div className="flex-1 max-w-[1080px] mx-auto w-full p-4 md:p-6 flex flex-col gap-6 text-left">
+
+        {/* Le mie posizioni da investitore Unico (sola lettura) */}
+        {(unicoPositions || []).length > 0 && <MyInvestmentsPanel positions={unicoPositions || []} />}
 
         {/* Racconta la tua idea: nuova richiesta per qualsiasi divisione + moodboard 3D */}
         {profile.role === 'cliente' && onCreateClientRequest && (
@@ -2389,3 +2402,105 @@ const AppointmentRequestModal: React.FC<{
     </>
   );
 };
+
+/* ---------- Portale investitore: "I miei investimenti" (sola lettura) ---------- */
+const INV_STATUS_LABEL: Record<string, string> = {
+  valutazione: 'In valutazione', acquisizione: 'In raccolta', ristrutturazione: 'Ristrutturazione',
+  vendita: 'In vendita', concluso: 'Concluso',
+};
+const MyInvestmentsPanel: React.FC<{ positions: UnicoInvestorPosition[] }> = ({ positions }) => {
+  const sorted = [...positions].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const totInvested = sorted.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totDistributed = sorted.reduce((s, p) => s + (Number(p.distributed) || 0), 0);
+  const totExpected = sorted.reduce((s, p) => s + (Number(p.expectedReturn) || 0), 0);
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 sm:p-6">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-9 h-9 rounded-xl bg-indigo-50 text-[#4338ca] flex items-center justify-center"><Gem className="w-5 h-5" /></div>
+        <div>
+          <b className="text-[16px] tracking-tight block">I miei investimenti</b>
+          <span className="text-[12px] text-stone-400">Le tue posizioni nelle operazioni immobiliari Unico</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
+        <MiniInv icon={<Wallet className="w-3.5 h-3.5" />} label="Investito" value={eur(totInvested)} />
+        <MiniInv icon={<TrendingUp className="w-3.5 h-3.5" />} label="Rend. atteso" value={eur(totExpected)} accent="#059669" />
+        <MiniInv icon={<HandCoins className="w-3.5 h-3.5" />} label="Distribuito" value={eur(totDistributed)} accent="#4338ca" />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {sorted.map((p) => {
+          const funded = p.goal ? Math.min(100, Math.round((p.raised / p.goal) * 100)) : 0;
+          return (
+            <div key={p.dealId} className="border border-[#ececec] rounded-[18px] p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-stone-400">{p.type}</span>
+                  <b className="block text-[15px] tracking-tight truncate">{p.title}</b>
+                  <span className="flex items-center gap-1 text-[12px] text-stone-500 mt-0.5"><MapPin className="w-3.5 h-3.5" /> {p.location}</span>
+                </div>
+                <span className="shrink-0 text-[10.5px] font-bold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">{INV_STATUS_LABEL[p.status] || p.status}</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-center">
+                <MiniInv label="Conferito" value={eur(p.amount)} compact />
+                <MiniInv label="Quota" value={`${p.quotaPct.toFixed(1)}%${p.units ? ` · ${p.units}q` : ''}`} compact />
+                <MiniInv label="ROI atteso" value={`${p.targetRoi || 0}%`} compact />
+                <MiniInv label="Distribuito" value={eur(p.distributed)} compact accent="#4338ca" />
+              </div>
+
+              <div className="mt-3">
+                <div className="h-1.5 w-full bg-[#eee] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${funded}%`, background: '#4338ca' }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-stone-500 mt-1.5 font-semibold">
+                  <span>Raccolto {eur(p.raised)} / {eur(p.goal)}</span>
+                  <span>{p.durationMonths ? `${p.durationMonths} mesi` : ''}{p.spvName ? ` · ${p.spvName}` : ''}</span>
+                </div>
+              </div>
+
+              {(p.updates || []).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#f3f3f3]">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400 flex items-center gap-1.5 mb-2"><Megaphone className="w-3.5 h-3.5" /> Aggiornamenti</span>
+                  <div className="flex flex-col gap-2">
+                    {p.updates.slice(0, 4).map((u) => (
+                      <div key={u.id} className="bg-[#fafafa] border border-[#ececec] rounded-xl px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <b className="text-[12.5px] flex-1 truncate">{u.title}</b>
+                          <span className="text-[10.5px] text-stone-400 shrink-0">{new Date(u.at).toLocaleDateString('it-IT')}</span>
+                        </div>
+                        <p className="text-[11.5px] text-stone-600 mt-0.5 whitespace-pre-wrap">{u.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(p.distributions || []).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#f3f3f3]">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400 flex items-center gap-1.5 mb-2"><HandCoins className="w-3.5 h-3.5" /> Distribuzioni ricevute</span>
+                  <div className="flex flex-col gap-1.5">
+                    {p.distributions.map((x) => (
+                      <div key={x.id} className="flex items-center justify-between text-[12px]">
+                        <span className="capitalize text-stone-600">{x.kind} · {new Date(x.date).toLocaleDateString('it-IT')}</span>
+                        <b className="text-emerald-700">{eur(x.amount)}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+const MiniInv: React.FC<{ icon?: React.ReactNode; label: string; value: string; accent?: string; compact?: boolean }> = ({ icon, label, value, accent, compact }) => (
+  <div className={`bg-[#fafafa] border border-[#ececec] rounded-xl ${compact ? 'py-2 px-2' : 'py-2.5 px-3'}`}>
+    <span className="flex items-center gap-1 text-[9.5px] font-bold uppercase tracking-wide text-stone-400 justify-center">{icon}{label}</span>
+    <b className={`block ${compact ? 'text-[12.5px]' : 'text-[15px]'} mt-0.5 text-center`} style={accent ? { color: accent } : undefined}>{value}</b>
+  </div>
+);

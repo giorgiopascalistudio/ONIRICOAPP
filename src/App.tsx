@@ -40,6 +40,9 @@ import {
   ClientRequest,
   UnicoDeal,
   UnicoShowcaseEntry,
+  UnicoInvestorPosition,
+  UnicoUpdate,
+  UnicoDistribution,
   Furnishing,
   Cantiere,
   Rapportino,
@@ -149,7 +152,7 @@ import {
   InvoicePassive,
   ScadenzaItem
 } from './finance';
-import { dealToShowcaseEntry } from './showcaseData';
+import { dealToShowcaseEntry, dealToInvestorPositions } from './showcaseData';
 
 interface Toast {
   id: string;
@@ -314,6 +317,10 @@ export default function App() {
   const [unicoDeals, setUnicoDeals] = useState<UnicoDeal[]>([]);
   // Vetrina Unico pubblicata (snapshot pubblici dei deal `published`, nodo `unicoShowcase`)
   const [unicoShowcase, setUnicoShowcase] = useState<Record<string, UnicoShowcaseEntry>>({});
+  // Posizioni private del singolo investitore (nodo unicoInvestorPositions/<uid>), lato portale
+  const [unicoPositions, setUnicoPositions] = useState<Record<string, UnicoInvestorPosition>>({});
+  // uid che avevano una posizione all'ultima scrittura (per ripulire quelle rimosse)
+  const prevInvestorUidsRef = useRef<Set<string>>(new Set());
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -584,6 +591,29 @@ export default function App() {
     arr.filter((d) => d.published).forEach((d) => { pub[d.id] = dealToShowcaseEntry(d); });
     setUnicoShowcase(pub);
     writeNode('unicoShowcase', pub).catch(() => {});
+    // Write-through delle posizioni PRIVATE per investitore collegato (investorUid).
+    // Aggrega per uid tutte le sue posizioni (su più operazioni) e scrive il nodo intero.
+    const byUid: Record<string, Record<string, UnicoInvestorPosition>> = {};
+    arr.forEach((d) => {
+      const positions = dealToInvestorPositions(d);
+      Object.entries(positions).forEach(([uid, pos]) => {
+        (byUid[uid] ||= {})[d.id] = pos;
+      });
+    });
+    const nextUids = new Set(Object.keys(byUid));
+    Object.entries(byUid).forEach(([uid, map]) => writeNode(`unicoInvestorPositions/${uid}`, map).catch(() => {}));
+    // Ripulisce le posizioni degli investitori non più collegati a nessuna operazione.
+    prevInvestorUidsRef.current.forEach((uid) => {
+      if (!nextUids.has(uid)) removeNode(`unicoInvestorPositions/${uid}`).catch(() => {});
+    });
+    prevInvestorUidsRef.current = nextUids;
+  };
+  // Notifica in-app agli investitori collegati di un'operazione Unico (es. nuovo aggiornamento
+  // o distribuzione). I link puntano al portale → sezione "I miei investimenti".
+  const notifyUnicoInvestors = (uids: string[], title: string, body: string) => {
+    Array.from(new Set(uids.filter(Boolean))).forEach((uid) =>
+      pushNotification(uid, { type: 'unico', title, body, link: '#portale/investimenti' })
+    );
   };
   const handleConvertLead = (lead: Lead) => {
     const pid = `p-${Date.now()}`;
@@ -959,7 +989,15 @@ export default function App() {
       }
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
-      subs.push(watchNode('unicoDeals', (v) => setUnicoDeals(toArr(v)), () => {}));
+      subs.push(watchNode('unicoDeals', (v) => {
+        const arr = toArr(v) as UnicoDeal[];
+        setUnicoDeals(arr);
+        // Allinea il set di uid con posizione, così il cleanup write-through resta corretto
+        // anche tra sessioni diverse (investitore scollegato in una sessione successiva).
+        const uids = new Set<string>();
+        arr.forEach((d) => (d.investors || []).forEach((i) => { if (i.investorUid) uids.add(i.investorUid); }));
+        prevInvestorUidsRef.current = uids;
+      }, () => {}));
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
@@ -1039,6 +1077,8 @@ export default function App() {
       subs.push(watchNode(`clientRequests/${currentUser.uid}`, (v) => setClientRequests(v || {}), () => {}));
       // Vetrina Unico pubblicata (snapshot pubblici, leggibili da ogni autenticato)
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
+      // Le mie posizioni da investitore (sola lettura, scritte dallo studio)
+      subs.push(watchNode(`unicoInvestorPositions/${currentUser.uid}`, (v) => setUnicoPositions(v || {}), () => {}));
       const pids = Object.keys(currentUser.projectIds || {});
       pids.forEach((pid) => {
         subs.push(watchNode(`projects/${pid}`, (v) => {
@@ -2923,6 +2963,7 @@ export default function App() {
         clientRequests={Object.values(clientRequests)}
         onCreateClientRequest={handleCreateClientRequest}
         unicoShowcase={Object.values(unicoShowcase)}
+        unicoPositions={Object.values(unicoPositions)}
         projectMessages={projectMessages}
         documents={documents}
         furnishings={furnishings}
@@ -3209,6 +3250,7 @@ export default function App() {
             onDeleteMatericoRequest={handleDeleteMatericoRequest}
             unicoDeals={unicoDeals}
             onSaveUnicoDeals={saveUnicoDeals}
+            onNotifyUnicoInvestors={notifyUnicoInvestors}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}

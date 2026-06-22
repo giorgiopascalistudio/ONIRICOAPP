@@ -340,7 +340,31 @@ export interface UnicoInvestor {
   name: string;
   amount: number;        // capitale conferito (€)
   contact?: string | null;
+  email?: string | null;
+  investorUid?: string | null; // account portale collegato (come clientUid) → vede la propria posizione
+  units?: number;        // n° quote sottoscritte (se unitPrice impostato; altrimenti derivato)
+  committedAt?: number;  // data sottoscrizione/conferimento
   at: number;
+}
+
+// Aggiornamento/avanzamento di un'operazione, condiviso con gli investitori collegati.
+export interface UnicoUpdate {
+  id: string;
+  title: string;
+  body: string;
+  at: number;
+  by?: string | null;    // nome di chi pubblica
+}
+
+// Distribuzione effettuata a un investitore (rimborso capitale, rendimento, plusvalenza).
+export type UnicoDistributionKind = 'capitale' | 'rendimento' | 'plusvalenza';
+export interface UnicoDistribution {
+  id: string;
+  investorId: string;
+  amount: number;
+  date: number;
+  kind: UnicoDistributionKind;
+  note?: string | null;
 }
 
 export interface UnicoDeal {
@@ -356,7 +380,14 @@ export interface UnicoDeal {
   minInvestment?: number;    // quota minima (vetrina)
   targetRoi?: number;        // rendimento atteso annuo % (vetrina)
   durationMonths?: number;
+  // SPV (società veicolo) + cap table
+  spvName?: string | null;   // ragione sociale SPV dedicata all'operazione
+  spvVat?: string | null;    // P.IVA / CF della SPV
+  spvNotes?: string | null;
+  unitPrice?: number;        // valore nominale di una quota (€) → n° quote = capitalGoal / unitPrice
   investors: UnicoInvestor[];
+  updates?: UnicoUpdate[];           // comunicazioni agli investitori
+  distributions?: UnicoDistribution[]; // distribuzioni/rendimenti erogati
   matericoProjectId?: string | null; // commessa Materico collegata (ristrutturazione)
   published?: boolean;       // pubblicato nella vetrina Unico
   showcase?: UnicoShowcaseConfig | null; // pagina vetrina cinematica (video + scene)
@@ -404,6 +435,39 @@ export interface UnicoShowcaseEntry {
   image: string;
   videoUrl?: string | null;
   scenes?: UnicoShowcaseScene[];
+  updatedAt: number;
+}
+
+// Snapshot PRIVATO per il singolo investitore — nodo `unicoInvestorPositions/<uid>/<dealId>`.
+// Scritto dallo studio (saveUnicoDeals write-through) per gli investitori con `investorUid`.
+// Contiene SOLO la posizione del destinatario: niente costi d'acquisto/ristrutturazione,
+// niente nomi/importi degli altri investitori. Letto dall'investitore collegato.
+export interface UnicoInvestorPositionDistribution {
+  id: string;
+  amount: number;
+  date: number;
+  kind: UnicoDistributionKind;
+  note?: string | null;
+}
+export interface UnicoInvestorPosition {
+  dealId: string;
+  title: string;
+  type: string;
+  location: string;
+  status: UnicoDealStatus;
+  investorName: string;
+  amount: number;          // capitale conferito dal destinatario
+  units: number;           // sue quote
+  quotaPct: number;        // % sul capitale obiettivo
+  targetRoi: number;
+  durationMonths: number;
+  goal: number;            // capitale obiettivo dell'operazione
+  raised: number;          // totale raccolto (aggregato, no nomi)
+  spvName?: string | null;
+  expectedReturn: number;  // rendimento atteso stimato sul conferito (quota del profitto)
+  distributed: number;     // totale già distribuito al destinatario
+  updates: UnicoUpdate[];
+  distributions: UnicoInvestorPositionDistribution[];
   updatedAt: number;
 }
 
