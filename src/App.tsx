@@ -77,6 +77,7 @@ import {
 import {
   isoDate,
   todayISO,
+  addDays,
   fmtDay,
   eur,
   initials,
@@ -1085,6 +1086,54 @@ export default function App() {
 
     return () => subs.forEach((u) => u());
   }, [currentUser?.uid, currentUser?.role]);
+
+  // ----------------------------------------------------
+  // REMINDER IN-APP "SOFT" (fallback senza Cloud Functions / piano Blaze)
+  // ----------------------------------------------------
+  // Quando un membro dello studio apre l'app, genera notifiche in-app una-tantum per
+  // ferie/assenze in arrivo (≤7gg) e scadenze finanziarie aperte (≤3gg). Niente email
+  // né cron: copre il caso d'uso quotidiano a costo zero, in attesa di dailyReminders
+  // (functions/, vedi §18). Id deterministico per voce + check di esistenza (getNode)
+  // → nessun doppione e nessun reset dello stato "letto".
+  const softRemRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentUser || !isStudioRole(currentUser.role)) return;
+    const me = currentUser.uid;
+    const isAdminMgr = currentUser.role === 'admin' || currentUser.role === 'manager';
+    const today = todayISO();
+    const in7 = isoDate(addDays(new Date(), 7));
+    const in3 = isoDate(addDays(new Date(), 3));
+    const push = (id: string, payload: { type: string; title: string; body?: string | null; link?: string | null }) => {
+      if (softRemRef.current.has(id)) return;
+      softRemRef.current.add(id);
+      getNode(`notifications/${me}/${id}`)
+        .then((existing) => {
+          if (existing) return; // già presente (anche se letta) → non sovrascrivere
+          const ntf: Notification = {
+            id, type: payload.type, title: payload.title, body: payload.body || null, link: payload.link || null,
+            read: false, at: Date.now(), by: 'system', byName: 'Promemoria'
+          };
+          writeNode(`notifications/${me}/${id}`, ntf).catch(() => {});
+        })
+        .catch(() => {});
+    };
+    // Ferie/assenze dei colleghi in arrivo entro 7 giorni (escluse le proprie)
+    Object.values(teamLeave).forEach((l) => {
+      if (!l?.dateFrom || l.uid === me) return;
+      if (l.dateFrom > today && l.dateFrom <= in7) {
+        push(`rem-leave-${l.id}`, { type: 'ferie', title: `Assenza in arrivo: ${l.name}`, body: `${l.type} dal ${fmtDay(l.dateFrom)}${l.dateTo ? ' al ' + fmtDay(l.dateTo) : ''}`, link: '#calendario' });
+      }
+    });
+    // Scadenze finanziarie aperte entro 3 giorni (solo admin/manager)
+    if (isAdminMgr) {
+      finScadenze.forEach((s) => {
+        if (!s?.dueDate || s.status === 'pagato') return;
+        if (s.dueDate >= today && s.dueDate <= in3) {
+          push(`rem-scad-${s.id}`, { type: 'scadenza', title: `Scadenza in arrivo: ${s.desc || 'Scadenza'}`, body: `${eur(s.amount || 0)} · ${fmtDay(s.dueDate)}`, link: '#finanze' });
+        }
+      });
+    }
+  }, [currentUser?.uid, currentUser?.role, teamLeave, finScadenze]);
 
   // ----------------------------------------------------
   // CESTINO (nodo trash) + DOPPIA CONFERMA ELIMINAZIONE

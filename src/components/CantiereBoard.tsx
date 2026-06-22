@@ -15,7 +15,7 @@ import {
   HardHat, Plus, Trash2, Check, Clock, Users, ImageIcon, Boxes, ListChecks,
   FileText, TrendingUp, History, MapPin, Calendar as CalIcon,
   CheckCircle2, CircleSlash, MessageSquare, Info, ShieldCheck, HardDrive, Truck,
-  ClipboardList, BadgeAlert, FolderOpen, Send, Layers, LayoutDashboard, BookOpen
+  ClipboardList, BadgeAlert, FolderOpen, Send, Layers, LayoutDashboard, BookOpen, Wrench
 } from 'lucide-react';
 
 import {
@@ -255,6 +255,7 @@ const SECTIONS: SectionDef[] = [
   { area: 'impresa', id: 'operai', label: 'Operai', icon: HardHat, render: { t: 'imprec', section: 'operai', columns: [{ key: 'title', label: 'Nominativo' }, { key: 'mansione', label: 'Mansione' }, { key: 'contatto', label: 'Contatto' }] } },
   { area: 'impresa', id: 'presenze', label: 'Presenze & ore', icon: Clock, render: { t: 'comp', name: 'presenze' } },
   { area: 'impresa', id: 'mezzi', label: 'Mezzi & attrezzature', icon: Truck, render: { t: 'imprec', section: 'mezzi', statuses: ['Operativo', 'In manutenzione', 'Guasto'], columns: [{ key: 'title', label: 'Mezzo / attrezzatura' }, { key: 'targa', label: 'Targa / codice' }, { key: 'status', label: 'Stato' }] } },
+  { area: 'impresa', id: 'manutenzioni', label: 'Manutenzioni & guasti', icon: Wrench, render: { t: 'imprec', section: 'manutenzioni', statuses: ['Programmata', 'In corso', 'Risolta'], columns: [{ key: 'title', label: 'Mezzo / attrezzatura' }, { key: 'intervento', label: 'Intervento / guasto' }, { key: 'date', label: 'Data', type: 'date' }, { key: 'status', label: 'Stato' }] } },
   { area: 'impresa', id: 'materiali', label: 'Materiali (consegne/impiego)', icon: Boxes, render: { t: 'comp', name: 'materiali' } },
   { area: 'impresa', id: 'sicurezza_impresa', label: 'Sicurezza impresa', icon: ShieldCheck, render: { t: 'imprec', section: 'sicurezza_impresa', statuses: ['Valido', 'In scadenza', 'Scaduto'], columns: [{ key: 'title', label: 'Voce (DPI/formazione/visita/patentino)' }, { key: 'lavoratore', label: 'Lavoratore' }, { key: 'date', label: 'Scadenza', type: 'date' }, { key: 'status', label: 'Stato' }] } },
   { area: 'impresa', id: 'magazzino', label: 'Magazzino & ordini', icon: HardDrive, render: { t: 'imprec', section: 'magazzino', statuses: ['Ordinato', 'In arrivo', 'Disponibile', 'Esaurito'], columns: [{ key: 'title', label: 'Articolo / materiale' }, { key: 'fornitore', label: 'Fornitore' }, { key: 'quantita', label: 'Giacenza / Q.tà', type: 'number' }, { key: 'status', label: 'Stato' }] } }

@@ -312,9 +312,10 @@ responsabili/WhatsApp, Task con priorità urgente/tipologia + dashboard produtti
 **backend Cloud Functions** (`functions/`: email SendGrid, reminder schedulati, report) — da deployare.
 Da fare (CRM doc, fasi successive): 5 statistiche + Break Even Point, **Incentivi & Performance**
 (300+ attività a punti), **Marketing & Eventi**, **Sondaggi/Customer satisfaction**, WhatsApp API.
-Da fare: completare le restanti voci Cantiere "in preparazione" (manutenzioni/guasti…; **Collaudi
-& test materiali** Area Tecnici e **Magazzino & ordini** Area Impresa ora attivi come registri),
-modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
+Fatto: tutte le voci Cantiere prima "in preparazione" ora attive come registri
+(**Collaudi & test materiali** Area Tecnici; **Magazzino & ordini** e **Manutenzioni & guasti**
+Area Impresa).
+Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
 
@@ -500,6 +501,12 @@ reporting/redditività, integrazioni esterne
 - **Deploy a carico utente** (vedi `functions/README.md`): `firebase login`, piano **Blaze**,
   `firebase functions:secrets:set SENDGRID_KEY`, `firebase deploy --only functions`. Non verificabile
   da Claude (serve auth/Blaze/API key). WhatsApp automatico = futuro (oggi link `wa.me` in app).
+- **Fallback senza Blaze — reminder in-app "soft"** (`App.tsx`, effetto `softRemRef`): finché le
+  Functions non sono deployate, quando un membro dello studio apre l'app vengono generate notifiche
+  in-app una-tantum per ferie/assenze dei colleghi in arrivo (≤7gg) e scadenze finanziarie aperte
+  (≤3gg, solo admin/manager). Solo in-app (niente email/cron); ognuno scrive sul **proprio**
+  `notifications/<uid>`; dedup con id deterministico (`rem-leave-<id>`/`rem-scad-<id>`) + check
+  `getNode` per non sovrascrivere lo stato "letto". Convive con `dailyReminders` (id diversi).
 
 ## 19. Moodboard 3D (R3F)
 - **Dove**: tab **"Arredi & Moodboard"** (`FurnishingsBoard`) → sezione **Moodboard**: anteprima +
