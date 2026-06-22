@@ -335,8 +335,9 @@ Fatto: **CRM esteso** (doc CONSIDERAZIONI CRM, §16-18): notifiche persistenti, 
 responsabili/WhatsApp, Task con priorità urgente/tipologia + dashboard produttività, ferie team,
 **Preventivi & Amministrazione** (`quotes` con macro-voci/stati/piano pagamenti → finanza), e
 **backend Cloud Functions** (`functions/`: email SendGrid, reminder schedulati, report) — da deployare.
-Fatto: **Statistiche & Break Even Point** (`StatsView`, route `#statistiche`, voce sidebar admin/
-manager) — cruscotto direzionale che calcola su dati esistenti (fatture/scadenze/preventivi/
+Fatto: **Statistiche & Break Even Point** (`StatsView`, dentro **Finanze → tab "Statistiche & BEP"** —
+non più voce sidebar; `#statistiche` redirige a Finanze col tab aperto via `finStartTab`) — cruscotto
+direzionale che calcola su dati esistenti (fatture/scadenze/preventivi/
 progetti/task): redditività per società+gruppo (motore `consolidato`), incassato vs da incassare,
 **punto di pareggio**, andamento 12 mesi ricavi/costi, portafoglio commesse + pipeline preventivi,
 carico per risorsa. Nessun nodo/regola nuovi.

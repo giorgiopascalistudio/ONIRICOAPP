@@ -9,9 +9,9 @@ import {
   FileText, Calculator, TrendingUp, Calendar, CheckCircle2, AlertCircle,
   ArrowRightLeft, FileCheck, Layers, Landmark, Download, RefreshCw,
   Check, ChevronRight, Activity, Link2, Sliders, ShieldCheck, Info,
-  Upload, Building2, Percent
+  Upload, Building2, Percent, BarChart3
 } from 'lucide-react';
-import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal, Quote, ClientRecord } from '../types';
+import { FinanceMovement, Project, Furnishing, MatericoRequest, UnicoDeal, Cantiere, CantiereSal, Quote, ClientRecord, Task, UserProfile } from '../types';
 import { eur, fmtDay, numIt, todayISO } from '../utils';
 import { watchNode, writeNode } from '../firebase';
 import {
@@ -22,6 +22,7 @@ import {
   invoiceTotals, CASSA_PCT_DEFAULT
 } from '../finance';
 import { QuotesView } from './QuotesView';
+import { StatsView } from './StatsView';
 
 interface FinanzeViewProps {
   finance: FinanceMovement[];
@@ -47,6 +48,9 @@ interface FinanzeViewProps {
   initialTab?: string | null;
   /** Doppia conferma eliminazione (modale condivisa in App). */
   askDelete?: (title: string, message: string | null, onConfirm: () => void) => void;
+  /** Statistiche & BEP (tab "Statistiche": StatsView vive qui, non più in sidebar). */
+  tasks?: Task[];
+  members?: UserProfile[];
 }
 
 interface BankMovementSim {
@@ -77,10 +81,12 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
   onSetQuoteStatus,
   onEmitMilestone,
   initialTab = null,
-  askDelete
+  askDelete,
+  tasks = [],
+  members = []
 }) => {
   // --- SUB-TABS STATE ---
-  type FinTab = 'panoramica' | 'preventivi' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico';
+  type FinTab = 'panoramica' | 'preventivi' | 'computi' | 'parcella' | 'fatture' | 'scadenziario' | 'sal' | 'conto_economico' | 'statistiche';
   const [activeTab, setActiveTab] = useState<FinTab>((initialTab as FinTab) || 'panoramica');
 
   // Arrivo da #preventivi (o link notifica): apre il tab richiesto.
@@ -948,7 +954,29 @@ export const FinanzeView: React.FC<FinanzeViewProps> = ({
         >
           <TrendingUp className="w-4 h-4" /> Conto Economico
         </button>
+        <button
+          onClick={() => setActiveTab('statistiche')}
+          className={`flex items-center gap-1.5 py-3 px-4 text-[12.5px] font-black tracking-tight border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'statistiche' ? 'border-[#1b1b1b] text-[#1b1b1b]' : 'border-transparent text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" /> Statistiche & BEP
+        </button>
       </div>
+
+      {/* --- TAB CONTENT: STATISTICHE & BREAK EVEN POINT (cruscotto direzionale, ex voce sidebar) --- */}
+      {activeTab === 'statistiche' && (
+        <StatsView
+          projects={projects}
+          invoicesActive={activeInvoices}
+          invoicesPassive={passiveInvoices}
+          scadenze={scadenze}
+          quotes={Object.values(quotes)}
+          tasks={tasks}
+          members={members}
+          onNav={(r) => { window.location.hash = r; }}
+        />
+      )}
 
       {/* --- TAB CONTENT: PREVENTIVI & PARCELLE (per società, ex voce sidebar) --- */}
       {activeTab === 'preventivi' && (
