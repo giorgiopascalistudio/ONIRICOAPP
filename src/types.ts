@@ -778,3 +778,109 @@ export interface ClientRequest {
   createdAt: number;
   updatedAt?: number;
 }
+
+/* =====================================================================
+ * MODULO STRATEGICO / MARKETING (società controllata Strategico)
+ * Nodi: mktEvents, mktCampaigns, mktSurveys, mktSurveyResponses, mktSocial,
+ * mktInvitesIndex. Vedi §22 di CLAUDE.md.
+ * =================================================================== */
+
+export type RsvpStatus = 'invitato' | 'accettato' | 'rifiutato' | 'forse';
+
+// Singolo invitato a un evento. Può essere un contatto della rubrica (clientId)
+// e/o un account portale (uid) → riceve l'invito e può rispondere (RSVP).
+export interface EventInvitee {
+  name: string;
+  email?: string | null;
+  clientId?: string | null;
+  uid?: string | null;        // account portale (per RSVP + indice mktInvitesIndex)
+  status: RsvpStatus;
+  respondedAt?: number | null;
+}
+
+export interface MarketingEvent {
+  id: string;
+  title: string;
+  date: number;               // data/ora evento
+  location?: string | null;
+  kind?: string | null;       // tipo (open day, inaugurazione, webinar…)
+  description?: string | null;
+  capacity?: number | null;
+  coverUrl?: string | null;
+  invitees: Record<string, EventInvitee>; // keyed (uid o id contatto) → RSVP granulare
+  status?: 'bozza' | 'pubblicato' | 'concluso';
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type CampaignChannel = 'email' | 'whatsapp' | 'social' | 'misto';
+export type CampaignStatus = 'bozza' | 'attiva' | 'conclusa';
+// Passo di follow-up della campagna (offset giorni dall'avvio + messaggio).
+export interface CampaignStep {
+  id: string;
+  offsetDays: number;
+  channel: CampaignChannel;
+  message: string;
+}
+export interface Campaign {
+  id: string;
+  name: string;
+  channel: CampaignChannel;
+  season?: string | null;     // stagionalità (es. "Natale 2026")
+  goal?: string | null;
+  audienceTiers?: number[];    // fasce rubrica destinatarie (1/2/3)
+  audienceSector?: string | null;
+  message?: string | null;     // messaggio principale
+  steps?: CampaignStep[];      // follow-up pianificati
+  status: CampaignStatus;
+  sentCount?: number;          // contatori manuali
+  responses?: number;
+  startAt?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type SurveyQuestionType = 'rating' | 'choice' | 'text';
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  type: SurveyQuestionType;
+  options?: string[];          // per 'choice'
+}
+export interface Survey {
+  id: string;
+  title: string;
+  intro?: string | null;
+  questions: SurveyQuestion[];
+  audience?: 'tutti' | 'clienti' | 'partner';
+  active: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+// Risposta di un utente — nodo mktSurveyResponses/<surveyId>/<uid>.
+export interface SurveyResponse {
+  surveyId: string;
+  uid: string;
+  name?: string | null;
+  answers: Record<string, string | number>; // questionId → valore
+  at: number;
+}
+
+export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'youtube';
+export type SocialStatus = 'idea' | 'bozza' | 'programmato' | 'pubblicato';
+// Voce del calendario editoriale social.
+export interface SocialPost {
+  id: string;
+  platform: SocialPlatform;
+  caption: string;
+  mediaUrl?: string | null;    // link/asset (renderizzato con safeUrl)
+  link?: string | null;
+  scheduledAt?: number | null;
+  status: SocialStatus;
+  pillar?: string | null;      // pilastro/tema editoriale
+  campaignId?: string | null;  // campagna collegata
+  reach?: number | null;       // metriche manuali
+  likes?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}

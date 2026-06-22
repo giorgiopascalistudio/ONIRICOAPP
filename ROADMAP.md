@@ -59,6 +59,9 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 ## Modulo Immobiliare (Flipping/Crowdfunding)
 - ✅ Portafoglio immobili · scheda immobile · investitori · ROI · **SPV/cap table** · **update investitori** · **portale investitore** · **rendiconto/distribuzioni** — **FATTO** (Unico, `UnicoStudioView` + `unicoInvestorPositions`)
 
+## Modulo Strategico / Marketing
+- ✅ Eventi & inviti (RSVP) · Campagne & follow-up (link email/WhatsApp) · Sondaggi/customer satisfaction · calendario editoriale Social · Analisi — **FATTO** (`StrategicoView`, nodi `mkt*`)
+
 ## Modulo Energia Rinnovabile
 - 🟢 Censimento lotti · stato pratiche · offerte · scadenze — modulo nuovo da costruire
 - 🟡 Monitoraggio produzione impianti — richiede integrazione inverter/portale

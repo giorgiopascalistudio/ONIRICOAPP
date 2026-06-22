@@ -207,6 +207,15 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   `impresaRecords/<uid>/<id>` (squadre/operai/mezzi/attrezzature/sicurezza, discriminati da `section`).
   Scritti dal partner proprietario (read studio). UI: portale partner tab "La mia impresa"
   (`src/components/cantiere/ImpresaArea.tsx`) + Area Impresa dentro al `CantiereBoard`.
+- **Modulo Strategico / Marketing** (vedi §22): `mktEvents/<id>` (`MarketingEvent`: eventi + `invitees`
+  map con RSVP), `mktCampaigns/<id>` (`Campaign`: canale/stagione/fasce + `steps` follow-up),
+  `mktSurveys/<id>` (`Survey`: domande rating/scelta/testo, `active`), `mktSurveyResponses/<sid>/<uid>`
+  (`SurveyResponse`), `mktSocial/<id>` (`SocialPost`: calendario editoriale). **Indice inverso**
+  `mktInvitesIndex/<uid>/<eid>=true` (scritto dallo studio all'invito) → il portale **elenca** gli eventi
+  a cui è invitato e si sottoscrive ai singoli `mktEvents/<id>`. Scritture studio per-elemento; portale
+  granulari: RSVP `mktEvents/<id>/invitees/<uid>/status` + risposta `mktSurveyResponses/<sid>/<uid>`.
+  `mktSurveys` leggibile da ogni autenticato (no dati sensibili). admin/manager lato studio
+  (`StrategicoView`, route `#strategico`); pannello portale `MarketingPortalPanel` in `ClientPortalView`.
 
 ### Persistenza
 - In App, `syncState(key, val)` scrive l'intero nodo via `writeNode` (mappa
@@ -326,12 +335,15 @@ manager) — cruscotto direzionale che calcola su dati esistenti (fatture/scaden
 progetti/task): redditività per società+gruppo (motore `consolidato`), incassato vs da incassare,
 **punto di pareggio**, andamento 12 mesi ricavi/costi, portafoglio commesse + pipeline preventivi,
 carico per risorsa. Nessun nodo/regola nuovi.
-Da fare (CRM doc, fasi successive): **Incentivi & Performance**
-(300+ attività a punti), **Marketing & Eventi**, **Sondaggi/Customer satisfaction**, WhatsApp API.
+Fatto: modulo **Strategico / Marketing** (§22, `StrategicoView`, route `#strategico`): **Eventi & inviti**
+con RSVP dal portale, **Campagne & follow-up** (link `mailto`/`wa.me`, niente backend), **Sondaggi/Customer
+satisfaction** (compilabili dal portale + risultati aggregati), **calendario editoriale Social**, **Analisi**
+(tasso adesione/risposta/conversione, soddisfazione media). Nodi `mkt*` + `mktInvitesIndex`.
+Da fare (CRM doc, fasi successive): **Incentivi & Performance** (300+ attività a punti), WhatsApp API.
 Fatto: tutte le voci Cantiere prima "in preparazione" ora attive come registri
 (**Collaudi & test materiali** Area Tecnici; **Magazzino & ordini** e **Manutenzioni & guasti**
 Area Impresa).
-Da fare: modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
+Da fare: preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
 
@@ -366,6 +378,11 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunto il nodo **`unicoInvestorPositions/<uid>`** (posizione privata dell'investitore Unico, §6 —
   read solo `auth.uid==$uid`, write studio attivo): **ripubblicare le regole**, altrimenti il portale
   investitore ("I miei investimenti") resta vuoto e la write-through dello studio fallisce in silenzio.
+  ⚠️ Aggiunti i nodi del **modulo Strategico/Marketing** (§22): **`mktEvents`** (read studio + invitato
+  per-`$id`; write studio; RSVP granulare `invitees/$uid`), **`mktCampaigns`** (studio), **`mktSurveys`**
+  (read ogni autenticato, write studio), **`mktSurveyResponses/$sid/$uid`** (read/write proprio uid + studio),
+  **`mktSocial`** (studio) e l'indice **`mktInvitesIndex/$uid`** (read proprio, write studio):
+  **ripubblicare le regole**, altrimenti eventi/inviti/sondaggi del portale non funzionano (write silenziose).
   ⚠️ Aggiornate le regole di **`projectMessages` e `cantiereMessages`** (chat): cliente/partner
   possono **eliminare un proprio messaggio entro 60s** dall'invio (unsend) e il create richiede
   `from == auth.uid` (niente spoofing autore). **Ripubblicare le regole**, altrimenti l'unsend
@@ -596,3 +613,27 @@ reporting/redditività, integrazioni esterne
   senza entry pubblicate restano i demo `UNICO_PROPERTIES` (disclaimer "dati dimostrativi" solo lì).
 - **Video**: SEMPRE URL online (Firebase Storage consigliato, vedi §13) — un unico mp4 continuo
   per pagina; le scene puntano ai suoi secondi. Niente upload dal client.
+
+## 22. Modulo Strategico / Marketing
+- **Dove**: voce sidebar **"Strategico"** (admin/manager), route **`#strategico`** → `StrategicoView`
+  (`src/components/StrategicoView.tsx`, lazy). Colore settore **ambra `#b45309`** (§10). 5 sotto-tab:
+  **Eventi · Campagne · Sondaggi · Social · Analisi**.
+- **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
+  `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
+  `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.
+- **Campagne & follow-up** (`mktCampaigns`): canale (email/whatsapp/social/misto), stagionalità, fasce
+  destinatarie, `steps` di follow-up. I destinatari si generano dalla rubrica come **link `mailto:`/`wa.me`**
+  pronti (coerente con la scelta "solo link", niente invio automatico senza backend — vedi memoria CRM).
+- **Sondaggi** (`mktSurveys` + risposte `mktSurveyResponses/<sid>/<uid>`): domande rating/scelta/testo,
+  `audience` (clienti/partner/tutti), `active`. Il cliente li compila dal portale (`MarketingPortalPanel`),
+  lo studio vede i **risultati aggregati** (media voti, distribuzione scelte, risposte testo).
+- **Social** (`mktSocial`): **calendario editoriale** a colonne per stato (idea/bozza/programmato/pubblicato),
+  piattaforma (IG/FB/LinkedIn/TikTok/YouTube), caption, data, link media (`safeUrl`), campagna collegata,
+  metriche manuali (reach/like).
+- **Analisi**: cruscotto calcolato sui dati esistenti (tasso adesione eventi, tasso risposta inviti,
+  conversione campagne, soddisfazione media sondaggi, reach social). Nessun nodo nuovo.
+- **App wiring**: stato `mktEvents/mktCampaigns/mktSurveys/mktSocial/mktResponses`; sub studio su tutti i
+  nodi `mkt*`; sub portale su `mktSurveys` (+ propria risposta per-sid) e `mktInvitesIndex/<uid>` → singoli
+  `mktEvents/<id>`. Handler `handleSaveMktEvent/Campaign/Survey/SocialPost` (+ delete via `askDelete`/Cestino,
+  sezioni `mkt-evento|mkt-campagna|mkt-sondaggio|mkt-social`), `handleRsvpEvent`, `handleSubmitSurveyResponse`
+  (granulari, con `notifyStudio`). Regole: vedi §6/§7/§13.
