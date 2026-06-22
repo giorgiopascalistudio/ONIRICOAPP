@@ -275,22 +275,26 @@ const InvestorsTable: React.FC<{ deals: UnicoDeal[] }> = ({ deals }) => {
   }
   return (
     <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
-      <div className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.7fr] gap-2 px-4 py-3 bg-[#fafafa] border-b border-[#ececec] text-[10.5px] font-bold uppercase tracking-wide text-stone-400">
-        <span>Investitore</span><span>Operazione</span><span className="text-right">Conferito</span><span className="text-right">Quota</span>
-      </div>
-      {rows.map((r) => {
-        const quota = r.dealGoal ? (r.amount / r.dealGoal) * 100 : 0;
-        return (
-          <div key={r.id} className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.7fr] gap-2 px-4 py-3 border-b border-[#f3f3f3] items-center text-[13px]">
-            <b className="truncate">{r.name}</b>
-            <span className="text-stone-500 truncate">{r.dealTitle}</span>
-            <span className="text-right font-semibold">{eur(r.amount)}</span>
-            <span className="text-right text-stone-500">{quota.toFixed(1)}%</span>
+      <div className="overflow-x-auto">
+        <div className="min-w-[480px]">
+          <div className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.7fr] gap-2 px-4 py-3 bg-[#fafafa] border-b border-[#ececec] text-[10.5px] font-bold uppercase tracking-wide text-stone-400">
+            <span>Investitore</span><span>Operazione</span><span className="text-right">Conferito</span><span className="text-right">Quota</span>
           </div>
-        );
-      })}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] text-[13px] font-bold">
-        <span>Totale ({rows.length})</span><span>{eur(total)}</span>
+          {rows.map((r) => {
+            const quota = r.dealGoal ? (r.amount / r.dealGoal) * 100 : 0;
+            return (
+              <div key={r.id} className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.7fr] gap-2 px-4 py-3 border-b border-[#f3f3f3] items-center text-[13px]">
+                <b className="truncate">{r.name}</b>
+                <span className="text-stone-500 truncate">{r.dealTitle}</span>
+                <span className="text-right font-semibold">{eur(r.amount)}</span>
+                <span className="text-right text-stone-500">{quota.toFixed(1)}%</span>
+              </div>
+            );
+          })}
+          <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] text-[13px] font-bold">
+            <span>Totale ({rows.length})</span><span>{eur(total)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -324,22 +328,26 @@ const RendicontoView: React.FC<{ deals: UnicoDeal[] }> = ({ deals }) => {
               </div>
               <span className="text-[12px] font-bold text-emerald-700 shrink-0">Erogato {eur(distributedOf(d))}</span>
             </div>
-            <div className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_1fr] gap-2 px-4 py-2 text-[10.5px] font-bold uppercase tracking-wide text-stone-400 border-b border-[#f3f3f3]">
-              <span>Investitore</span><span className="text-right">Quota</span><span className="text-right">Conferito</span><span className="text-right">Rend. atteso</span><span className="text-right">Distribuito</span>
-            </div>
-            {(d.investors || []).map((i) => {
-              const quota = d.capitalGoal ? ((Number(i.amount) || 0) / d.capitalGoal) * 100 : 0;
-              const dist = distributedToInvestor(d, i.id);
-              return (
-                <div key={i.id} className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-[#f5f5f5] items-center text-[12.5px]">
-                  <b className="truncate flex items-center gap-1.5">{i.name}{i.investorUid && <Link2 className="w-3 h-3 text-[#4338ca] shrink-0" />}</b>
-                  <span className="text-right text-stone-500">{quota.toFixed(1)}%</span>
-                  <span className="text-right font-semibold">{eur(i.amount)}</span>
-                  <span className="text-right text-emerald-700">{eur(Math.round(expectedReturnOf(d, i)))}</span>
-                  <span className="text-right">{eur(dist)}</span>
+            <div className="overflow-x-auto">
+              <div className="min-w-[520px]">
+                <div className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_1fr] gap-2 px-4 py-2 text-[10.5px] font-bold uppercase tracking-wide text-stone-400 border-b border-[#f3f3f3]">
+                  <span>Investitore</span><span className="text-right">Quota</span><span className="text-right">Conferito</span><span className="text-right">Rend. atteso</span><span className="text-right">Distribuito</span>
                 </div>
-              );
-            })}
+                {(d.investors || []).map((i) => {
+                  const quota = d.capitalGoal ? ((Number(i.amount) || 0) / d.capitalGoal) * 100 : 0;
+                  const dist = distributedToInvestor(d, i.id);
+                  return (
+                    <div key={i.id} className="grid grid-cols-[1.4fr_0.8fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-[#f5f5f5] items-center text-[12.5px]">
+                      <b className="truncate flex items-center gap-1.5">{i.name}{i.investorUid && <Link2 className="w-3 h-3 text-[#4338ca] shrink-0" />}</b>
+                      <span className="text-right text-stone-500">{quota.toFixed(1)}%</span>
+                      <span className="text-right font-semibold">{eur(i.amount)}</span>
+                      <span className="text-right text-emerald-700">{eur(Math.round(expectedReturnOf(d, i)))}</span>
+                      <span className="text-right">{eur(dist)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         );
       })}

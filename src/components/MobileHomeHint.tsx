@@ -78,6 +78,6 @@ export const MobileHomeHint: React.FC = () => {
 const Step: React.FC<{ n: number; children: React.ReactNode }> = ({ n, children }) => (
   <li className="flex items-start gap-3">
     <span className="w-6 h-6 rounded-full bg-[#f0f0f0] text-[#161616] text-[12px] font-bold flex items-center justify-center shrink-0 mt-0.5">{n}</span>
-    <span className="text-[13px] text-[#3a3a3a] leading-snug">{children}</span>
+    <span className="text-[13px] text-[#3a3a3a] leading-snug min-w-0 break-words">{children}</span>
   </li>
 );
