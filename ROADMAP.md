@@ -45,7 +45,7 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 
 ## Gestione Cantiere
 - 🟢 Diario di cantiere · presenze · forniture · non conformità · verbali — da costruire (dati+UI)
-- 🟢 Foto timestampate + geolocalizzate — da costruire (geolocation browser + Firebase Storage)
+- ✅ Foto timestampate + geolocalizzate — **FATTO** (geolocation browser best-effort + badge GPS/link mappa nel `CantiereBoard`)
 
 ## Risorse Umane & Team
 - ✅ Profili con ruoli e permessi

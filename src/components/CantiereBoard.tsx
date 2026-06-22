@@ -551,21 +551,29 @@ const CantiereDetail: React.FC<CantiereBoardProps & {
         })}
       </div>
 
-      {/* nav SEZIONE (livello 2): tutte le voci visibili, vanno a capo */}
-      <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-2xl bg-[#fafafa] border border-[#f2f2f2]">
-        {areaSections.map((s) => {
-          const Icon = s.icon;
-          const active = section === s.id;
-          return (
-            <button
-              key={s.id}
-              onClick={() => setSection(s.id)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors ${active ? 'bg-[#2b2b2b] text-white' : 'bg-white border border-[#e8e8e8] text-[#6b6b6b] hover:text-[#161616] hover:border-[#d0d0d0]'}`}
-            >
-              <Icon className="w-3.5 h-3.5" /> {s.label}
-            </button>
-          );
-        })}
+      {/* nav SEZIONE (livello 2): strumenti dell'area in una griglia uniforme
+          (posizioni stabili e scansionabili, niente "muro" di pill a larghezza variabile) */}
+      <div className="mb-3 p-2.5 rounded-2xl bg-[#fafafa] border border-[#f2f2f2]">
+        <div className="flex items-center gap-1.5 mb-2 px-1">
+          <Wrench className="w-3 h-3 text-[#b0b0b0]" />
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#b0b0b0]">Strumenti · {AREAS.find((a) => a.id === area)?.label}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
+          {areaSections.map((s) => {
+            const Icon = s.icon;
+            const active = section === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[12px] font-bold text-left transition-colors border ${active ? 'bg-[#161616] text-white border-[#161616] shadow-xs' : 'bg-white border-[#e8e8e8] text-[#6b6b6b] hover:text-[#161616] hover:border-[#d0d0d0]'}`}
+                title={s.label}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* selettore impresa (solo studio, Area Impresa con più partner) */}
@@ -686,28 +694,47 @@ const PresenzeTab: React.FC<TabProps> = (p) => {
 };
 
 // -------------------- Foto --------------------
+// Geolocalizzazione best-effort del browser (timeout breve, nessun blocco se negata).
+const captureGeo = (): Promise<{ lat: number | null; lng: number | null }> => new Promise((resolve) => {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return resolve({ lat: null, lng: null });
+  navigator.geolocation.getCurrentPosition(
+    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    () => resolve({ lat: null, lng: null }),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+  );
+});
+
 const FotoTab: React.FC<TabProps> = (p) => {
   const { cantiere: c, isStudio, myUid, myRole, folderName, saveEntity, delEntity } = p;
   const list = vals(p.foto?.[c.id]).sort((a, b) => b.at - a.at);
+  const onUploaded = async (f: { driveFileId?: string | null; driveUrl?: string | null; link?: string | null }) => {
+    const now = Date.now();
+    const geo = await captureGeo(); // foto timestampate + geolocalizzate (best-effort)
+    const photo: CantiereFoto = { id: newId('foto'), driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, by: myUid, role: myRole, at: now, takenAt: now, lat: geo.lat, lng: geo.lng };
+    saveEntity('cantiereFoto', photo);
+  };
   return (
     <div className="flex flex-col gap-3">
-      {!isStudio && (
-        <DriveUploader folderName={folderName} onUploaded={(f) => {
-          const photo: CantiereFoto = { id: newId('foto'), driveFileId: f.driveFileId || null, driveUrl: f.driveUrl || null, link: f.link || null, by: myUid, role: myRole, at: Date.now() };
-          saveEntity('cantiereFoto', photo);
-        }} />
-      )}
+      <DriveUploader folderName={folderName} onUploaded={onUploaded} />
       {list.length === 0 ? sectionEmpty('Nessuna foto.') : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {list.map((f) => {
             const url = safeUrl(f.driveUrl || f.link);
+            const when = f.takenAt || f.at;
+            const hasGeo = f.lat != null && f.lng != null;
+            const mapUrl = hasGeo ? safeUrl(`https://www.google.com/maps?q=${f.lat},${f.lng}`) : '';
             return (
               <div key={f.id} className="relative group rounded-2xl border border-[#eee] overflow-hidden bg-[#fafafa] aspect-square flex items-center justify-center">
                 <a href={url} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 text-[11px] text-[#6b6b6b] p-2 text-center">
                   <ImageIcon className="w-6 h-6 text-[#c9c9c9]" />
                   <span className="truncate max-w-full">{f.caption || 'Foto'}</span>
-                  <span className="text-[10px] text-[#9a9a9a]">{fmtDay(new Date(f.at).toISOString().slice(0, 10))}</span>
+                  <span className="text-[10px] text-[#9a9a9a]">{new Date(when).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                 </a>
+                {hasGeo && (
+                  <a href={mapUrl} target="_blank" rel="noreferrer" title="Posizione su mappa" className="absolute bottom-1 left-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-white/90 text-[9.5px] font-bold text-[#161616] border border-[#e2e2e2]">
+                    <MapPin className="w-3 h-3" /> GPS
+                  </a>
+                )}
                 {(isStudio || f.by === myUid) && (
                   <button onClick={() => delEntity('cantiereFoto', f.id)} className="absolute top-1 right-1 w-6 h-6 rounded-lg bg-white/90 text-rose-600 opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5 mx-auto" /></button>
                 )}

@@ -570,6 +570,9 @@ export interface CantiereFoto {
   by: string;
   role: string;
   at: number;
+  takenAt?: number | null;                     // timestamp di scatto/caricamento (foto cantiere)
+  lat?: number | null;                         // geolocalizzazione (browser, best-effort)
+  lng?: number | null;
 }
 
 export interface CantiereMateriale {

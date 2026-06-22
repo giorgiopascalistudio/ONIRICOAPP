@@ -202,6 +202,11 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   all'assegnazione) → permette al partner di **elencare** i cantieri assegnati (i partner non
   hanno i cid nei loro `projectIds`). Foto/documenti salvano `{driveFileId,driveUrl}` (upload
   reale Google Drive, vedi `src/drive.ts`) **oppure** `link` (fallback). Tipi in `src/types.ts`.
+  Le **foto** (`CantiereFoto`) sono **timestampate e geolocalizzate** best-effort: all'upload `FotoTab`
+  cattura `navigator.geolocation` (timeout breve, nessun blocco se negata) → salva `takenAt`/`lat`/`lng`;
+  la card mostra data·ora e un badge **GPS** con link alla mappa. Upload abilitato a studio e partner.
+  La **navigazione sezioni** (livello 2) del `CantiereBoard` è una **griglia uniforme di tile** "Strumenti"
+  per area (posizioni stabili/scansionabili) sotto il segmented control delle 3 aree.
 - **Area Impresa** (profilo impresa partner, riutilizzabile su tutti i suoi cantieri, keyed per uid):
   `impresaDocs/<uid>/<id>` (DURC/visure/polizze/SOA/doc dipendenti, con `expiry`) e
   `impresaRecords/<uid>/<id>` (squadre/operai/mezzi/attrezzature/sicurezza, discriminati da `section`).
