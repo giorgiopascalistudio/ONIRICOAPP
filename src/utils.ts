@@ -177,3 +177,20 @@ export function taskDoneOn(t: Task, iso: string): boolean {
   if (f === 'once') return !!t.done;
   return !!(t.completions && t.completions[iso]);
 }
+
+/**
+ * Normalizza `forwardedTo` di una MatericoRequest in elenco di uid.
+ * Gestisce sia la nuova forma a mappa `{uid:true}` sia l'array legacy `string[]`.
+ */
+export function forwardedUids(forwardedTo?: Record<string, boolean> | string[] | null): string[] {
+  if (!forwardedTo) return [];
+  if (Array.isArray(forwardedTo)) return forwardedTo.filter(Boolean);
+  return Object.keys(forwardedTo).filter((k) => forwardedTo[k]);
+}
+
+/** True se la richiesta è stata inoltrata al partner `uid` (mappa o array legacy). */
+export function isForwardedTo(forwardedTo: Record<string, boolean> | string[] | null | undefined, uid: string): boolean {
+  if (!forwardedTo || !uid) return false;
+  if (Array.isArray(forwardedTo)) return forwardedTo.includes(uid);
+  return !!forwardedTo[uid];
+}

@@ -246,7 +246,7 @@ const SECTIONS: SectionDef[] = [
   { area: 'tecnici', id: 'progettazione', label: 'Progettazione', icon: Layers, render: { t: 'cantdoc', section: 'progettazione', categories: ['Elaborati grafici', 'Tavole tecniche', 'Computi metrici', 'Varianti', 'Revisioni'] } },
   { area: 'tecnici', id: 'qualita', label: 'Controllo qualità', icon: ListChecks, render: { t: 'comp', name: 'checklist' } },
   { area: 'tecnici', id: 'doctecnica', label: 'Documentazione tecnica', icon: FolderOpen, render: { t: 'cantdoc', section: 'doctecnica', withExpiry: true, categories: ['Permesso', 'Autorizzazione', 'Pratica comunale', 'Relazione tecnica', 'Certificato'] } },
-  { area: 'tecnici', id: 'collaudi', label: 'Collaudi & test materiali', icon: CheckCircle2, render: { t: 'soon', hint: 'Collaudi, test materiali e certificazioni impianti: in preparazione.' } },
+  { area: 'tecnici', id: 'collaudi', label: 'Collaudi & test materiali', icon: CheckCircle2, render: { t: 'cantrec', section: 'collaudi', statuses: ['Superato', 'Non superato', 'In attesa'], columns: [{ key: 'title', label: 'Collaudo / test' }, { key: 'oggetto', label: 'Materiale / impianto' }, { key: 'ente', label: 'Ente / certificato' }, { key: 'date', label: 'Data', type: 'date' }, { key: 'status', label: 'Esito' }] } },
   { area: 'tecnici', id: 'storico', label: 'Storico', icon: History, render: { t: 'comp', name: 'storico' } },
 
   // ---- Area Impresa (profilo impresa partner, riusabile su tutti i cantieri) ----
@@ -257,7 +257,7 @@ const SECTIONS: SectionDef[] = [
   { area: 'impresa', id: 'mezzi', label: 'Mezzi & attrezzature', icon: Truck, render: { t: 'imprec', section: 'mezzi', statuses: ['Operativo', 'In manutenzione', 'Guasto'], columns: [{ key: 'title', label: 'Mezzo / attrezzatura' }, { key: 'targa', label: 'Targa / codice' }, { key: 'status', label: 'Stato' }] } },
   { area: 'impresa', id: 'materiali', label: 'Materiali (consegne/impiego)', icon: Boxes, render: { t: 'comp', name: 'materiali' } },
   { area: 'impresa', id: 'sicurezza_impresa', label: 'Sicurezza impresa', icon: ShieldCheck, render: { t: 'imprec', section: 'sicurezza_impresa', statuses: ['Valido', 'In scadenza', 'Scaduto'], columns: [{ key: 'title', label: 'Voce (DPI/formazione/visita/patentino)' }, { key: 'lavoratore', label: 'Lavoratore' }, { key: 'date', label: 'Scadenza', type: 'date' }, { key: 'status', label: 'Stato' }] } },
-  { area: 'impresa', id: 'magazzino', label: 'Magazzino & ordini', icon: HardDrive, render: { t: 'soon', hint: 'Ordini, fornitori, magazzino e giacenze dell\'impresa: in preparazione.' } }
+  { area: 'impresa', id: 'magazzino', label: 'Magazzino & ordini', icon: HardDrive, render: { t: 'imprec', section: 'magazzino', statuses: ['Ordinato', 'In arrivo', 'Disponibile', 'Esaurito'], columns: [{ key: 'title', label: 'Articolo / materiale' }, { key: 'fornitore', label: 'Fornitore' }, { key: 'quantita', label: 'Giacenza / Q.tà', type: 'number' }, { key: 'status', label: 'Stato' }] } }
 ];
 
 const CantiereDetail: React.FC<CantiereBoardProps & {

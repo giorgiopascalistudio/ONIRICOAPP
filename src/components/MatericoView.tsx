@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { MatericoRequest, MatericoOffer } from '../types';
 import type { Supplier } from './CrmView';
-import { eur, safeUrl } from '../utils';
+import { eur, safeUrl, forwardedUids } from '../utils';
 
 interface MatericoViewProps {
   requests: MatericoRequest[];
@@ -76,7 +76,7 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
 
   const openRequest = (r: MatericoRequest) => {
     setOpenId(r.id);
-    setPicked(Object.fromEntries((r.forwardedTo || []).map((u) => [u, true])));
+    setPicked(Object.fromEntries(forwardedUids(r.forwardedTo).map((u) => [u, true])));
     setSelPartner(r.selectedPartnerUid || '');
     setMargin(String(r.marginPct ?? 15));
   };
@@ -85,7 +85,7 @@ export const MatericoView: React.FC<MatericoViewProps> = ({
     if (!active) return;
     const to = Object.keys(picked).filter((k) => picked[k]);
     if (to.length === 0) return;
-    onUpdateRequest({ ...active, forwardedTo: to, status: 'inoltrata', updatedAt: Date.now() });
+    onUpdateRequest({ ...active, forwardedTo: Object.fromEntries(to.map((u) => [u, true])), status: 'inoltrata', updatedAt: Date.now() });
   };
 
   const offersRanked = (r: MatericoRequest): MatericoOffer[] =>

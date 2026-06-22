@@ -43,7 +43,7 @@ import { ClientRequestPanel } from './ClientRequestPanel';
 import { CantiereBoard } from './CantiereBoard';
 import { ChatDeleteButton } from './ChatDeleteButton';
 import { ImpresaArea } from './cantiere/ImpresaArea';
-import { eur, fmtDay, isoDate } from '../utils';
+import { eur, fmtDay, isoDate, isForwardedTo } from '../utils';
 import { useLang, LangToggle } from '../i18n';
 import { BLOG_POSTS_IT, BLOG_POSTS_EN } from '../blogPosts';
 import { watchNode } from '../firebase';
@@ -618,7 +618,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
             name={profile.name}
             requests={(matericoRequests || []).filter((r) =>
               profile.role === 'partner'
-                ? (r.forwardedTo || []).includes(profile.uid)
+                ? isForwardedTo(r.forwardedTo, profile.uid)
                 : r.clientUid === profile.uid
             )}
             onCreateRequest={onCreateMatericoRequest}

@@ -153,7 +153,14 @@ dentro Finanze, non più voce sidebar), `TrashView` (Cestino condiviso, vedi §2
   privato/azienda con CF/P.IVA/PEC/SDI/indirizzo). Gestita in CRM → tab "Clienti" (admin/manager).
   In Nuovo/Modifica progetto il select "Cliente (rubrica)" auto-compila i campi (`Project.clientRecordId`);
   collegamento all'account portale resta separato e opzionale (`clientUid`).
-- `matericoRequests/<id>` — flusso Materico (vedi §9).
+- `matericoRequests/<id>` — flusso Materico (vedi §9). `forwardedTo` = mappa `{uid:true}`.
+  Read di collezione solo studio attivo; cliente/partner leggono per-`$id`. Scritture
+  partner/cliente **granulari** (`offers/<uid>`, `status`); oggetto intero solo studio
+  (o cliente alla creazione). **Indici inversi** per le read per-portale (RTDB non filtra):
+  `clientMaterico/<uid>/<reqId>=true` (scritto dal cliente alla creazione) e
+  `partnerMaterico/<uid>/<reqId>=true` (scritto dallo studio all'inoltro) → cliente/partner
+  **elencano** le proprie richieste e si sottoscrivono ai singoli `matericoRequests/<id>`.
+  Migrazione dati legacy: backfill una-tantum lato studio (admin/manager) all'avvio.
 - `clientRequests/<clientUid>/<id>` — **richieste cliente / "La tua idea"** (`ClientRequest`): brief inviato
   dal cliente dal portale per Studio/Strategico/Unico (titolo, descrizione, budget, dove, link e
   **moodboard 3D** opzionale). Annidato per uid come `notifications`: il cliente legge/scrive il proprio
@@ -207,9 +214,13 @@ studio; finanza solo admin/manager; clienti accedono ai propri progetti via
 `clientUid`; nodo `users` protetto da auto-promozione (validate su role/active,
 whitelist email admin). **Quando si aggiunge un nodo DB, aggiornare ANCHE le
 regole** e ricordare all'utente di ripubblicarle.
-- ⚠️ `matericoRequests` ha regole **permissive** (qualunque autenticato
-  legge/scrive) come prima versione del flusso multi-attore; va blindato
-  trasformando `forwardedTo` in mappa `{uid:true}` per le read per-partner.
+- `matericoRequests` è **blindato** (vedi §9): read di collezione solo allo studio
+  attivo; cliente/partner leggono per-`$id` (`clientUid` / `forwardedTo/<uid>==true`)
+  via gli indici inversi `clientMaterico`/`partnerMaterico`. Le scritture di
+  partner/cliente sono **granulari** (offerta propria `offers/<uid>` + `status`),
+  l'oggetto intero lo scrive solo lo studio (o il cliente alla creazione). `forwardedTo`
+  è una **mappa** `{uid:true}` (con normalizzazione legacy array via `forwardedUids`/
+  `isForwardedTo` in `utils.ts`).
 
 ## 8. Agenda / Appuntamenti
 - `CalendarView` ordine **Giorno · Settimana · Mese**, tasti statici (niente
@@ -301,7 +312,8 @@ responsabili/WhatsApp, Task con priorità urgente/tipologia + dashboard produtti
 **backend Cloud Functions** (`functions/`: email SendGrid, reminder schedulati, report) — da deployare.
 Da fare (CRM doc, fasi successive): 5 statistiche + Break Even Point, **Incentivi & Performance**
 (300+ attività a punti), **Marketing & Eventi**, **Sondaggi/Customer satisfaction**, WhatsApp API.
-Da fare: completare le voci Cantiere "in preparazione" (manutenzioni/guasti/magazzino/collaudi…),
+Da fare: completare le restanti voci Cantiere "in preparazione" (manutenzioni/guasti…; **Collaudi
+& test materiali** Area Tecnici e **Magazzino & ordini** Area Impresa ora attivi come registri),
 modulo **Strategico** (marketing), preventivi self-service + PDF + firma, Gantt, timesheet/HR,
 reporting/redditività, integrazioni esterne
 (SDI reale, banche, Google/Outlook, WhatsApp, catasto — richiedono backend).
@@ -345,6 +357,12 @@ reporting/redditività, integrazioni esterne
   legge/scrive il proprio ramo, lo studio attivo non-cliente/non-partner legge tutto; convert→progetto
   riservato ad admin/manager): **ripubblicare le regole**, altrimenti l'invio richieste fallisce in
   silenzio lato portale e lo studio non le vede in "Richieste clienti".
+  ⚠️ **Blindatura `matericoRequests`** (§9): aggiunti/aggiornati i nodi **`matericoRequests`**
+  (read collezione solo studio; read per-`$id` per cliente `clientUid`/partner `forwardedTo`;
+  write granulari `offers/<uid>`+`status`) e i due **indici inversi** **`partnerMaterico/<uid>`**
+  e **`clientMaterico/<uid>`**: **ripubblicare le regole**, altrimenti cliente/partner non vedono
+  le richieste e le offerte falliscono in silenzio (lo studio continua a funzionare). Le richieste
+  legacy vengono migrate da un backfill una-tantum quando un admin/manager apre l'app.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;

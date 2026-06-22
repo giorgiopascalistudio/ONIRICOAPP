@@ -676,7 +676,7 @@ export interface MatericoRequest {
   links?: string[];
   note?: string;
   status: 'nuova' | 'inoltrata' | 'offerte' | 'inviata_cliente' | 'accettata' | 'rifiutata';
-  forwardedTo?: string[];      // uid partner a cui è stata inoltrata
+  forwardedTo?: Record<string, boolean>; // mappa {uid:true} partner a cui è inoltrata (legacy: string[])
   offers?: Record<string, MatericoOffer>;
   selectedPartnerUid?: string | null;
   marginPct?: number;

@@ -320,6 +320,36 @@
     "trash": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'",
       ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
+    },
+
+    "matericoRequests": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
+      "$id": {
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || data.child('clientUid').val() == auth.uid || data.child('forwardedTo').child(auth.uid).val() == true)",
+        ".write": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente') || (!data.exists() && newData.child('clientUid').val() == auth.uid))",
+        "offers": {
+          "$ouid": {
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || (root.child('matericoRequests').child($id).child('forwardedTo').child(auth.uid).val() == true && $ouid == auth.uid))"
+          }
+        },
+        "status": {
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('active').val() == true || root.child('matericoRequests').child($id).child('clientUid').val() == auth.uid || root.child('matericoRequests').child($id).child('forwardedTo').child(auth.uid).val() == true)"
+        }
+      }
+    },
+
+    "partnerMaterico": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente'"
+      }
+    },
+
+    "clientMaterico": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('active').val() == true)",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
+      }
     }
   }
 }

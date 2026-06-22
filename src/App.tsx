@@ -82,6 +82,7 @@ import {
   initials,
   avColor,
   sameDay,
+  forwardedUids,
   TRASH_RETENTION_DAYS
 } from './utils';
 
@@ -756,12 +757,23 @@ export default function App() {
   };
 
   // ---- MATERICO: richieste, offerte, accettazione ----
+  // Scrive la richiesta intera (write riservata allo studio dalle regole, oppure
+  // al cliente alla creazione) e riconcilia l'indice inverso partnerMaterico/<uid>
+  // così i partner possono ELENCARE le richieste a loro inoltrate senza leggere
+  // tutta la collezione (RTDB: le regole non filtrano, vedi nodo partnerCantieri).
   const saveMatericoRequest = (req: MatericoRequest) => {
-    setMatericoRequests((prev) => ({ ...prev, [req.id]: req }));
+    const prev = matericoRequests[req.id];
+    setMatericoRequests((p) => ({ ...p, [req.id]: req }));
     writeNode(`matericoRequests/${req.id}`, req).catch(() => showToast('Errore salvataggio richiesta.', 'err'));
+    const before = new Set(forwardedUids(prev?.forwardedTo));
+    const after = new Set(forwardedUids(req.forwardedTo));
+    after.forEach((uid) => { if (!before.has(uid)) writeNode(`partnerMaterico/${uid}/${req.id}`, true).catch(() => {}); });
+    before.forEach((uid) => { if (!after.has(uid)) removeNode(`partnerMaterico/${uid}/${req.id}`).catch(() => {}); });
   };
   const handleCreateMatericoRequest = (req: MatericoRequest) => {
     saveMatericoRequest(req);
+    // Indice inverso del cliente (creatore): legge le proprie richieste per-id
+    if (req.clientUid) writeNode(`clientMaterico/${req.clientUid}/${req.id}`, true).catch(() => {});
     showToast('Richiesta inviata a Materico.');
   };
   const handleUpdateMatericoRequest = (req: MatericoRequest) => {
@@ -777,27 +789,36 @@ export default function App() {
         return n;
       });
       removeNode(`matericoRequests/${id}`).catch(() => {});
+      // Pulisci gli indici inversi (cliente + partner)
+      if (r?.clientUid) removeNode(`clientMaterico/${r.clientUid}/${id}`).catch(() => {});
+      forwardedUids(r?.forwardedTo).forEach((uid) => removeNode(`partnerMaterico/${uid}/${id}`).catch(() => {}));
       showToast('Richiesta spostata nel Cestino.', 'err');
     });
   };
+  // Offerta partner: scritture GRANULARI (le regole consentono al partner solo la
+  // propria offerta e lo stato, non l'intero oggetto).
   const handleSubmitMatericoOffer = (reqId: string, amount: number, note: string) => {
     const r = matericoRequests[reqId];
     if (!r) return;
-    const offers = { ...(r.offers || {}) };
-    offers[currentUser!.uid] = {
+    const offer = {
       partnerUid: currentUser!.uid,
       partnerName: currentUser!.name,
       amount,
       note: note || undefined,
       at: Date.now()
     };
-    saveMatericoRequest({ ...r, offers, status: 'offerte', updatedAt: Date.now() });
+    setMatericoRequests((p) => ({ ...p, [reqId]: { ...r, offers: { ...(r.offers || {}), [currentUser!.uid]: offer }, status: 'offerte' } }));
+    writeNode(`matericoRequests/${reqId}/offers/${currentUser!.uid}`, offer).catch(() => showToast('Errore invio offerta.', 'err'));
+    writeNode(`matericoRequests/${reqId}/status`, 'offerte').catch(() => {});
     showToast('Offerta inviata a Materico.');
   };
+  // Accetta/rifiuta cliente: scrittura GRANULARE del solo stato.
   const handleAcceptMatericoOffer = (reqId: string, accept: boolean) => {
     const r = matericoRequests[reqId];
     if (!r) return;
-    saveMatericoRequest({ ...r, status: accept ? 'accettata' : 'rifiutata', updatedAt: Date.now() });
+    const status = accept ? 'accettata' : 'rifiutata';
+    setMatericoRequests((p) => ({ ...p, [reqId]: { ...r, status } }));
+    writeNode(`matericoRequests/${reqId}/status`, status).catch(() => showToast('Errore aggiornamento richiesta.', 'err'));
     showToast(accept ? 'Offerta accettata. Lavoro avviato.' : 'Offerta rifiutata.', accept ? 'ok' : 'err');
   };
 
@@ -877,6 +898,7 @@ export default function App() {
   };
 
   const seededRef = useRef(false);
+  const matericoBackfilledRef = useRef(false);
   useEffect(() => {
     if (!currentUser) return;
     const role = currentUser.role;
@@ -939,7 +961,25 @@ export default function App() {
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
-      subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      subs.push(watchNode('matericoRequests', (v) => {
+        const all = (v || {}) as Record<string, MatericoRequest>;
+        setMatericoRequests(all);
+        // Backfill una-tantum (admin/manager: hanno write sugli indici): migra le
+        // richieste legacy → forwardedTo array→mappa + popola gli indici inversi
+        // clientMaterico/partnerMaterico così cliente/partner tornano a vederle.
+        if (canFinance && !matericoBackfilledRef.current) {
+          matericoBackfilledRef.current = true;
+          Object.values(all).forEach((r) => {
+            if (!r || !r.id) return;
+            if (Array.isArray(r.forwardedTo)) {
+              const map = Object.fromEntries(forwardedUids(r.forwardedTo).map((u) => [u, true]));
+              writeNode(`matericoRequests/${r.id}/forwardedTo`, map).catch(() => {});
+            }
+            if (r.clientUid) writeNode(`clientMaterico/${r.clientUid}/${r.id}`, true).catch(() => {});
+            forwardedUids(r.forwardedTo).forEach((u) => writeNode(`partnerMaterico/${u}/${r.id}`, true).catch(() => {}));
+          });
+        }
+      }, () => {}));
       // Richieste clienti (nodo annidato per uid → appiattito per id)
       subs.push(watchNode('clientRequests', (v) => {
         const flat: Record<string, ClientRequest> = {};
@@ -972,7 +1012,27 @@ export default function App() {
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
-      subs.push(watchNode('matericoRequests', (v) => setMatericoRequests(v || {}), () => {}));
+      // Materico: niente lettura dell'intera collezione (le regole RTDB non filtrano).
+      // Cliente/partner si sottoscrivono ai SINGOLI matericoRequests/<id> elencati dal
+      // proprio indice inverso (clientMaterico / partnerMaterico) — come i cantieri partner.
+      {
+        const watchedReq = new Set<string>();
+        const watchReq = (rid: string) => {
+          if (watchedReq.has(rid)) return;
+          watchedReq.add(rid);
+          subs.push(watchNode(`matericoRequests/${rid}`, (rv) => {
+            setMatericoRequests((m) => {
+              const n = { ...m };
+              if (rv) n[rid] = rv; else delete n[rid];
+              return n;
+            });
+          }, () => {}));
+        };
+        const matIndex = currentUser.role === 'partner' ? 'partnerMaterico' : 'clientMaterico';
+        subs.push(watchNode(`${matIndex}/${currentUser.uid}`, (v) => {
+          Object.keys(v || {}).forEach(watchReq);
+        }, () => {}));
+      }
       // Le proprie richieste (clientRequests/<uid>/<id> → keyed per id)
       subs.push(watchNode(`clientRequests/${currentUser.uid}`, (v) => setClientRequests(v || {}), () => {}));
       // Vetrina Unico pubblicata (snapshot pubblici, leggibili da ogni autenticato)
