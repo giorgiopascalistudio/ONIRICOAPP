@@ -340,7 +340,7 @@ manager) — cruscotto direzionale che calcola su dati esistenti (fatture/scaden
 progetti/task): redditività per società+gruppo (motore `consolidato`), incassato vs da incassare,
 **punto di pareggio**, andamento 12 mesi ricavi/costi, portafoglio commesse + pipeline preventivi,
 carico per risorsa. Nessun nodo/regola nuovi.
-Fatto: modulo **Strategico / Marketing** (§22, `StrategicoView`, route `#strategico`): **Eventi & inviti**
+Fatto: modulo **Strategico / Marketing** (§22, `StrategicoView`, dentro Progetti → divisione STRATEGICO): **Eventi & inviti**
 con RSVP dal portale, **Campagne & follow-up** (link `mailto`/`wa.me`, niente backend), **Sondaggi/Customer
 satisfaction** (compilabili dal portale + risultati aggregati), **calendario editoriale Social**, **Analisi**
 (tasso adesione/risposta/conversione, soddisfazione media). Nodi `mkt*` + `mktInvitesIndex`.
@@ -620,9 +620,11 @@ reporting/redditività, integrazioni esterne
   per pagina; le scene puntano ai suoi secondi. Niente upload dal client.
 
 ## 22. Modulo Strategico / Marketing
-- **Dove**: voce sidebar **"Strategico"** (admin/manager), route **`#strategico`** → `StrategicoView`
-  (`src/components/StrategicoView.tsx`, lazy). Colore settore **ambra `#b45309`** (§10). 5 sotto-tab:
-  **Eventi · Campagne · Sondaggi · Social · Analisi**.
+- **Dove**: **dentro Progetti**, divisione **STRATEGICO** (come Unico nella divisione UNICO). Toggle
+  sub-tab **"Progetti | Marketing & Eventi"** (`strategicoTab` in `ProjectsView`, `showStrategicoStudio`
+  → mostra `StrategicoView`, importato diretto in `ProjectsView`). **Non** è una voce sidebar/route a sé.
+  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). 5 sotto-tab:
+  **Eventi · Campagne · Sondaggi · Social · Analisi**. Dati/handler arrivano da App via `ProjectsView`.
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

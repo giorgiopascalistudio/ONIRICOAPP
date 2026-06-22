@@ -123,7 +123,6 @@ const CrmView = React.lazy(() => import('./components/CrmView').then((m) => ({ d
 const TrashView = React.lazy(() => import('./components/TrashView').then((m) => ({ default: m.TrashView })));
 const ClientRequestsView = React.lazy(() => import('./components/ClientRequestsView').then((m) => ({ default: m.ClientRequestsView })));
 const StatsView = React.lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })));
-const StrategicoView = React.lazy(() => import('./components/StrategicoView').then((m) => ({ default: m.StrategicoView })));
 
 // Subcomponents
 import { Sidebar } from './components/Sidebar';
@@ -699,14 +698,14 @@ export default function App() {
     writeNode(`mktEvents/${eventId}/invitees/${currentUser.uid}/status`, status).catch(() => {});
     writeNode(`mktEvents/${eventId}/invitees/${currentUser.uid}/respondedAt`, Date.now()).catch(() => {});
     const ev = mktEvents[eventId];
-    notifyStudio({ type: 'evento', title: `RSVP: ${currentUser.name}`, body: `${status} · ${ev?.title || 'evento'}`, link: '#strategico' }, currentUser.uid);
+    notifyStudio({ type: 'evento', title: `RSVP: ${currentUser.name}`, body: `${status} · ${ev?.title || 'evento'}`, link: '#progetti' }, currentUser.uid);
   };
   const handleSubmitSurveyResponse = (surveyId: string, answers: Record<string, string | number>) => {
     if (!currentUser) return;
     const resp: SurveyResponse = { surveyId, uid: currentUser.uid, name: currentUser.name || null, answers, at: Date.now() };
     writeNode(`mktSurveyResponses/${surveyId}/${currentUser.uid}`, resp).catch(() => {});
     const s = mktSurveys[surveyId];
-    notifyStudio({ type: 'sondaggio', title: 'Nuova risposta sondaggio', body: s?.title || '', link: '#strategico' }, currentUser.uid);
+    notifyStudio({ type: 'sondaggio', title: 'Nuova risposta sondaggio', body: s?.title || '', link: '#progetti' }, currentUser.uid);
   };
   const handleConvertLead = (lead: Lead) => {
     const pid = `p-${Date.now()}`;
@@ -3408,6 +3407,19 @@ export default function App() {
             unicoDeals={unicoDeals}
             onSaveUnicoDeals={saveUnicoDeals}
             onNotifyUnicoInvestors={notifyUnicoInvestors}
+            mktEvents={Object.values(mktEvents)}
+            mktCampaigns={Object.values(mktCampaigns)}
+            mktSurveys={Object.values(mktSurveys)}
+            mktSocial={Object.values(mktSocial)}
+            mktResponses={mktResponses}
+            onSaveMktEvent={handleSaveMktEvent}
+            onDeleteMktEvent={handleDeleteMktEvent}
+            onSaveCampaign={handleSaveCampaign}
+            onDeleteCampaign={handleDeleteCampaign}
+            onSaveSurvey={handleSaveSurvey}
+            onDeleteSurvey={handleDeleteSurvey}
+            onSaveSocialPost={handleSaveSocialPost}
+            onDeleteSocialPost={handleDeleteSocialPost}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}
@@ -3484,27 +3496,6 @@ export default function App() {
             tasks={Object.values(tasks)}
             members={Object.values(users).filter((u) => u && u.active && u.role !== 'cliente' && u.role !== 'partner')}
             onNav={(r) => { window.location.hash = r; }}
-          />
-        );
-
-      case 'strategico':
-        if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
-        return (
-          <StrategicoView
-            events={Object.values(mktEvents)}
-            campaigns={Object.values(mktCampaigns)}
-            surveys={Object.values(mktSurveys)}
-            social={Object.values(mktSocial)}
-            responses={mktResponses}
-            clients={clients}
-            onSaveEvent={handleSaveMktEvent}
-            onDeleteEvent={handleDeleteMktEvent}
-            onSaveCampaign={handleSaveCampaign}
-            onDeleteCampaign={handleDeleteCampaign}
-            onSaveSurvey={handleSaveSurvey}
-            onDeleteSurvey={handleDeleteSurvey}
-            onSaveSocialPost={handleSaveSocialPost}
-            onDeleteSocialPost={handleDeleteSocialPost}
           />
         );
 

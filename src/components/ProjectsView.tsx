@@ -39,7 +39,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -49,6 +49,7 @@ import { eur, fmtDay, isoDate, todayISO, numIt, safeUrl } from '../utils';
 import { StatusCard } from './StatusCard';
 import { MatericoView } from './MatericoView';
 import { UnicoStudioView } from './UnicoStudioView';
+import { StrategicoView } from './StrategicoView';
 import type { Supplier } from './CrmView';
 import { interventoLabel, titoloLabel } from '../studioConfig';
 import { motion, AnimatePresence } from 'motion/react';
@@ -122,6 +123,20 @@ interface ProjectsViewProps {
   unicoDeals?: UnicoDeal[];
   onSaveUnicoDeals?: (deals: UnicoDeal[]) => void;
   onNotifyUnicoInvestors?: (uids: string[], title: string, body: string) => void;
+  // Modulo Strategico / Marketing (divisione Strategico)
+  mktEvents?: MarketingEvent[];
+  mktCampaigns?: Campaign[];
+  mktSurveys?: Survey[];
+  mktSocial?: SocialPost[];
+  mktResponses?: Record<string, Record<string, SurveyResponse>>;
+  onSaveMktEvent?: (e: MarketingEvent) => void;
+  onDeleteMktEvent?: (id: string) => void;
+  onSaveCampaign?: (c: Campaign) => void;
+  onDeleteCampaign?: (id: string) => void;
+  onSaveSurvey?: (s: Survey) => void;
+  onDeleteSurvey?: (id: string) => void;
+  onSaveSocialPost?: (p: SocialPost) => void;
+  onDeleteSocialPost?: (id: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -215,6 +230,19 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   unicoDeals = [],
   onSaveUnicoDeals,
   onNotifyUnicoInvestors,
+  mktEvents = [],
+  mktCampaigns = [],
+  mktSurveys = [],
+  mktSocial = [],
+  mktResponses = {},
+  onSaveMktEvent,
+  onDeleteMktEvent,
+  onSaveCampaign,
+  onDeleteCampaign,
+  onSaveSurvey,
+  onDeleteSurvey,
+  onSaveSocialPost,
+  onDeleteSocialPost,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -258,6 +286,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [quoteDraft, setQuoteDraft] = useState<Quote | null>(null);
   const [matericoTab, setMatericoTab] = useState<'progetti' | 'richieste'>('progetti');
   const [unicoTab, setUnicoTab] = useState<'progetti' | 'studio'>('progetti');
+  const [strategicoTab, setStrategicoTab] = useState<'progetti' | 'studio'>('progetti');
   
   // For Materico & Strategico tools
   const [newEstOpen, setNewEstOpen] = useState(false);
@@ -2152,8 +2181,10 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
   // Unico: dentro la divisione Unico l'operatore passa da "Progetti" al modulo "Operazioni & Investitori".
   const showUnicoStudio = divisionFilter === 'unico' && isInternalBoss && unicoTab === 'studio';
+  // Strategico: dentro la divisione Strategico l'operatore passa da "Progetti" al modulo Marketing.
+  const showStrategicoStudio = divisionFilter === 'strategico' && isInternalBoss && strategicoTab === 'studio';
   // Nasconde lista/filtri progetti quando è attiva una sotto-vista dedicata.
-  const hideProjectsUI = showMatericoInbox || showUnicoStudio;
+  const hideProjectsUI = showMatericoInbox || showUnicoStudio || showStrategicoStudio;
 
   return (
     <div className="flex flex-col gap-6 text-left">
@@ -2252,6 +2283,36 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                     {active && (
                       <motion.div
                         layoutId="unicoSubTabActivePill"
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
+                      />
+                    )}
+                    <span className="relative z-10 font-extrabold">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {divisionFilter === 'strategico' && isInternalBoss && (
+            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
+              {([
+                { id: 'progetti', label: 'Progetti' },
+                { id: 'studio', label: 'Marketing & Eventi' }
+              ] as const).map(t => {
+                const active = strategicoTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setStrategicoTab(t.id)}
+                    className={`relative flex-1 sm:flex-initial text-center text-[11px] sm:text-[12px] font-extrabold px-3.5 sm:px-4 py-1.5 rounded-full cursor-pointer select-none transition-colors duration-300 border-none bg-transparent inline-flex items-center justify-center gap-1.5 ${
+                      active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
+                    }`}
+                    style={{ touchAction: 'none' }}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="strategicoSubTabActivePill"
                         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                         className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
                       />
@@ -2372,6 +2433,23 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onNotifyInvestors={onNotifyUnicoInvestors}
           askDelete={askDelete}
           onTrashItem={onTrashItem}
+        />
+      ) : showStrategicoStudio ? (
+        <StrategicoView
+          events={mktEvents}
+          campaigns={mktCampaigns}
+          surveys={mktSurveys}
+          social={mktSocial}
+          responses={mktResponses}
+          clients={clients || {}}
+          onSaveEvent={onSaveMktEvent || (() => {})}
+          onDeleteEvent={onDeleteMktEvent || (() => {})}
+          onSaveCampaign={onSaveCampaign || (() => {})}
+          onDeleteCampaign={onDeleteCampaign || (() => {})}
+          onSaveSurvey={onSaveSurvey || (() => {})}
+          onDeleteSurvey={onDeleteSurvey || (() => {})}
+          onSaveSocialPost={onSaveSocialPost || (() => {})}
+          onDeleteSocialPost={onDeleteSocialPost || (() => {})}
         />
       ) : showMatericoInbox ? (
         <MatericoView
