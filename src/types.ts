@@ -340,7 +340,31 @@ export interface UnicoInvestor {
   name: string;
   amount: number;        // capitale conferito (€)
   contact?: string | null;
+  email?: string | null;
+  investorUid?: string | null; // account portale collegato (come clientUid) → vede la propria posizione
+  units?: number;        // n° quote sottoscritte (se unitPrice impostato; altrimenti derivato)
+  committedAt?: number;  // data sottoscrizione/conferimento
   at: number;
+}
+
+// Aggiornamento/avanzamento di un'operazione, condiviso con gli investitori collegati.
+export interface UnicoUpdate {
+  id: string;
+  title: string;
+  body: string;
+  at: number;
+  by?: string | null;    // nome di chi pubblica
+}
+
+// Distribuzione effettuata a un investitore (rimborso capitale, rendimento, plusvalenza).
+export type UnicoDistributionKind = 'capitale' | 'rendimento' | 'plusvalenza';
+export interface UnicoDistribution {
+  id: string;
+  investorId: string;
+  amount: number;
+  date: number;
+  kind: UnicoDistributionKind;
+  note?: string | null;
 }
 
 export interface UnicoDeal {
@@ -356,7 +380,14 @@ export interface UnicoDeal {
   minInvestment?: number;    // quota minima (vetrina)
   targetRoi?: number;        // rendimento atteso annuo % (vetrina)
   durationMonths?: number;
+  // SPV (società veicolo) + cap table
+  spvName?: string | null;   // ragione sociale SPV dedicata all'operazione
+  spvVat?: string | null;    // P.IVA / CF della SPV
+  spvNotes?: string | null;
+  unitPrice?: number;        // valore nominale di una quota (€) → n° quote = capitalGoal / unitPrice
   investors: UnicoInvestor[];
+  updates?: UnicoUpdate[];           // comunicazioni agli investitori
+  distributions?: UnicoDistribution[]; // distribuzioni/rendimenti erogati
   matericoProjectId?: string | null; // commessa Materico collegata (ristrutturazione)
   published?: boolean;       // pubblicato nella vetrina Unico
   showcase?: UnicoShowcaseConfig | null; // pagina vetrina cinematica (video + scene)
@@ -404,6 +435,39 @@ export interface UnicoShowcaseEntry {
   image: string;
   videoUrl?: string | null;
   scenes?: UnicoShowcaseScene[];
+  updatedAt: number;
+}
+
+// Snapshot PRIVATO per il singolo investitore — nodo `unicoInvestorPositions/<uid>/<dealId>`.
+// Scritto dallo studio (saveUnicoDeals write-through) per gli investitori con `investorUid`.
+// Contiene SOLO la posizione del destinatario: niente costi d'acquisto/ristrutturazione,
+// niente nomi/importi degli altri investitori. Letto dall'investitore collegato.
+export interface UnicoInvestorPositionDistribution {
+  id: string;
+  amount: number;
+  date: number;
+  kind: UnicoDistributionKind;
+  note?: string | null;
+}
+export interface UnicoInvestorPosition {
+  dealId: string;
+  title: string;
+  type: string;
+  location: string;
+  status: UnicoDealStatus;
+  investorName: string;
+  amount: number;          // capitale conferito dal destinatario
+  units: number;           // sue quote
+  quotaPct: number;        // % sul capitale obiettivo
+  targetRoi: number;
+  durationMonths: number;
+  goal: number;            // capitale obiettivo dell'operazione
+  raised: number;          // totale raccolto (aggregato, no nomi)
+  spvName?: string | null;
+  expectedReturn: number;  // rendimento atteso stimato sul conferito (quota del profitto)
+  distributed: number;     // totale già distribuito al destinatario
+  updates: UnicoUpdate[];
+  distributions: UnicoInvestorPositionDistribution[];
   updatedAt: number;
 }
 
@@ -506,6 +570,9 @@ export interface CantiereFoto {
   by: string;
   role: string;
   at: number;
+  takenAt?: number | null;                     // timestamp di scatto/caricamento (foto cantiere)
+  lat?: number | null;                         // geolocalizzazione (browser, best-effort)
+  lng?: number | null;
 }
 
 export interface CantiereMateriale {
@@ -711,6 +778,112 @@ export interface ClientRequest {
   studioNote?: string | null;                     // nota interna dello studio
   handledBy?: string | null;
   handledByName?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+/* =====================================================================
+ * MODULO STRATEGICO / MARKETING (società controllata Strategico)
+ * Nodi: mktEvents, mktCampaigns, mktSurveys, mktSurveyResponses, mktSocial,
+ * mktInvitesIndex. Vedi §22 di CLAUDE.md.
+ * =================================================================== */
+
+export type RsvpStatus = 'invitato' | 'accettato' | 'rifiutato' | 'forse';
+
+// Singolo invitato a un evento. Può essere un contatto della rubrica (clientId)
+// e/o un account portale (uid) → riceve l'invito e può rispondere (RSVP).
+export interface EventInvitee {
+  name: string;
+  email?: string | null;
+  clientId?: string | null;
+  uid?: string | null;        // account portale (per RSVP + indice mktInvitesIndex)
+  status: RsvpStatus;
+  respondedAt?: number | null;
+}
+
+export interface MarketingEvent {
+  id: string;
+  title: string;
+  date: number;               // data/ora evento
+  location?: string | null;
+  kind?: string | null;       // tipo (open day, inaugurazione, webinar…)
+  description?: string | null;
+  capacity?: number | null;
+  coverUrl?: string | null;
+  invitees: Record<string, EventInvitee>; // keyed (uid o id contatto) → RSVP granulare
+  status?: 'bozza' | 'pubblicato' | 'concluso';
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type CampaignChannel = 'email' | 'whatsapp' | 'social' | 'misto';
+export type CampaignStatus = 'bozza' | 'attiva' | 'conclusa';
+// Passo di follow-up della campagna (offset giorni dall'avvio + messaggio).
+export interface CampaignStep {
+  id: string;
+  offsetDays: number;
+  channel: CampaignChannel;
+  message: string;
+}
+export interface Campaign {
+  id: string;
+  name: string;
+  channel: CampaignChannel;
+  season?: string | null;     // stagionalità (es. "Natale 2026")
+  goal?: string | null;
+  audienceTiers?: number[];    // fasce rubrica destinatarie (1/2/3)
+  audienceSector?: string | null;
+  message?: string | null;     // messaggio principale
+  steps?: CampaignStep[];      // follow-up pianificati
+  status: CampaignStatus;
+  sentCount?: number;          // contatori manuali
+  responses?: number;
+  startAt?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type SurveyQuestionType = 'rating' | 'choice' | 'text';
+export interface SurveyQuestion {
+  id: string;
+  text: string;
+  type: SurveyQuestionType;
+  options?: string[];          // per 'choice'
+}
+export interface Survey {
+  id: string;
+  title: string;
+  intro?: string | null;
+  questions: SurveyQuestion[];
+  audience?: 'tutti' | 'clienti' | 'partner';
+  active: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+// Risposta di un utente — nodo mktSurveyResponses/<surveyId>/<uid>.
+export interface SurveyResponse {
+  surveyId: string;
+  uid: string;
+  name?: string | null;
+  answers: Record<string, string | number>; // questionId → valore
+  at: number;
+}
+
+export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'youtube';
+export type SocialStatus = 'idea' | 'bozza' | 'programmato' | 'pubblicato';
+// Voce del calendario editoriale social.
+export interface SocialPost {
+  id: string;
+  platform: SocialPlatform;
+  caption: string;
+  mediaUrl?: string | null;    // link/asset (renderizzato con safeUrl)
+  link?: string | null;
+  scheduledAt?: number | null;
+  status: SocialStatus;
+  pillar?: string | null;      // pilastro/tema editoriale
+  campaignId?: string | null;  // campagna collegata
+  reach?: number | null;       // metriche manuali
+  likes?: number | null;
   createdAt: number;
   updatedAt?: number;
 }

@@ -34,10 +34,18 @@ import {
   Target,
   Sofa,
   HardHat,
-  Building2
+  Building2,
+  Gem,
+  Wallet,
+  Percent,
+  MapPin,
+  Megaphone,
+  HandCoins,
+  Star,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry, ClientRequest } from '../types';
+import { Project, UserProfile, MatericoEstimate, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, UnicoShowcaseEntry, UnicoInvestorPosition, MarketingEvent, Survey, SurveyResponse, RsvpStatus, ClientRequest } from '../types';
 import { FurnishingsBoard } from './FurnishingsBoard';
 import { ClientRequestPanel } from './ClientRequestPanel';
 import { CantiereBoard } from './CantiereBoard';
@@ -71,6 +79,14 @@ interface ClientPortalViewProps {
   onSubmitMatericoOffer?: (reqId: string, amount: number, note: string) => void;
   /** Vetrina Unico pubblicata (snapshot dal nodo `unicoShowcase`; vuoto → demo). */
   unicoShowcase?: UnicoShowcaseEntry[];
+  /** Le mie posizioni da investitore Unico (snapshot privato, sola lettura). */
+  unicoPositions?: UnicoInvestorPosition[];
+  /** Marketing: eventi a cui sono invitato + sondaggi attivi + le mie risposte. */
+  mktEvents?: MarketingEvent[];
+  mktSurveys?: Survey[];
+  mktResponses?: Record<string, Record<string, SurveyResponse>>;
+  onRsvpEvent?: (eventId: string, status: RsvpStatus) => void;
+  onSubmitSurvey?: (surveyId: string, answers: Record<string, string | number>) => void;
   projectMessages: Record<string, any>;
   documents: Record<string, any>;
   furnishings?: Record<string, Record<string, Furnishing>>;
@@ -126,6 +142,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   clientRequests,
   onCreateClientRequest,
   unicoShowcase,
+  unicoPositions,
+  mktEvents,
+  mktSurveys,
+  mktResponses,
+  onRsvpEvent,
+  onSubmitSurvey,
   projectMessages,
   documents,
   furnishings = {},
@@ -394,6 +416,8 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 {t('portal.noProject.a')}<b className="text-[#161616]">{t('portal.noProject.bold')}</b>{t('portal.noProject.c')}
               </p>
             </div>
+            {(unicoPositions || []).length > 0 && <MyInvestmentsPanel positions={unicoPositions || []} />}
+            <MarketingPortalPanel profile={profile} events={mktEvents || []} surveys={mktSurveys || []} responses={mktResponses || {}} onRsvp={onRsvpEvent} onSubmitSurvey={onSubmitSurvey} />
             <ClientRequestPanel
               profile={profile}
               requests={clientRequests || []}
@@ -684,6 +708,12 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       </div>
 
       <div className="flex-1 max-w-[1080px] mx-auto w-full p-4 md:p-6 flex flex-col gap-6 text-left">
+
+        {/* Le mie posizioni da investitore Unico (sola lettura) */}
+        {(unicoPositions || []).length > 0 && <MyInvestmentsPanel positions={unicoPositions || []} />}
+
+        {/* Inviti eventi + sondaggi (modulo Strategico) */}
+        <MarketingPortalPanel profile={profile} events={mktEvents || []} surveys={mktSurveys || []} responses={mktResponses || {}} onRsvp={onRsvpEvent} onSubmitSurvey={onSubmitSurvey} />
 
         {/* Racconta la tua idea: nuova richiesta per qualsiasi divisione + moodboard 3D */}
         {profile.role === 'cliente' && onCreateClientRequest && (
@@ -2387,5 +2417,237 @@ const AppointmentRequestModal: React.FC<{
         </div>
       )}
     </>
+  );
+};
+
+/* ---------- Portale investitore: "I miei investimenti" (sola lettura) ---------- */
+const INV_STATUS_LABEL: Record<string, string> = {
+  valutazione: 'In valutazione', acquisizione: 'In raccolta', ristrutturazione: 'Ristrutturazione',
+  vendita: 'In vendita', concluso: 'Concluso',
+};
+const MyInvestmentsPanel: React.FC<{ positions: UnicoInvestorPosition[] }> = ({ positions }) => {
+  const sorted = [...positions].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const totInvested = sorted.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const totDistributed = sorted.reduce((s, p) => s + (Number(p.distributed) || 0), 0);
+  const totExpected = sorted.reduce((s, p) => s + (Number(p.expectedReturn) || 0), 0);
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 sm:p-6">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-9 h-9 rounded-xl bg-indigo-50 text-[#4338ca] flex items-center justify-center"><Gem className="w-5 h-5" /></div>
+        <div>
+          <b className="text-[16px] tracking-tight block">I miei investimenti</b>
+          <span className="text-[12px] text-stone-400">Le tue posizioni nelle operazioni immobiliari Unico</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
+        <MiniInv icon={<Wallet className="w-3.5 h-3.5" />} label="Investito" value={eur(totInvested)} />
+        <MiniInv icon={<TrendingUp className="w-3.5 h-3.5" />} label="Rend. atteso" value={eur(totExpected)} accent="#059669" />
+        <MiniInv icon={<HandCoins className="w-3.5 h-3.5" />} label="Distribuito" value={eur(totDistributed)} accent="#4338ca" />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {sorted.map((p) => {
+          const funded = p.goal ? Math.min(100, Math.round((p.raised / p.goal) * 100)) : 0;
+          return (
+            <div key={p.dealId} className="border border-[#ececec] rounded-[18px] p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-stone-400">{p.type}</span>
+                  <b className="block text-[15px] tracking-tight truncate">{p.title}</b>
+                  <span className="flex items-center gap-1 text-[12px] text-stone-500 mt-0.5"><MapPin className="w-3.5 h-3.5" /> {p.location}</span>
+                </div>
+                <span className="shrink-0 text-[10.5px] font-bold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">{INV_STATUS_LABEL[p.status] || p.status}</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-center">
+                <MiniInv label="Conferito" value={eur(p.amount)} compact />
+                <MiniInv label="Quota" value={`${p.quotaPct.toFixed(1)}%${p.units ? ` · ${p.units}q` : ''}`} compact />
+                <MiniInv label="ROI atteso" value={`${p.targetRoi || 0}%`} compact />
+                <MiniInv label="Distribuito" value={eur(p.distributed)} compact accent="#4338ca" />
+              </div>
+
+              <div className="mt-3">
+                <div className="h-1.5 w-full bg-[#eee] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${funded}%`, background: '#4338ca' }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-stone-500 mt-1.5 font-semibold">
+                  <span>Raccolto {eur(p.raised)} / {eur(p.goal)}</span>
+                  <span>{p.durationMonths ? `${p.durationMonths} mesi` : ''}{p.spvName ? ` · ${p.spvName}` : ''}</span>
+                </div>
+              </div>
+
+              {(p.updates || []).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#f3f3f3]">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400 flex items-center gap-1.5 mb-2"><Megaphone className="w-3.5 h-3.5" /> Aggiornamenti</span>
+                  <div className="flex flex-col gap-2">
+                    {p.updates.slice(0, 4).map((u) => (
+                      <div key={u.id} className="bg-[#fafafa] border border-[#ececec] rounded-xl px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <b className="text-[12.5px] flex-1 truncate">{u.title}</b>
+                          <span className="text-[10.5px] text-stone-400 shrink-0">{new Date(u.at).toLocaleDateString('it-IT')}</span>
+                        </div>
+                        <p className="text-[11.5px] text-stone-600 mt-0.5 whitespace-pre-wrap">{u.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(p.distributions || []).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#f3f3f3]">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400 flex items-center gap-1.5 mb-2"><HandCoins className="w-3.5 h-3.5" /> Distribuzioni ricevute</span>
+                  <div className="flex flex-col gap-1.5">
+                    {p.distributions.map((x) => (
+                      <div key={x.id} className="flex items-center justify-between text-[12px]">
+                        <span className="capitalize text-stone-600">{x.kind} · {new Date(x.date).toLocaleDateString('it-IT')}</span>
+                        <b className="text-emerald-700">{eur(x.amount)}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+const MiniInv: React.FC<{ icon?: React.ReactNode; label: string; value: string; accent?: string; compact?: boolean }> = ({ icon, label, value, accent, compact }) => (
+  <div className={`bg-[#fafafa] border border-[#ececec] rounded-xl ${compact ? 'py-2 px-2' : 'py-2.5 px-3'}`}>
+    <span className="flex items-center gap-1 text-[9.5px] font-bold uppercase tracking-wide text-stone-400 justify-center">{icon}{label}</span>
+    <b className={`block ${compact ? 'text-[12.5px]' : 'text-[15px]'} mt-0.5 text-center`} style={accent ? { color: accent } : undefined}>{value}</b>
+  </div>
+);
+
+/* ---------- Portale: inviti eventi + sondaggi (modulo Strategico) ---------- */
+const MKT_ACCENT = '#b45309';
+const MarketingPortalPanel: React.FC<{
+  profile: UserProfile;
+  events: MarketingEvent[];
+  surveys: Survey[];
+  responses: Record<string, Record<string, SurveyResponse>>;
+  onRsvp?: (eventId: string, status: RsvpStatus) => void;
+  onSubmitSurvey?: (surveyId: string, answers: Record<string, string | number>) => void;
+}> = ({ profile, events, surveys, responses, onRsvp, onSubmitSurvey }) => {
+  const [openSurvey, setOpenSurvey] = useState<Survey | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string | number>>({});
+
+  // Eventi futuri a cui sono invitato
+  const myEvents = (events || [])
+    .filter((e) => (e.invitees || {})[profile.uid])
+    .filter((e) => (e.date || 0) >= Date.now() - 864e5)
+    .sort((a, b) => (a.date || 0) - (b.date || 0));
+  // Sondaggi attivi per il mio ruolo, non ancora compilati
+  const aud = profile.role === 'partner' ? 'partner' : 'clienti';
+  const mySurveys = (surveys || []).filter((s) => s.active && (s.audience === 'tutti' || s.audience === aud) && !(responses[s.id] || {})[profile.uid]);
+
+  if (myEvents.length === 0 && mySurveys.length === 0 && !openSurvey) return null;
+
+  const submit = (s: Survey) => {
+    onSubmitSurvey?.(s.id, answers);
+    setOpenSurvey(null);
+    setAnswers({});
+  };
+
+  return (
+    <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-5 sm:p-6">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white" style={{ background: MKT_ACCENT }}><Megaphone className="w-5 h-5" /></div>
+        <div>
+          <b className="text-[16px] tracking-tight block">Inviti & sondaggi</b>
+          <span className="text-[12px] text-stone-400">Eventi a cui sei invitato e questionari da Onirico</span>
+        </div>
+      </div>
+
+      {myEvents.length > 0 && (
+        <div className="flex flex-col gap-2.5 mb-3">
+          {myEvents.map((e) => {
+            const my = (e.invitees || {})[profile.uid];
+            return (
+              <div key={e.id} className="border border-[#ececec] rounded-[16px] p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    {e.kind && <span className="text-[10px] font-bold uppercase tracking-wide text-stone-400">{e.kind}</span>}
+                    <b className="block text-[14.5px] truncate">{e.title}</b>
+                    <span className="flex items-center gap-1 text-[12px] text-stone-500 mt-0.5"><Clock className="w-3.5 h-3.5" /> {e.date ? new Date(e.date).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                    {e.location && <span className="flex items-center gap-1 text-[12px] text-stone-500 mt-0.5"><MapPin className="w-3.5 h-3.5" /> {e.location}</span>}
+                  </div>
+                </div>
+                {e.description && <p className="text-[12.5px] text-stone-600 mt-2">{e.description}</p>}
+                <div className="flex items-center gap-2 mt-3">
+                  {([['accettato', 'Partecipo', CheckCircle2, '#059669'], ['forse', 'Forse', HelpCircle, '#b45309'], ['rifiutato', 'Non posso', XCircle, '#dc2626']] as const).map(([st, lbl, Icon, col]) => {
+                    const active = my?.status === st;
+                    return (
+                      <button key={st} onClick={() => onRsvp?.(e.id, st as RsvpStatus)}
+                        className={`flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg text-[12.5px] font-bold border cursor-pointer transition-all ${active ? 'text-white border-transparent' : 'bg-white text-stone-600 border-[#e2e2e2] hover:border-stone-400'}`}
+                        style={active ? { background: col } : undefined}>
+                        <Icon className="w-3.5 h-3.5" /> {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {mySurveys.map((s) => (
+        <div key={s.id} className="border border-amber-200 bg-amber-50/40 rounded-[16px] p-4 mb-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <b className="block text-[14px] truncate flex items-center gap-1.5"><ClipboardList className="w-4 h-4 text-[#b45309]" /> {s.title}</b>
+              {s.intro && <span className="text-[12px] text-stone-500">{s.intro}</span>}
+            </div>
+            <button onClick={() => { setOpenSurvey(s); setAnswers({}); }} className="shrink-0 h-9 px-4 rounded-lg text-white font-bold text-[12.5px] border-none cursor-pointer" style={{ background: MKT_ACCENT }}>Compila</button>
+          </div>
+        </div>
+      ))}
+
+      <AnimatePresence>
+        {openSurvey && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setOpenSurvey(null)}>
+            <motion.div initial={{ y: 30, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(ev) => ev.stopPropagation()} className="bg-white w-full sm:max-w-[560px] max-h-[92vh] overflow-y-auto rounded-t-[26px] sm:rounded-[26px] shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[#ececec] sticky top-0 bg-white z-10">
+                <b className="text-[16px] tracking-tight">{openSurvey.title}</b>
+                <button onClick={() => setOpenSurvey(null)} className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><X className="w-4.5 h-4.5" /></button>
+              </div>
+              <div className="p-6 flex flex-col gap-4">
+                {openSurvey.intro && <p className="text-[13px] text-stone-500">{openSurvey.intro}</p>}
+                {openSurvey.questions.map((q, idx) => (
+                  <div key={q.id} className="flex flex-col gap-2">
+                    <label className="text-[13.5px] font-bold">{idx + 1}. {q.text}</label>
+                    {q.type === 'rating' ? (
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button key={n} onClick={() => setAnswers((a) => ({ ...a, [q.id]: n }))} className="w-9 h-9 rounded-lg border flex items-center justify-center cursor-pointer" style={Number(answers[q.id]) >= n ? { background: MKT_ACCENT, borderColor: MKT_ACCENT } : { borderColor: '#e2e2e2', background: '#fff' }}>
+                            <Star className="w-4 h-4" style={{ color: Number(answers[q.id]) >= n ? '#fff' : '#cbcbcb' }} />
+                          </button>
+                        ))}
+                      </div>
+                    ) : q.type === 'choice' ? (
+                      <div className="flex flex-col gap-1.5">
+                        {(q.options || []).map((opt) => (
+                          <button key={opt} onClick={() => setAnswers((a) => ({ ...a, [q.id]: opt }))} className={`text-left text-[13px] px-3 py-2 rounded-lg border cursor-pointer ${answers[q.id] === opt ? 'border-amber-300 bg-amber-50 font-bold' : 'border-[#e2e2e2] bg-white'}`}>{opt}</button>
+                        ))}
+                      </div>
+                    ) : (
+                      <textarea className="w-full px-3 py-2 text-[14px] border border-[#e2e2e2] rounded-lg bg-white outline-none focus:border-[#b45309] min-h-[64px]" value={String(answers[q.id] ?? '')} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-[#ececec] sticky bottom-0 bg-white">
+                <button onClick={() => setOpenSurvey(null)} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button>
+                <button onClick={() => submit(openSurvey)} className="h-10 px-5 rounded-xl text-white font-bold text-[13px] border-none cursor-pointer flex items-center gap-1.5" style={{ background: MKT_ACCENT }}><Send className="w-4 h-4" /> Invia</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };

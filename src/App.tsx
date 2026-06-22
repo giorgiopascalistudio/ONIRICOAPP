@@ -40,6 +40,9 @@ import {
   ClientRequest,
   UnicoDeal,
   UnicoShowcaseEntry,
+  UnicoInvestorPosition,
+  UnicoUpdate,
+  UnicoDistribution,
   Furnishing,
   Cantiere,
   Rapportino,
@@ -60,7 +63,13 @@ import {
   Quote,
   PaymentMilestone,
   TrashItem,
-  UserRole
+  UserRole,
+  MarketingEvent,
+  Campaign,
+  Survey,
+  SurveyResponse,
+  SocialPost,
+  RsvpStatus
 } from './types';
 
 import {
@@ -114,6 +123,7 @@ const CrmView = React.lazy(() => import('./components/CrmView').then((m) => ({ d
 const TrashView = React.lazy(() => import('./components/TrashView').then((m) => ({ default: m.TrashView })));
 const ClientRequestsView = React.lazy(() => import('./components/ClientRequestsView').then((m) => ({ default: m.ClientRequestsView })));
 const StatsView = React.lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })));
+const StrategicoView = React.lazy(() => import('./components/StrategicoView').then((m) => ({ default: m.StrategicoView })));
 
 // Subcomponents
 import { Sidebar } from './components/Sidebar';
@@ -149,7 +159,7 @@ import {
   InvoicePassive,
   ScadenzaItem
 } from './finance';
-import { dealToShowcaseEntry } from './showcaseData';
+import { dealToShowcaseEntry, dealToInvestorPositions } from './showcaseData';
 
 interface Toast {
   id: string;
@@ -314,6 +324,18 @@ export default function App() {
   const [unicoDeals, setUnicoDeals] = useState<UnicoDeal[]>([]);
   // Vetrina Unico pubblicata (snapshot pubblici dei deal `published`, nodo `unicoShowcase`)
   const [unicoShowcase, setUnicoShowcase] = useState<Record<string, UnicoShowcaseEntry>>({});
+  // Posizioni private del singolo investitore (nodo unicoInvestorPositions/<uid>), lato portale
+  const [unicoPositions, setUnicoPositions] = useState<Record<string, UnicoInvestorPosition>>({});
+  // uid che avevano una posizione all'ultima scrittura (per ripulire quelle rimosse)
+  const prevInvestorUidsRef = useRef<Set<string>>(new Set());
+
+  // Modulo Strategico / Marketing
+  const [mktEvents, setMktEvents] = useState<Record<string, MarketingEvent>>({});
+  const [mktCampaigns, setMktCampaigns] = useState<Record<string, Campaign>>({});
+  const [mktSurveys, setMktSurveys] = useState<Record<string, Survey>>({});
+  const [mktSocial, setMktSocial] = useState<Record<string, SocialPost>>({});
+  // Studio: tutte le risposte sondaggio (surveyId → uid → risposta). Portale: solo le proprie.
+  const [mktResponses, setMktResponses] = useState<Record<string, Record<string, SurveyResponse>>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -584,6 +606,107 @@ export default function App() {
     arr.filter((d) => d.published).forEach((d) => { pub[d.id] = dealToShowcaseEntry(d); });
     setUnicoShowcase(pub);
     writeNode('unicoShowcase', pub).catch(() => {});
+    // Write-through delle posizioni PRIVATE per investitore collegato (investorUid).
+    // Aggrega per uid tutte le sue posizioni (su più operazioni) e scrive il nodo intero.
+    const byUid: Record<string, Record<string, UnicoInvestorPosition>> = {};
+    arr.forEach((d) => {
+      const positions = dealToInvestorPositions(d);
+      Object.entries(positions).forEach(([uid, pos]) => {
+        (byUid[uid] ||= {})[d.id] = pos;
+      });
+    });
+    const nextUids = new Set(Object.keys(byUid));
+    Object.entries(byUid).forEach(([uid, map]) => writeNode(`unicoInvestorPositions/${uid}`, map).catch(() => {}));
+    // Ripulisce le posizioni degli investitori non più collegati a nessuna operazione.
+    prevInvestorUidsRef.current.forEach((uid) => {
+      if (!nextUids.has(uid)) removeNode(`unicoInvestorPositions/${uid}`).catch(() => {});
+    });
+    prevInvestorUidsRef.current = nextUids;
+  };
+  // Notifica in-app agli investitori collegati di un'operazione Unico (es. nuovo aggiornamento
+  // o distribuzione). I link puntano al portale → sezione "I miei investimenti".
+  const notifyUnicoInvestors = (uids: string[], title: string, body: string) => {
+    Array.from(new Set(uids.filter(Boolean))).forEach((uid) =>
+      pushNotification(uid, { type: 'unico', title, body, link: '#portale/investimenti' })
+    );
+  };
+
+  // ---- Modulo Strategico / Marketing (studio) ----
+  const handleSaveMktEvent = (ev: MarketingEvent) => {
+    const enriched: MarketingEvent = { ...ev, updatedAt: Date.now(), createdAt: ev.createdAt || Date.now() };
+    setMktEvents((prev) => ({ ...prev, [ev.id]: enriched }));
+    writeNode(`mktEvents/${ev.id}`, enriched).catch(() => showToast('Errore eventi (controlla regole).', 'err'));
+    // Indice inviti + notifica per gli invitati con account portale
+    Object.values(enriched.invitees || {}).forEach((inv) => {
+      if (inv.uid) {
+        writeNode(`mktInvitesIndex/${inv.uid}/${ev.id}`, true).catch(() => {});
+        pushNotification(inv.uid, { type: 'evento', title: `Invito: ${enriched.title}`, body: enriched.date ? new Date(enriched.date).toLocaleString('it-IT') : '', link: '#portale' });
+      }
+    });
+  };
+  const handleDeleteMktEvent = (id: string) => {
+    const ev = mktEvents[id];
+    askDelete('Eliminare questo evento?', ev ? `"${ev.title}"` : null, () => {
+      if (ev) moveToTrash('mkt-evento', ev.title || 'Evento', ev);
+      setMktEvents((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktEvents/${id}`).catch(() => {});
+      Object.values(ev?.invitees || {}).forEach((inv) => { if (inv.uid) removeNode(`mktInvitesIndex/${inv.uid}/${id}`).catch(() => {}); });
+    });
+  };
+  const handleSaveCampaign = (c: Campaign) => {
+    const enriched: Campaign = { ...c, updatedAt: Date.now(), createdAt: c.createdAt || Date.now() };
+    setMktCampaigns((prev) => ({ ...prev, [c.id]: enriched }));
+    writeNode(`mktCampaigns/${c.id}`, enriched).catch(() => showToast('Errore campagne (controlla regole).', 'err'));
+  };
+  const handleDeleteCampaign = (id: string) => {
+    const c = mktCampaigns[id];
+    askDelete('Eliminare questa campagna?', c ? `"${c.name}"` : null, () => {
+      if (c) moveToTrash('mkt-campagna', c.name || 'Campagna', c);
+      setMktCampaigns((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktCampaigns/${id}`).catch(() => {});
+    });
+  };
+  const handleSaveSurvey = (s: Survey) => {
+    const enriched: Survey = { ...s, updatedAt: Date.now(), createdAt: s.createdAt || Date.now() };
+    setMktSurveys((prev) => ({ ...prev, [s.id]: enriched }));
+    writeNode(`mktSurveys/${s.id}`, enriched).catch(() => showToast('Errore sondaggi (controlla regole).', 'err'));
+  };
+  const handleDeleteSurvey = (id: string) => {
+    const s = mktSurveys[id];
+    askDelete('Eliminare questo sondaggio?', s ? `"${s.title}"` : null, () => {
+      if (s) moveToTrash('mkt-sondaggio', s.title || 'Sondaggio', s);
+      setMktSurveys((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktSurveys/${id}`).catch(() => {});
+    });
+  };
+  const handleSaveSocialPost = (p: SocialPost) => {
+    const enriched: SocialPost = { ...p, updatedAt: Date.now(), createdAt: p.createdAt || Date.now() };
+    setMktSocial((prev) => ({ ...prev, [p.id]: enriched }));
+    writeNode(`mktSocial/${p.id}`, enriched).catch(() => showToast('Errore social (controlla regole).', 'err'));
+  };
+  const handleDeleteSocialPost = (id: string) => {
+    const p = mktSocial[id];
+    askDelete('Eliminare questo post?', p ? `"${(p.caption || '').slice(0, 40)}"` : null, () => {
+      if (p) moveToTrash('mkt-social', (p.caption || 'Post').slice(0, 40), p);
+      setMktSocial((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktSocial/${id}`).catch(() => {});
+    });
+  };
+
+  // ---- Marketing lato portale (cliente/partner) ----
+  const handleRsvpEvent = (eventId: string, status: RsvpStatus) => {
+    if (!currentUser) return;
+    writeNode(`mktEvents/${eventId}/invitees/${currentUser.uid}/status`, status).catch(() => {});
+    writeNode(`mktEvents/${eventId}/invitees/${currentUser.uid}/respondedAt`, Date.now()).catch(() => {});
+    const ev = mktEvents[eventId];
+    notifyStudio({ type: 'evento', title: `RSVP: ${currentUser.name}`, body: `${status} · ${ev?.title || 'evento'}`, link: '#strategico' }, currentUser.uid);
+  };
+  const handleSubmitSurveyResponse = (surveyId: string, answers: Record<string, string | number>) => {
+    if (!currentUser) return;
+    const resp: SurveyResponse = { surveyId, uid: currentUser.uid, name: currentUser.name || null, answers, at: Date.now() };
+    writeNode(`mktSurveyResponses/${surveyId}/${currentUser.uid}`, resp).catch(() => {});
+    const s = mktSurveys[surveyId];
+    notifyStudio({ type: 'sondaggio', title: 'Nuova risposta sondaggio', body: s?.title || '', link: '#strategico' }, currentUser.uid);
   };
   const handleConvertLead = (lead: Lead) => {
     const pid = `p-${Date.now()}`;
@@ -959,8 +1082,22 @@ export default function App() {
       }
       subs.push(watchNode('crmLeads', (v) => setCrmLeads(toArr(v)), () => {}));
       subs.push(watchNode('crmSuppliers', (v) => setCrmSuppliers(toArr(v)), () => {}));
-      subs.push(watchNode('unicoDeals', (v) => setUnicoDeals(toArr(v)), () => {}));
+      subs.push(watchNode('unicoDeals', (v) => {
+        const arr = toArr(v) as UnicoDeal[];
+        setUnicoDeals(arr);
+        // Allinea il set di uid con posizione, così il cleanup write-through resta corretto
+        // anche tra sessioni diverse (investitore scollegato in una sessione successiva).
+        const uids = new Set<string>();
+        arr.forEach((d) => (d.investors || []).forEach((i) => { if (i.investorUid) uids.add(i.investorUid); }));
+        prevInvestorUidsRef.current = uids;
+      }, () => {}));
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
+      // Modulo Strategico / Marketing (studio)
+      subs.push(watchNode('mktEvents', (v) => setMktEvents(v || {}), () => {}));
+      subs.push(watchNode('mktCampaigns', (v) => setMktCampaigns(v || {}), () => {}));
+      subs.push(watchNode('mktSurveys', (v) => setMktSurveys(v || {}), () => {}));
+      subs.push(watchNode('mktSocial', (v) => setMktSocial(v || {}), () => {}));
+      subs.push(watchNode('mktSurveyResponses', (v) => setMktResponses(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => {
@@ -1013,6 +1150,7 @@ export default function App() {
       add('trash', setTrash);
     } else {
       // Cliente/Partner: solo i propri progetti (regole via clientUid)
+      const watchedSurveyResp = new Set<string>(); // sondaggi di cui seguo già la mia risposta
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       // Materico: niente lettura dell'intera collezione (le regole RTDB non filtrano).
       // Cliente/partner si sottoscrivono ai SINGOLI matericoRequests/<id> elencati dal
@@ -1039,6 +1177,44 @@ export default function App() {
       subs.push(watchNode(`clientRequests/${currentUser.uid}`, (v) => setClientRequests(v || {}), () => {}));
       // Vetrina Unico pubblicata (snapshot pubblici, leggibili da ogni autenticato)
       subs.push(watchNode('unicoShowcase', (v) => setUnicoShowcase(v || {}), () => {}));
+      // Le mie posizioni da investitore (sola lettura, scritte dallo studio)
+      subs.push(watchNode(`unicoInvestorPositions/${currentUser.uid}`, (v) => setUnicoPositions(v || {}), () => {}));
+      // Marketing lato portale: sondaggi (leggibili da ogni autenticato) + le mie risposte
+      subs.push(watchNode('mktSurveys', (v) => {
+        const all = (v || {}) as Record<string, Survey>;
+        setMktSurveys(all);
+        // Per ogni sondaggio attivo, sottoscrivi la MIA risposta (rule: solo auth.uid==$uid)
+        Object.keys(all).forEach((sid) => {
+          if (watchedSurveyResp.has(sid)) return;
+          watchedSurveyResp.add(sid);
+          subs.push(watchNode(`mktSurveyResponses/${sid}/${currentUser.uid}`, (rv) => {
+            setMktResponses((m) => {
+              const n = { ...m };
+              const branch = { ...(n[sid] || {}) };
+              if (rv) branch[currentUser.uid] = rv as SurveyResponse; else delete branch[currentUser.uid];
+              n[sid] = branch;
+              return n;
+            });
+          }, () => {}));
+        });
+      }, () => {}));
+      // Inviti eventi: indice inverso → sottoscrive i singoli mktEvents/<id>
+      {
+        const watchedEv = new Set<string>();
+        subs.push(watchNode(`mktInvitesIndex/${currentUser.uid}`, (v) => {
+          Object.keys(v || {}).forEach((eid) => {
+            if (watchedEv.has(eid)) return;
+            watchedEv.add(eid);
+            subs.push(watchNode(`mktEvents/${eid}`, (ev) => {
+              setMktEvents((m) => {
+                const n = { ...m };
+                if (ev) n[eid] = ev; else delete n[eid];
+                return n;
+              });
+            }, () => {}));
+          });
+        }, () => {}));
+      }
       const pids = Object.keys(currentUser.projectIds || {});
       pids.forEach((pid) => {
         subs.push(watchNode(`projects/${pid}`, (v) => {
@@ -1250,6 +1426,22 @@ export default function App() {
         case 'ferie':
           setTeamLeave((prev) => ({ ...prev, [id]: pl }));
           writeNode(`teamLeave/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-evento':
+          setMktEvents((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktEvents/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-campagna':
+          setMktCampaigns((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktCampaigns/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-sondaggio':
+          setMktSurveys((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktSurveys/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-social':
+          setMktSocial((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktSocial/${id}`, pl).catch(() => {});
           break;
         default:
           showToast('Sezione non ripristinabile automaticamente.', 'err');
@@ -2923,6 +3115,12 @@ export default function App() {
         clientRequests={Object.values(clientRequests)}
         onCreateClientRequest={handleCreateClientRequest}
         unicoShowcase={Object.values(unicoShowcase)}
+        unicoPositions={Object.values(unicoPositions)}
+        mktEvents={Object.values(mktEvents)}
+        mktSurveys={Object.values(mktSurveys)}
+        mktResponses={mktResponses}
+        onRsvpEvent={handleRsvpEvent}
+        onSubmitSurvey={handleSubmitSurveyResponse}
         projectMessages={projectMessages}
         documents={documents}
         furnishings={furnishings}
@@ -3209,6 +3407,7 @@ export default function App() {
             onDeleteMatericoRequest={handleDeleteMatericoRequest}
             unicoDeals={unicoDeals}
             onSaveUnicoDeals={saveUnicoDeals}
+            onNotifyUnicoInvestors={notifyUnicoInvestors}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}
@@ -3285,6 +3484,27 @@ export default function App() {
             tasks={Object.values(tasks)}
             members={Object.values(users).filter((u) => u && u.active && u.role !== 'cliente' && u.role !== 'partner')}
             onNav={(r) => { window.location.hash = r; }}
+          />
+        );
+
+      case 'strategico':
+        if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
+        return (
+          <StrategicoView
+            events={Object.values(mktEvents)}
+            campaigns={Object.values(mktCampaigns)}
+            surveys={Object.values(mktSurveys)}
+            social={Object.values(mktSocial)}
+            responses={mktResponses}
+            clients={clients}
+            onSaveEvent={handleSaveMktEvent}
+            onDeleteEvent={handleDeleteMktEvent}
+            onSaveCampaign={handleSaveCampaign}
+            onDeleteCampaign={handleDeleteCampaign}
+            onSaveSurvey={handleSaveSurvey}
+            onDeleteSurvey={handleDeleteSurvey}
+            onSaveSocialPost={handleSaveSocialPost}
+            onDeleteSocialPost={handleDeleteSocialPost}
           />
         );
 

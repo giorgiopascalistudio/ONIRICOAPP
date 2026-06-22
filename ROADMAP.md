@@ -45,7 +45,7 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 
 ## Gestione Cantiere
 - 🟢 Diario di cantiere · presenze · forniture · non conformità · verbali — da costruire (dati+UI)
-- 🟢 Foto timestampate + geolocalizzate — da costruire (geolocation browser + Firebase Storage)
+- ✅ Foto timestampate + geolocalizzate — **FATTO** (geolocation browser best-effort + badge GPS/link mappa nel `CantiereBoard`)
 
 ## Risorse Umane & Team
 - ✅ Profili con ruoli e permessi
@@ -57,7 +57,10 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 - 🟢 Export PDF/Excel — da aggiungere (jsPDF / SheetJS lato app)
 
 ## Modulo Immobiliare (Flipping/Crowdfunding)
-- 🟢 Portafoglio immobili · scheda immobile · investitori · ROI · SPV · update investitori — modulo nuovo da costruire
+- ✅ Portafoglio immobili · scheda immobile · investitori · ROI · **SPV/cap table** · **update investitori** · **portale investitore** · **rendiconto/distribuzioni** — **FATTO** (Unico, `UnicoStudioView` + `unicoInvestorPositions`)
+
+## Modulo Strategico / Marketing
+- ✅ Eventi & inviti (RSVP) · Campagne & follow-up (link email/WhatsApp) · Sondaggi/customer satisfaction · calendario editoriale Social · Analisi — **FATTO** (`StrategicoView`, nodi `mkt*`)
 
 ## Modulo Energia Rinnovabile
 - 🟢 Censimento lotti · stato pratiche · offerte · scadenze — modulo nuovo da costruire

@@ -93,6 +93,58 @@
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'manager')"
     },
 
+    "unicoInvestorPositions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && (auth.uid == $uid || (root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'))"
+      }
+    },
+
+    "mktEvents": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'",
+      "$id": {
+        ".read": "auth != null && ((root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner') || data.child('invitees').child(auth.uid).exists())",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'",
+        "invitees": {
+          "$iuid": {
+            ".write": "auth != null && ($iuid == auth.uid || (root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'))"
+          }
+        }
+      }
+    },
+
+    "mktCampaigns": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'"
+    },
+
+    "mktSurveys": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'"
+    },
+
+    "mktSurveyResponses": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'",
+      "$sid": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && (auth.uid == $uid || (root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'))"
+        }
+      }
+    },
+
+    "mktSocial": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'"
+    },
+
+    "mktInvitesIndex": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && root.child('users').child(auth.uid).child('role').val() != 'cliente' && root.child('users').child(auth.uid).child('role').val() != 'partner'"
+      }
+    },
+
     "appointments": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true",
       "$id": {

@@ -11,7 +11,7 @@
  * il mapper deal→snapshot pubblico per il nodo `unicoShowcase`.
  */
 
-import type { UnicoDeal, UnicoShowcaseEntry, UnicoShowcaseScene } from './types';
+import type { UnicoDeal, UnicoShowcaseEntry, UnicoShowcaseScene, UnicoInvestorPosition } from './types';
 
 export type ServiceKey = 'studio' | 'materico' | 'strategico' | 'unico';
 
@@ -571,4 +571,50 @@ export function dealToShowcaseEntry(d: UnicoDeal): UnicoShowcaseEntry {
     scenes: sc.scenes || [],
     updatedAt: Date.now(),
   };
+}
+
+// Costruisce le posizioni PRIVATE per gli investitori collegati (con investorUid)
+// di un'operazione → mappa { uid: UnicoInvestorPosition }. Solo dati del destinatario:
+// niente costi d'acquisto/ristrutturazione né importi/nomi degli altri investitori.
+export function dealToInvestorPositions(d: UnicoDeal): Record<string, UnicoInvestorPosition> {
+  const out: Record<string, UnicoInvestorPosition> = {};
+  const goal = Number(d.capitalGoal) || 0;
+  const raised = (d.investors || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  // Profitto atteso dell'operazione = vendita − acquisto − ristrutturazione.
+  const profit = (Number(d.targetSalePrice) || 0) - (Number(d.acquisitionCost) || 0) - (Number(d.renovationBudget) || 0);
+  const updates = (d.updates || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  (d.investors || []).forEach((inv) => {
+    const uid = inv.investorUid;
+    if (!uid) return;
+    const amount = Number(inv.amount) || 0;
+    const quotaPct = goal ? (amount / goal) * 100 : 0;
+    const units = inv.units != null ? Number(inv.units) : (d.unitPrice ? amount / Number(d.unitPrice) : 0);
+    // Rendimento atteso = quota del profitto dell'operazione proporzionale al conferito.
+    const expectedReturn = raised ? (amount / raised) * profit : 0;
+    const myDist = (d.distributions || []).filter((x) => x.investorId === inv.id);
+    out[uid] = {
+      dealId: d.id,
+      title: d.title || 'Operazione Unico',
+      type: d.type || 'Immobile',
+      location: d.location || 'Puglia',
+      status: d.status,
+      investorName: inv.name,
+      amount,
+      units: Math.round(units * 100) / 100,
+      quotaPct: Math.round(quotaPct * 100) / 100,
+      targetRoi: Number(d.targetRoi) || 0,
+      durationMonths: Number(d.durationMonths) || 0,
+      goal,
+      raised,
+      spvName: d.spvName || null,
+      expectedReturn: Math.round(expectedReturn),
+      distributed: myDist.reduce((s, x) => s + (Number(x.amount) || 0), 0),
+      updates,
+      distributions: myDist
+        .map((x) => ({ id: x.id, amount: Number(x.amount) || 0, date: x.date, kind: x.kind, note: x.note || null }))
+        .sort((a, b) => (b.date || 0) - (a.date || 0)),
+      updatedAt: Date.now(),
+    };
+  });
+  return out;
 }

@@ -121,6 +121,7 @@ interface ProjectsViewProps {
   onDeleteMatericoRequest?: (id: string) => void;
   unicoDeals?: UnicoDeal[];
   onSaveUnicoDeals?: (deals: UnicoDeal[]) => void;
+  onNotifyUnicoInvestors?: (uids: string[], title: string, body: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -213,6 +214,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onDeleteMatericoRequest,
   unicoDeals = [],
   onSaveUnicoDeals,
+  onNotifyUnicoInvestors,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -2365,7 +2367,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           deals={unicoDeals}
           onSave={onSaveUnicoDeals || (() => {})}
           projects={projects}
+          users={users}
           canEdit={isInternalBoss}
+          onNotifyInvestors={onNotifyUnicoInvestors}
           askDelete={askDelete}
           onTrashItem={onTrashItem}
         />
