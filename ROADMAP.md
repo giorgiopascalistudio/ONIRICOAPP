@@ -53,7 +53,7 @@ Legenda: ✅ già presente · 🟢 costruibile subito (solo app + Firebase) ·
 
 ## Reporting & Analytics
 - ✅ Dashboard direzionale (base)
-- 🟢 Redditività per commessa · carico per risorsa · proiezioni · avanzamento portafoglio — da costruire
+- ✅ Redditività · carico per risorsa · avanzamento portafoglio · Break Even Point — **FATTO** (Statistiche, `StatsView`)
 - 🟢 Export PDF/Excel — da aggiungere (jsPDF / SheetJS lato app)
 
 ## Modulo Immobiliare (Flipping/Crowdfunding)

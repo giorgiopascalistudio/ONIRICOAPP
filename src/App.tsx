@@ -113,6 +113,7 @@ const DocumentsView = React.lazy(() => import('./components/DocumentsView').then
 const CrmView = React.lazy(() => import('./components/CrmView').then((m) => ({ default: m.CrmView })));
 const TrashView = React.lazy(() => import('./components/TrashView').then((m) => ({ default: m.TrashView })));
 const ClientRequestsView = React.lazy(() => import('./components/ClientRequestsView').then((m) => ({ default: m.ClientRequestsView })));
+const StatsView = React.lazy(() => import('./components/StatsView').then((m) => ({ default: m.StatsView })));
 
 // Subcomponents
 import { Sidebar } from './components/Sidebar';
@@ -3272,6 +3273,21 @@ export default function App() {
           />
         );
 
+      case 'statistiche':
+        if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
+        return (
+          <StatsView
+            projects={Object.values(projects)}
+            invoicesActive={finInvoicesActive}
+            invoicesPassive={finInvoicesPassive}
+            scadenze={finScadenze}
+            quotes={Object.values(quotes)}
+            tasks={Object.values(tasks)}
+            members={Object.values(users).filter((u) => u && u.active && u.role !== 'cliente' && u.role !== 'partner')}
+            onNav={(r) => { window.location.hash = r; }}
+          />
+        );
+
       case 'cestino':
         if (currentUser.role !== 'admin' && currentUser.role !== 'manager') return null;
         return (
@@ -3496,7 +3512,7 @@ export default function App() {
   const formattedMobileTitle = () => {
     if (route === 'interactive') return 'Premium UI';
     if (route === 'progetto' && routeParam && projects[routeParam]) return projects[routeParam].name;
-    const item = ['dashboard', 'calendario', 'progetti', 'documenti', 'finanze', 'team'].find(r => r === route);
+    const item = ['dashboard', 'calendario', 'progetti', 'documenti', 'finanze', 'statistiche', 'team'].find(r => r === route);
     return item ? item : 'Studio OS';
   };
 

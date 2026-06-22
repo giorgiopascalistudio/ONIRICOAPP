@@ -310,7 +310,12 @@ Fatto: **CRM esteso** (doc CONSIDERAZIONI CRM, §16-18): notifiche persistenti, 
 responsabili/WhatsApp, Task con priorità urgente/tipologia + dashboard produttività, ferie team,
 **Preventivi & Amministrazione** (`quotes` con macro-voci/stati/piano pagamenti → finanza), e
 **backend Cloud Functions** (`functions/`: email SendGrid, reminder schedulati, report) — da deployare.
-Da fare (CRM doc, fasi successive): 5 statistiche + Break Even Point, **Incentivi & Performance**
+Fatto: **Statistiche & Break Even Point** (`StatsView`, route `#statistiche`, voce sidebar admin/
+manager) — cruscotto direzionale che calcola su dati esistenti (fatture/scadenze/preventivi/
+progetti/task): redditività per società+gruppo (motore `consolidato`), incassato vs da incassare,
+**punto di pareggio**, andamento 12 mesi ricavi/costi, portafoglio commesse + pipeline preventivi,
+carico per risorsa. Nessun nodo/regola nuovi.
+Da fare (CRM doc, fasi successive): **Incentivi & Performance**
 (300+ attività a punti), **Marketing & Eventi**, **Sondaggi/Customer satisfaction**, WhatsApp API.
 Fatto: tutte le voci Cantiere prima "in preparazione" ora attive come registri
 (**Collaudi & test materiali** Area Tecnici; **Magazzino & ordini** e **Manutenzioni & guasti**
