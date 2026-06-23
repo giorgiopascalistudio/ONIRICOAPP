@@ -18,6 +18,7 @@ import {
   LayoutDashboard, FileText, Timer, Wallet, ArrowRight, Link2, Copy, Receipt,
   Banknote, RefreshCw, AlertTriangle, Image as ImageIcon, Film, Search, Tag,
   Columns, Eye, Check, FolderOpen, Sparkles, Printer, FileBarChart,
+  Target, Workflow, Inbox, ShieldCheck, Activity, MousePointerClick, Globe,
 } from 'lucide-react';
 import type {
   MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, ClientRecord,
@@ -25,6 +26,9 @@ import type {
   SocialPlatform, SocialStatus, MktContract, MktTimeEntry, MktContractCadence,
   Project, UserProfile, MktAsset, MktDeliverable, MktProof, MktAssetKind,
   MktDeliverableStage, MktPriority, ProofAnnotation, ProofStatus,
+  MktLead, MktLeadStage, MktFlow, MktFlowStep, MktFlowChannel, MktSeoItem,
+  MktAdCampaign, MktAdPlatform, MktMetric, MktMetricSource, MktInboxItem,
+  MktInboxChannel, MktConsent, MktConsentScope,
 } from '../types';
 import type { InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { eur, safeUrl } from '../utils';
@@ -84,10 +88,34 @@ interface Props {
   onDeleteDeliverable: (id: string) => void;
   onSaveProof: (p: MktProof) => void;
   onDeleteProof: (id: string) => void;
+  // Acquisizione / Dati / Compliance (Blocchi D–K)
+  leads: MktLead[];
+  flows: MktFlow[];
+  seo: MktSeoItem[];
+  ads: MktAdCampaign[];
+  metrics: MktMetric[];
+  inbox: MktInboxItem[];
+  consents: MktConsent[];
+  onSaveLead: (l: MktLead) => void;
+  onDeleteLead: (id: string) => void;
+  onSaveFlow: (f: MktFlow) => void;
+  onDeleteFlow: (id: string) => void;
+  onSaveSeo: (s: MktSeoItem) => void;
+  onDeleteSeo: (id: string) => void;
+  onSaveAd: (a: MktAdCampaign) => void;
+  onDeleteAd: (id: string) => void;
+  onRegisterAdsSpend: (id: string) => void;
+  onSaveMetric: (m: MktMetric) => void;
+  onDeleteMetric: (id: string) => void;
+  onSaveInbox: (i: MktInboxItem) => void;
+  onDeleteInbox: (id: string) => void;
+  onSaveConsent: (c: MktConsent) => void;
+  onDeleteConsent: (id: string) => void;
 }
 
 type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi'
-  | 'asset' | 'deliverable' | 'proof' | 'report';
+  | 'asset' | 'deliverable' | 'proof' | 'report'
+  | 'lead' | 'automation' | 'seo' | 'ads' | 'metriche' | 'inbox' | 'consensi' | 'attivita';
 
 // Raggruppamento coerente delle funzioni (usato dalla dashboard + pillbar).
 const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.ElementType; desc: string }[] }[] = [
@@ -95,6 +123,13 @@ const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Quadro generale di Strategico' },
     { id: 'analisi', label: 'Analisi', icon: BarChart3, desc: 'Adesione, risposta, conversione, soddisfazione' },
     { id: 'report', label: 'Report', icon: FileBarChart, desc: 'Report white-label + sintesi AI' },
+    { id: 'attivita', label: 'Attività', icon: Activity, desc: 'Registro attività recenti del modulo' },
+  ] },
+  { group: 'Acquisizione', items: [
+    { id: 'lead', label: 'Lead', icon: Target, desc: 'Pipeline lead + scoring + segmentazione' },
+    { id: 'automation', label: 'Automation', icon: Workflow, desc: 'Flussi nurturing multi-step' },
+    { id: 'seo', label: 'SEO & Content', icon: Search, desc: 'Keyword, posizioni, content brief' },
+    { id: 'ads', label: 'Advertising', icon: MousePointerClick, desc: 'Campagne PPC + budget → Finanza' },
   ] },
   { group: 'Economia', items: [
     { id: 'contratti', label: 'Contratti & Retainer', icon: FileText, desc: 'Abbonamenti ricorrenti → fattura in Finanza' },
@@ -110,7 +145,12 @@ const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.
     { id: 'eventi', label: 'Eventi', icon: Calendar, desc: 'Eventi e inviti con RSVP' },
     { id: 'campagne', label: 'Campagne', icon: Megaphone, desc: 'Follow-up, UTM, budget' },
     { id: 'social', label: 'Social', icon: Share2, desc: 'Calendario editoriale' },
+    { id: 'inbox', label: 'Inbox', icon: Inbox, desc: 'Messaggi/commenti social unificati' },
     { id: 'sondaggi', label: 'Sondaggi', icon: ClipboardList, desc: 'Customer satisfaction' },
+  ] },
+  { group: 'Dati & Compliance', items: [
+    { id: 'metriche', label: 'Analytics', icon: TrendingUp, desc: 'Metriche GA4/Ads/social (manuali)' },
+    { id: 'consensi', label: 'Consensi GDPR', icon: ShieldCheck, desc: 'Registro consensi e opt-out' },
   ] },
 ];
 const ALL_TABS = TAB_GROUPS.flatMap((g) => g.items);
@@ -156,6 +196,14 @@ export const StrategicoView: React.FC<Props> = (props) => {
       {tab === 'asset' && <AssetsTab assets={props.assets} clients={clients} campaigns={campaigns} onSave={props.onSaveAsset} onDelete={props.onDeleteAsset} />}
       {tab === 'analisi' && <AnalisiTab events={events} campaigns={campaigns} surveys={surveys} social={social} responses={responses} />}
       {tab === 'report' && <ReportTab {...props} />}
+      {tab === 'attivita' && <ActivityTab {...props} />}
+      {tab === 'lead' && <LeadsTab leads={props.leads} clients={clients} team={props.team} onSave={props.onSaveLead} onDelete={props.onDeleteLead} />}
+      {tab === 'automation' && <AutomationTab flows={props.flows} clients={clients} onSave={props.onSaveFlow} onDelete={props.onDeleteFlow} />}
+      {tab === 'seo' && <SeoTab items={props.seo} clients={clients} onSave={props.onSaveSeo} onDelete={props.onDeleteSeo} />}
+      {tab === 'ads' && <AdsTab ads={props.ads} clients={clients} onSave={props.onSaveAd} onDelete={props.onDeleteAd} onRegisterSpend={props.onRegisterAdsSpend} />}
+      {tab === 'metriche' && <MetricsTab metrics={props.metrics} clients={clients} onSave={props.onSaveMetric} onDelete={props.onDeleteMetric} />}
+      {tab === 'inbox' && <InboxTab inbox={props.inbox} clients={clients} onSave={props.onSaveInbox} onDelete={props.onDeleteInbox} />}
+      {tab === 'consensi' && <ConsentsTab consents={props.consents} clients={clients} onSave={props.onSaveConsent} onDelete={props.onDeleteConsent} />}
     </div>
   );
 };
@@ -829,7 +877,11 @@ const DashboardTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
                 : it.id === 'eventi' ? events.length : it.id === 'campagne' ? campaigns.length
                 : it.id === 'social' ? social.length : it.id === 'sondaggi' ? surveys.length
                 : it.id === 'asset' ? props.assets.length : it.id === 'deliverable' ? props.deliverables.length
-                : it.id === 'proof' ? props.proofs.length : null;
+                : it.id === 'proof' ? props.proofs.length
+                : it.id === 'lead' ? props.leads.length : it.id === 'automation' ? props.flows.length
+                : it.id === 'seo' ? props.seo.length : it.id === 'ads' ? props.ads.length
+                : it.id === 'metriche' ? props.metrics.length : it.id === 'inbox' ? props.inbox.length
+                : it.id === 'consensi' ? props.consents.length : null;
               return (
                 <button key={it.id} onClick={() => go(it.id)}
                   className="group text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors flex items-start gap-3">
@@ -1568,6 +1620,535 @@ const ReportTab: React.FC<Props> = (props) => {
           <div className="no-print"><AiAssist label="Genera sintesi con AI" maxTokens={400} build={buildPrompt} onResult={setSummary} /></div>
         </div>
       </div>
+    </div>
+  );
+};
+
+/* ============================== ATTIVITÀ (registro derivato) ============================== */
+const ActivityTab: React.FC<Props> = (props) => {
+  type Row = { id: string; at: number; label: string; cat: string };
+  const rows: Row[] = [];
+  const push = (cat: string, arr: { id: string; updatedAt?: number; createdAt: number }[], lbl: (x: any) => string) =>
+    arr.forEach((x) => rows.push({ id: `${cat}-${x.id}`, at: x.updatedAt || x.createdAt || 0, label: lbl(x), cat }));
+  push('Evento', props.events, (e) => e.title || 'Evento');
+  push('Campagna', props.campaigns, (c) => c.name || 'Campagna');
+  push('Sondaggio', props.surveys, (s) => s.title || 'Sondaggio');
+  push('Social', props.social, (p) => (p.caption || 'Post').slice(0, 40));
+  push('Contratto', props.contracts, (k) => `${k.title} · ${k.clientName}`);
+  push('Ore', props.timeEntries, (t) => `${(t.minutes / 60).toFixed(1)}h · ${t.clientName || t.activity || ''}`);
+  push('Asset', props.assets, (a) => a.name || 'Asset');
+  push('Deliverable', props.deliverables, (d) => d.title || 'Deliverable');
+  push('Revisione', props.proofs, (p) => `${p.title} · v${p.version}`);
+  push('Lead', props.leads, (l) => l.name || 'Lead');
+  push('Automation', props.flows, (f) => f.name || 'Flusso');
+  push('SEO', props.seo, (s) => s.keyword || s.title || 'SEO');
+  push('Ads', props.ads, (a) => `${a.name} (${a.platform})`);
+  push('Metrica', props.metrics, (m) => `${m.metric} · ${m.source}`);
+  push('Inbox', props.inbox, (i) => `${i.from} · ${i.channel}`);
+  push('Consenso', props.consents, (c) => c.subject || 'Consenso');
+  const sorted = rows.filter((r) => r.at > 0).sort((a, b) => b.at - a.at).slice(0, 60);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Activity className="w-4 h-4" />} label="Voci totali" value={String(rows.length)} accent={ACCENT} />
+        <Kpi icon={<Clock className="w-4 h-4" />} label="Aggiornate oggi" value={String(rows.filter((r) => r.at > Date.now() - 864e5).length)} />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Ultimi 7 giorni" value={String(rows.filter((r) => r.at > Date.now() - 7 * 864e5).length)} />
+        <Kpi icon={<FileBarChart className="w-4 h-4" />} label="Aree" value={String(new Set(rows.map((r) => r.cat)).size)} />
+      </div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<Activity className="w-6 h-6" />} title="Nessuna attività" text="Il registro mostra le modifiche più recenti su tutte le aree di Strategico." />
+      ) : (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          {sorted.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
+              <span className="text-[10.5px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0 w-[92px] text-center">{r.cat}</span>
+              <span className="flex-1 truncate">{r.label}</span>
+              <span className="text-[11.5px] text-stone-400 shrink-0">{new Date(r.at).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ============================== LEAD & SCORING ============================== */
+const LEAD_STAGES: { id: MktLeadStage; label: string; cls: string }[] = [
+  { id: 'nuovo', label: 'Nuovo', cls: 'bg-stone-100 text-stone-600' },
+  { id: 'contattato', label: 'Contattato', cls: 'bg-blue-50 text-blue-700' },
+  { id: 'qualificato', label: 'Qualificato', cls: 'bg-amber-50 text-amber-700' },
+  { id: 'proposta', label: 'Proposta', cls: 'bg-violet-50 text-violet-700' },
+  { id: 'vinto', label: 'Vinto', cls: 'bg-emerald-50 text-emerald-700' },
+  { id: 'perso', label: 'Perso', cls: 'bg-red-50 text-red-600' },
+];
+const STAGE_PTS: Record<MktLeadStage, number> = { nuovo: 5, contattato: 15, qualificato: 25, proposta: 35, vinto: 40, perso: 0 };
+const suggestScore = (l: MktLead) => Math.min(100, (l.email ? 20 : 0) + (l.phone ? 15 : 0) + (l.company ? 10 : 0) + ((Number(l.value) || 0) > 0 ? 20 : 0) + (STAGE_PTS[l.stage] || 0));
+const LeadsTab: React.FC<{ leads: MktLead[]; clients: Record<string, ClientRecord>; team: Record<string, UserProfile>; onSave: (l: MktLead) => void; onDelete: (id: string) => void }> = ({ leads, clients, team, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktLead | null>(null);
+  const [stageF, setStageF] = useState<MktLeadStage | ''>('');
+  const list = leads.filter((l) => !stageF || l.stage === stageF).sort((a, b) => (b.score || 0) - (a.score || 0));
+  const open = leads.filter((l) => l.stage !== 'vinto' && l.stage !== 'perso');
+  const pipeline = open.reduce((s, l) => s + (Number(l.value) || 0), 0);
+  const won = leads.filter((l) => l.stage === 'vinto').length;
+  const blank = (): MktLead => ({ id: uid('ld'), name: '', stage: 'nuovo', score: null, tags: [], createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Target className="w-4 h-4" />} label="Lead" value={String(leads.length)} sub={`${open.length} aperti`} accent={ACCENT} />
+        <Kpi icon={<Wallet className="w-4 h-4" />} label="Valore pipeline" value={eur(pipeline)} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Vinti" value={String(won)} accent="#059669" />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Conversione" value={`${leads.length ? Math.round((won / leads.length) * 100) : 0}%`} />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <select className={`${IN} w-auto`} value={stageF} onChange={(e) => setStageF(e.target.value as any)}><option value="">Tutte le fasi</option>{LEAD_STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+        <div className="flex-1" />
+        <AddBtn onClick={() => setEditing(blank())} label="Nuovo lead" />
+      </div>
+      {list.length === 0 ? (
+        <EmptyBox icon={<Target className="w-6 h-6" />} title="Nessun lead" text="Traccia i potenziali clienti, assegna un punteggio (calcolato dai dati o manuale) e fai avanzare la pipeline fino alla conversione." />
+      ) : (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          {list.map((l) => {
+            const sc = l.score ?? suggestScore(l); const meta = LEAD_STAGES.find((s) => s.id === l.stage)!;
+            return (
+              <div key={l.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#f3f3f3] last:border-0">
+                <div className="min-w-0 flex-1">
+                  <b className="text-[13.5px] truncate block">{l.name}{l.company && <span className="text-stone-400 font-normal"> · {l.company}</span>}</b>
+                  <span className="text-[11.5px] text-stone-400">{l.source || '—'}{l.value ? ` · ${eur(l.value)}` : ''}</span>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 w-28">
+                  <div className="flex-1 h-1.5 bg-[#eee] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${sc}%`, background: sc >= 60 ? '#059669' : sc >= 30 ? ACCENT : '#dc2626' }} /></div>
+                  <span className="text-[11px] font-bold w-7 text-right">{sc}</span>
+                </div>
+                <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${meta.cls} shrink-0`}>{meta.label}</span>
+                <button onClick={() => setEditing(l)} className="w-8 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                <button onClick={() => onDelete(l.id)} className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <AnimatePresence>{editing && <LeadModal lead={editing} clients={clients} team={team} onClose={() => setEditing(null)} onSave={(l) => { onSave(l); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const LeadModal: React.FC<{ lead: MktLead; clients: Record<string, ClientRecord>; team: Record<string, UserProfile>; onClose: () => void; onSave: (l: MktLead) => void }> = ({ lead, clients, team, onClose, onSave }) => {
+  const [l, setL] = useState<MktLead>({ ...lead });
+  const set = (p: Partial<MktLead>) => setL((x) => ({ ...x, ...p }));
+  const members = Object.values(team).filter((u) => u.active && u.role !== 'cliente' && u.role !== 'partner');
+  void clients;
+  return (
+    <ModalShell title={lead.name ? 'Modifica lead' : 'Nuovo lead'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(l)} disabled={!l.name.trim()} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome" full><input className={IN} value={l.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+        <Field label="Azienda"><input className={IN} value={l.company || ''} onChange={(e) => set({ company: e.target.value })} /></Field>
+        <Field label="Origine"><input className={IN} value={l.source || ''} onChange={(e) => set({ source: e.target.value })} placeholder="Sito, referral, evento, ads…" /></Field>
+        <Field label="Email"><input className={IN} value={l.email || ''} onChange={(e) => set({ email: e.target.value })} /></Field>
+        <Field label="Telefono"><input className={IN} value={l.phone || ''} onChange={(e) => set({ phone: e.target.value })} /></Field>
+        <Field label="Fase"><select className={IN} value={l.stage} onChange={(e) => set({ stage: e.target.value as MktLeadStage })}>{LEAD_STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>
+        <Field label="Valore potenziale (€)"><input type="number" className={IN} value={l.value ?? ''} onChange={(e) => set({ value: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label={`Punteggio (suggerito ${suggestScore(l)})`}><input type="number" className={IN} value={l.score ?? ''} onChange={(e) => set({ score: e.target.value === '' ? null : Number(e.target.value) })} placeholder={String(suggestScore(l))} /></Field>
+        <Field label="Referente"><select className={IN} value={l.ownerUid || ''} onChange={(e) => { const u = team[e.target.value]; set({ ownerUid: e.target.value || null, ownerName: u ? u.name : null }); }}><option value="">—</option>{members.map((u) => <option key={u.uid} value={u.uid}>{u.name}</option>)}</select></Field>
+        <Field label="Note" full><textarea className={`${IN} h-auto py-2 min-h-[50px]`} value={l.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== AUTOMATION (nurturing) ============================== */
+const FLOW_CH: { id: MktFlowChannel; label: string }[] = [{ id: 'email', label: 'Email' }, { id: 'whatsapp', label: 'WhatsApp' }, { id: 'sms', label: 'SMS' }];
+const AutomationTab: React.FC<{ flows: MktFlow[]; clients: Record<string, ClientRecord>; onSave: (f: MktFlow) => void; onDelete: (id: string) => void }> = ({ flows, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktFlow | null>(null);
+  const sorted = [...flows].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const blank = (): MktFlow => ({ id: uid('fl'), name: '', trigger: '', steps: [], active: true, createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <Kpi icon={<Workflow className="w-4 h-4" />} label="Flussi" value={String(flows.length)} sub={`${flows.filter((f) => f.active).length} attivi`} accent={ACCENT} />
+        <Kpi icon={<ListChecks className="w-4 h-4" />} label="Step totali" value={String(flows.reduce((s, f) => s + (f.steps || []).length, 0))} />
+        <Kpi icon={<Send className="w-4 h-4" />} label="Canali" value={String(new Set(flows.flatMap((f) => (f.steps || []).map((s) => s.channel))).size)} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuovo flusso" /></div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<Workflow className="w-6 h-6" />} title="Nessun flusso" text="Costruisci sequenze di nurturing multi-step (email/WhatsApp/SMS) da un trigger. I messaggi pronti diventano testo per gli invii (link), senza invio automatico." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sorted.map((f) => (
+            <div key={f.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0"><b className="block text-[16px] tracking-tight truncate">{f.name || 'Senza nome'}</b>{f.trigger && <span className="text-[12px] text-stone-500">trigger: {f.trigger}</span>}</div>
+                <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${f.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{f.active ? 'Attivo' : 'Off'}</span>
+              </div>
+              <div className="flex flex-col gap-1.5 mt-3">
+                {(f.steps || []).map((s) => (<div key={s.id} className="flex items-center gap-2 text-[12px] text-stone-600"><span className="w-10 shrink-0 text-stone-400">+{s.offsetDays}gg</span><span className="text-[10px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">{s.channel}</span><span className="truncate">{s.message || s.subject || '—'}</span></div>))}
+                {(f.steps || []).length === 0 && <span className="text-[12px] italic text-stone-400">Nessuno step.</span>}
+              </div>
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
+                <button onClick={() => setEditing(f)} className="flex-1 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer">Gestisci</button>
+                <button onClick={() => onDelete(f.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>{editing && <FlowModal flow={editing} onClose={() => setEditing(null)} onSave={(f) => { onSave(f); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const FlowModal: React.FC<{ flow: MktFlow; onClose: () => void; onSave: (f: MktFlow) => void }> = ({ flow, onClose, onSave }) => {
+  const [f, setF] = useState<MktFlow>({ ...flow, steps: flow.steps || [] });
+  const set = (p: Partial<MktFlow>) => setF((x) => ({ ...x, ...p }));
+  const addStep = () => set({ steps: [...(f.steps || []), { id: uid('fs'), offsetDays: 1, channel: 'email', message: '' }] });
+  const setStep = (id: string, p: Partial<MktFlowStep>) => set({ steps: (f.steps || []).map((s) => (s.id === id ? { ...s, ...p } : s)) });
+  const delStep = (id: string) => set({ steps: (f.steps || []).filter((s) => s.id !== id) });
+  return (
+    <ModalShell title={flow.name ? 'Modifica flusso' : 'Nuovo flusso'} onClose={onClose} wide
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(f)} disabled={!f.name.trim()} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome" full><input className={IN} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="Es. Benvenuto nuovo cliente" /></Field>
+        <Field label="Trigger" full><input className={IN} value={f.trigger || ''} onChange={(e) => set({ trigger: e.target.value })} placeholder="Es. Iscrizione newsletter, fine evento…" /></Field>
+        <Field label="Attivo"><button onClick={() => set({ active: !f.active })} className={`h-10 px-3 rounded-lg border text-[12.5px] font-bold cursor-pointer ${f.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-stone-500 border-stone-200'}`}>{f.active ? 'Sì' : 'No'}</button></Field>
+      </div>
+      <div className="border-t border-[#ececec] pt-4">
+        <div className="flex items-center justify-between"><span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400 flex items-center gap-1.5"><ListChecks className="w-3.5 h-3.5" /> Step</span><button onClick={addStep} className="text-[12px] font-bold text-[#b45309] flex items-center gap-1 bg-transparent border-none cursor-pointer"><Plus className="w-3.5 h-3.5" /> Aggiungi</button></div>
+        <div className="flex flex-col gap-2 mt-3">
+          {(f.steps || []).map((s) => (
+            <div key={s.id} className="flex items-center gap-2 bg-[#fafafa] border border-[#ececec] rounded-xl px-3 py-2">
+              <span className="text-[11px] text-stone-500">+</span>
+              <input type="number" className="w-14 h-8 px-2 text-[13px] border border-[#e2e2e2] rounded-md" value={s.offsetDays} onChange={(e) => setStep(s.id, { offsetDays: Number(e.target.value) })} />
+              <span className="text-[11px] text-stone-500">gg</span>
+              <select className="h-8 px-2 text-[13px] border border-[#e2e2e2] rounded-md bg-white" value={s.channel} onChange={(e) => setStep(s.id, { channel: e.target.value as MktFlowChannel })}>{FLOW_CH.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+              <input className="flex-1 h-8 px-2 text-[13px] border border-[#e2e2e2] rounded-md" value={s.message} onChange={(e) => setStep(s.id, { message: e.target.value })} placeholder="Messaggio" />
+              <button onClick={() => delStep(s.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 text-red-500 flex items-center justify-center shrink-0"><X className="w-4 h-4" /></button>
+            </div>
+          ))}
+          {(f.steps || []).length === 0 && <span className="text-[12.5px] italic text-stone-400">Nessuno step.</span>}
+        </div>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== SEO & CONTENT ============================== */
+const SeoTab: React.FC<{ items: MktSeoItem[]; clients: Record<string, ClientRecord>; onSave: (s: MktSeoItem) => void; onDelete: (id: string) => void }> = ({ items, clients, onSave, onDelete }) => {
+  const [view, setView] = useState<'keyword' | 'brief'>('keyword');
+  const [editing, setEditing] = useState<MktSeoItem | null>(null);
+  const kws = items.filter((i) => i.kind === 'keyword');
+  const briefs = items.filter((i) => i.kind === 'brief');
+  const list = (view === 'keyword' ? kws : briefs).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const posCount = kws.filter((k) => k.position).length;
+  const avgPos = posCount ? (kws.reduce((s, k) => s + (Number(k.position) || 0), 0) / posCount) : 0;
+  const blank = (): MktSeoItem => view === 'keyword'
+    ? { id: uid('seo'), kind: 'keyword', keyword: '', createdAt: Date.now() }
+    : { id: uid('seo'), kind: 'brief', title: '', status: 'idea', createdAt: Date.now() };
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Search className="w-4 h-4" />} label="Keyword" value={String(kws.length)} accent={ACCENT} />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Posizione media" value={avgPos ? avgPos.toFixed(1) : '—'} />
+        <Kpi icon={<FileText className="w-4 h-4" />} label="Content brief" value={String(briefs.length)} />
+        <Kpi icon={<Globe className="w-4 h-4" />} label="Pubblicati" value={String(briefs.filter((b) => b.status === 'pubblicato').length)} accent="#059669" />
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px]">
+          {(['keyword', 'brief'] as const).map((v) => (
+            <button key={v} onClick={() => setView(v)} className={`text-[12px] font-extrabold px-4 py-1.5 rounded-full border-none cursor-pointer ${view === v ? 'bg-white text-[#161616] shadow-xs' : 'bg-transparent text-[#8a8a8a]'}`}>{v === 'keyword' ? 'Keyword' : 'Content brief'}</button>
+          ))}
+        </div>
+        <AddBtn onClick={() => setEditing(blank())} label={view === 'keyword' ? 'Nuova keyword' : 'Nuovo brief'} />
+      </div>
+      {list.length === 0 ? (
+        <EmptyBox icon={<Search className="w-6 h-6" />} title="Nessuna voce" text="Inserisci keyword (volume, difficoltà, posizione) e content brief. Dati manuali pronti per le API SEO; usa l'AI per generare gli outline." />
+      ) : view === 'keyword' ? (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          <div className="hidden md:grid grid-cols-[1fr_80px_80px_80px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]"><span>Keyword</span><span>Volume</span><span>Diff.</span><span>Pos.</span><span></span></div>
+          {list.map((k) => (
+            <div key={k.id} className="grid grid-cols-[1fr_80px_80px_80px_64px] gap-2 items-center px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
+              <span className="truncate"><b>{k.keyword}</b>{k.url && <a href={safeUrl(k.url) || '#'} target="_blank" rel="noreferrer" className="text-[11px] text-[#b45309] ml-1.5">↗</a>}</span>
+              <span className="text-stone-500">{k.volume ?? '—'}</span>
+              <span className="text-stone-500">{k.difficulty ?? '—'}</span>
+              <span className="font-bold" style={{ color: ACCENT }}>{k.position ?? '—'}</span>
+              <span className="flex items-center gap-1 justify-end"><button onClick={() => setEditing(k)} className="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><Pencil className="w-3.5 h-3.5" /></button><button onClick={() => onDelete(k.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500"><Trash2 className="w-3.5 h-3.5" /></button></span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {list.map((b) => (
+            <div key={b.id} className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+              <div className="flex items-start justify-between gap-2"><b className="text-[15px] truncate">{b.title}</b><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${b.status === 'pubblicato' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : b.status === 'in_lavorazione' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{b.status}</span></div>
+              {b.outline && <p className="text-[12.5px] text-stone-600 mt-2 whitespace-pre-wrap line-clamp-4">{b.outline}</p>}
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#f0f0f0]"><button onClick={() => setEditing(b)} className="flex-1 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer">Apri</button><button onClick={() => onDelete(b.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button></div>
+            </div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>{editing && <SeoModal item={editing} clients={clients} onClose={() => setEditing(null)} onSave={(s) => { onSave(s); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const SeoModal: React.FC<{ item: MktSeoItem; clients: Record<string, ClientRecord>; onClose: () => void; onSave: (s: MktSeoItem) => void }> = ({ item, clients, onClose, onSave }) => {
+  const [s, setS] = useState<MktSeoItem>({ ...item });
+  const set = (p: Partial<MktSeoItem>) => setS((x) => ({ ...x, ...p }));
+  return (
+    <ModalShell title={item.kind === 'keyword' ? 'Keyword' : 'Content brief'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(s)} disabled={item.kind === 'keyword' ? !(s.keyword || '').trim() : !(s.title || '').trim()} label="Salva" /></>}>
+      {item.kind === 'keyword' ? (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Keyword" full><input className={IN} value={s.keyword || ''} onChange={(e) => set({ keyword: e.target.value })} /></Field>
+          <Field label="Volume"><input type="number" className={IN} value={s.volume ?? ''} onChange={(e) => set({ volume: e.target.value ? Number(e.target.value) : null })} /></Field>
+          <Field label="Difficoltà (0-100)"><input type="number" className={IN} value={s.difficulty ?? ''} onChange={(e) => set({ difficulty: e.target.value ? Number(e.target.value) : null })} /></Field>
+          <Field label="Posizione attuale"><input type="number" className={IN} value={s.position ?? ''} onChange={(e) => set({ position: e.target.value ? Number(e.target.value) : null })} /></Field>
+          <Field label="Intento"><input className={IN} value={s.intent || ''} onChange={(e) => set({ intent: e.target.value })} placeholder="informazionale, transazionale…" /></Field>
+          <Field label="URL target" full><input className={IN} value={s.url || ''} onChange={(e) => set({ url: e.target.value })} placeholder="https://…" /></Field>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Titolo" full><input className={IN} value={s.title || ''} onChange={(e) => set({ title: e.target.value })} /></Field>
+          <Field label="Stato"><select className={IN} value={s.status || 'idea'} onChange={(e) => set({ status: e.target.value as any })}><option value="idea">Idea</option><option value="in_lavorazione">In lavorazione</option><option value="pubblicato">Pubblicato</option></select></Field>
+          <Field label="Cliente"><select className={IN} value={s.clientId || ''} onChange={(e) => set({ clientId: e.target.value || null })}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          <Field label="Outline" full><textarea className={`${IN} h-auto py-2 min-h-[90px]`} value={s.outline || ''} onChange={(e) => set({ outline: e.target.value })} placeholder="Struttura dell'articolo…" /></Field>
+          <div className="col-span-2"><AiAssist label="Genera outline con AI" maxTokens={500} build={() => `Genera l'outline (titoli H2/H3 + una riga per sezione) di un articolo blog SEO dal titolo "${s.title}". Tema: studio di architettura/ingegneria. Restituisci solo l'outline.`} onResult={(t) => set({ outline: t })} /></div>
+        </div>
+      )}
+    </ModalShell>
+  );
+};
+
+/* ============================== ADVERTISING / PPC ============================== */
+const AD_PLAT: Record<MktAdPlatform, string> = { google: 'Google Ads', meta: 'Meta Ads', tiktok: 'TikTok Ads', linkedin: 'LinkedIn Ads' };
+const AdsTab: React.FC<{ ads: MktAdCampaign[]; clients: Record<string, ClientRecord>; onSave: (a: MktAdCampaign) => void; onDelete: (id: string) => void; onRegisterSpend: (id: string) => void }> = ({ ads, clients, onSave, onDelete, onRegisterSpend }) => {
+  const [editing, setEditing] = useState<MktAdCampaign | null>(null);
+  const sorted = [...ads].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const spend = sorted.reduce((s, a) => s + (Number(a.spend) || 0), 0);
+  const conv = sorted.reduce((s, a) => s + (Number(a.conversions) || 0), 0);
+  const blank = (): MktAdCampaign => ({ id: uid('ad'), name: '', platform: 'google', status: 'attiva', budget: null, spend: null, createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<MousePointerClick className="w-4 h-4" />} label="Campagne ads" value={String(ads.length)} accent={ACCENT} />
+        <Kpi icon={<Wallet className="w-4 h-4" />} label="Spesa totale" value={eur(spend)} accent="#dc2626" />
+        <Kpi icon={<Target className="w-4 h-4" />} label="Conversioni" value={String(conv)} accent="#059669" />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Costo/conv." value={conv ? eur(spend / conv) : '—'} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuova campagna ads" /></div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<MousePointerClick className="w-6 h-6" />} title="Nessuna campagna ads" text="Gestisci le campagne paid (Google/Meta/TikTok/LinkedIn) con budget e metriche manuali (predisposte per le API). La spesa si registra in Finanza come costo Strategico." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sorted.map((a) => {
+            const ctr = a.impressions ? ((Number(a.clicks) || 0) / a.impressions) * 100 : 0;
+            return (
+              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0"><span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{AD_PLAT[a.platform]}</span><b className="block text-[16px] tracking-tight truncate">{a.name || 'Senza nome'}</b>{a.clientName && <span className="text-[12px] text-stone-500">{a.clientName}</span>}</div>
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border capitalize ${a.status === 'attiva' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : a.status === 'in_pausa' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{a.status.replace('_', ' ')}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-3 text-center">
+                  <div><span className="block text-[10px] uppercase text-stone-400 font-bold">Spesa</span><b className="text-[13px]">{eur(Number(a.spend) || 0)}</b></div>
+                  <div><span className="block text-[10px] uppercase text-stone-400 font-bold">Impr.</span><b className="text-[13px]">{a.impressions ?? '—'}</b></div>
+                  <div><span className="block text-[10px] uppercase text-stone-400 font-bold">CTR</span><b className="text-[13px]">{ctr ? ctr.toFixed(1) + '%' : '—'}</b></div>
+                  <div><span className="block text-[10px] uppercase text-stone-400 font-bold">Conv.</span><b className="text-[13px]">{a.conversions ?? '—'}</b></div>
+                </div>
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
+                  <button onClick={() => setEditing(a)} className="flex-1 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer">Gestisci</button>
+                  {Number(a.spend || a.budget) > 0 && <button onClick={() => onRegisterSpend(a.id)} title="Registra spesa in Finanza" className="w-9 h-9 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-700 cursor-pointer"><Banknote className="w-3.5 h-3.5" /></button>}
+                  <button onClick={() => onDelete(a.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                {(a.financeRefs || []).length > 0 && <span className="text-[10.5px] text-emerald-600 mt-1.5 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> spesa registrata in Finanza</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <AnimatePresence>{editing && <AdModal ad={editing} clients={clients} onClose={() => setEditing(null)} onSave={(a) => { onSave(a); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const AdModal: React.FC<{ ad: MktAdCampaign; clients: Record<string, ClientRecord>; onClose: () => void; onSave: (a: MktAdCampaign) => void }> = ({ ad, clients, onClose, onSave }) => {
+  const [a, setA] = useState<MktAdCampaign>({ ...ad });
+  const set = (p: Partial<MktAdCampaign>) => setA((x) => ({ ...x, ...p }));
+  return (
+    <ModalShell title={ad.name ? 'Modifica campagna ads' : 'Nuova campagna ads'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(a)} disabled={!a.name.trim()} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome" full><input className={IN} value={a.name} onChange={(e) => set({ name: e.target.value })} /></Field>
+        <Field label="Piattaforma"><select className={IN} value={a.platform} onChange={(e) => set({ platform: e.target.value as MktAdPlatform })}>{(Object.keys(AD_PLAT) as MktAdPlatform[]).map((p) => <option key={p} value={p}>{AD_PLAT[p]}</option>)}</select></Field>
+        <Field label="Cliente"><select className={IN} value={a.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : null }); }}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Budget (€)"><input type="number" className={IN} value={a.budget ?? ''} onChange={(e) => set({ budget: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label="Spesa (€)"><input type="number" className={IN} value={a.spend ?? ''} onChange={(e) => set({ spend: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label="Impression"><input type="number" className={IN} value={a.impressions ?? ''} onChange={(e) => set({ impressions: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label="Click"><input type="number" className={IN} value={a.clicks ?? ''} onChange={(e) => set({ clicks: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label="Conversioni"><input type="number" className={IN} value={a.conversions ?? ''} onChange={(e) => set({ conversions: e.target.value ? Number(e.target.value) : null })} /></Field>
+        <Field label="Stato"><select className={IN} value={a.status} onChange={(e) => set({ status: e.target.value as any })}><option value="attiva">Attiva</option><option value="in_pausa">In pausa</option><option value="conclusa">Conclusa</option></select></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== ANALYTICS (metriche manuali) ============================== */
+const METRIC_SRC: Record<MktMetricSource, string> = { ga4: 'GA4', google_ads: 'Google Ads', meta: 'Meta', linkedin: 'LinkedIn', tiktok: 'TikTok', altro: 'Altro' };
+const MetricsTab: React.FC<{ metrics: MktMetric[]; clients: Record<string, ClientRecord>; onSave: (m: MktMetric) => void; onDelete: (id: string) => void }> = ({ metrics, clients, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktMetric | null>(null);
+  const sorted = [...metrics].sort((a, b) => (b.date || 0) - (a.date || 0));
+  const blank = (): MktMetric => ({ id: uid('mt'), source: 'ga4', metric: '', value: 0, date: Date.now(), createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-[16px] px-4 py-2.5 text-[12px] text-amber-800 flex items-center gap-2"><Globe className="w-4 h-4 shrink-0" /> Metriche inserite a mano (GA4/Ads/social). Predisposto per l'aggregazione automatica via API in un secondo momento.</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Metriche" value={String(metrics.length)} accent={ACCENT} />
+        <Kpi icon={<Globe className="w-4 h-4" />} label="Fonti" value={String(new Set(metrics.map((m) => m.source)).size)} />
+        <Kpi icon={<BarChart3 className="w-4 h-4" />} label="Tipi" value={String(new Set(metrics.map((m) => m.metric)).size)} />
+        <Kpi icon={<Clock className="w-4 h-4" />} label="Ultimo aggiorn." value={sorted[0] ? new Date(sorted[0].date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) : '—'} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuova metrica" /></div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<TrendingUp className="w-6 h-6" />} title="Nessuna metrica" text="Inserisci i KPI di canale per periodo (sessioni, conversioni, CTR, reach…) per costruire report e confronti." />
+      ) : (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          <div className="hidden md:grid grid-cols-[90px_1fr_110px_100px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]"><span>Fonte</span><span>Metrica</span><span>Valore</span><span>Periodo</span><span></span></div>
+          {sorted.map((m) => (
+            <div key={m.id} className="grid grid-cols-[90px_1fr_110px_100px_64px] gap-2 items-center px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
+              <span className="text-[11px] font-bold text-amber-700">{METRIC_SRC[m.source]}</span>
+              <span className="truncate">{m.metric}</span>
+              <b style={{ color: ACCENT }}>{m.value.toLocaleString('it-IT')}</b>
+              <span className="text-stone-500 text-[12px]">{new Date(m.date).toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}</span>
+              <span className="flex items-center gap-1 justify-end"><button onClick={() => setEditing(m)} className="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><Pencil className="w-3.5 h-3.5" /></button><button onClick={() => onDelete(m.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500"><Trash2 className="w-3.5 h-3.5" /></button></span>
+            </div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>{editing && (
+        <ModalShell title={editing.metric ? 'Modifica metrica' : 'Nuova metrica'} onClose={() => setEditing(null)}
+          footer={<><button onClick={() => setEditing(null)} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => { onSave(editing); setEditing(null); }} disabled={!editing.metric.trim()} label="Salva" /></>}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Fonte"><select className={IN} value={editing.source} onChange={(e) => setEditing({ ...editing, source: e.target.value as MktMetricSource })}>{(Object.keys(METRIC_SRC) as MktMetricSource[]).map((s) => <option key={s} value={s}>{METRIC_SRC[s]}</option>)}</select></Field>
+            <Field label="Periodo"><input type="date" className={IN} value={dOnly(editing.date)} onChange={(e) => setEditing({ ...editing, date: parseD(e.target.value) || Date.now() })} /></Field>
+            <Field label="Metrica" full><input className={IN} value={editing.metric} onChange={(e) => setEditing({ ...editing, metric: e.target.value })} placeholder="Es. Sessioni, Conversioni, CTR…" /></Field>
+            <Field label="Valore"><input type="number" className={IN} value={editing.value} onChange={(e) => setEditing({ ...editing, value: Number(e.target.value) || 0 })} /></Field>
+            <Field label="Cliente"><select className={IN} value={editing.clientId || ''} onChange={(e) => setEditing({ ...editing, clientId: e.target.value || null })}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          </div>
+        </ModalShell>
+      )}</AnimatePresence>
+    </div>
+  );
+};
+
+/* ============================== INBOX UNIFICATA ============================== */
+const INBOX_CH: Record<MktInboxChannel, string> = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', tiktok: 'TikTok', email: 'Email', whatsapp: 'WhatsApp', altro: 'Altro' };
+const InboxTab: React.FC<{ inbox: MktInboxItem[]; clients: Record<string, ClientRecord>; onSave: (i: MktInboxItem) => void; onDelete: (id: string) => void }> = ({ inbox, clients, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktInboxItem | null>(null);
+  const [showHandled, setShowHandled] = useState(true);
+  const sorted = [...inbox].filter((i) => showHandled || !i.handled).sort((a, b) => (b.at || 0) - (a.at || 0));
+  const open = inbox.filter((i) => !i.handled).length;
+  const blank = (): MktInboxItem => ({ id: uid('in'), channel: 'instagram', from: '', text: '', at: Date.now(), handled: false, sentiment: 'neutro', createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-[16px] px-4 py-2.5 text-[12px] text-amber-800 flex items-center gap-2"><Inbox className="w-4 h-4 shrink-0" /> Inbox unificata a inserimento manuale, pronta per la connessione alle API social (Meta/IG/LinkedIn) in un secondo momento.</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Inbox className="w-4 h-4" />} label="Messaggi" value={String(inbox.length)} accent={ACCENT} />
+        <Kpi icon={<AlertTriangle className="w-4 h-4" />} label="Da gestire" value={String(open)} accent={open ? '#b45309' : undefined} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Positivi" value={String(inbox.filter((i) => i.sentiment === 'positivo').length)} accent="#059669" />
+        <Kpi icon={<XCircle className="w-4 h-4" />} label="Negativi" value={String(inbox.filter((i) => i.sentiment === 'negativo').length)} accent="#dc2626" />
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <button onClick={() => setShowHandled((v) => !v)} className="text-[12px] font-bold px-3 h-9 rounded-lg border border-[#e2e2e2] bg-white cursor-pointer">{showHandled ? 'Nascondi gestiti' : 'Mostra tutti'}</button>
+        <AddBtn onClick={() => setEditing(blank())} label="Nuovo messaggio" />
+      </div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<Inbox className="w-6 h-6" />} title="Inbox vuota" text="Raccogli commenti e messaggi dai social in un unico posto: assegna sentiment, cliente e segna come gestiti." />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {sorted.map((i) => (
+            <div key={i.id} className={`bg-white border rounded-[16px] p-4 flex items-start gap-3 ${i.handled ? 'border-[#eee] opacity-70' : 'border-[#e2e2e2]'}`}>
+              <span className="text-[10.5px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">{INBOX_CH[i.channel]}</span>
+              <div className="min-w-0 flex-1">
+                <b className="text-[13px]">{i.from}</b>
+                {i.sentiment && <span className={`text-[10.5px] font-bold ml-2 ${i.sentiment === 'positivo' ? 'text-emerald-600' : i.sentiment === 'negativo' ? 'text-red-500' : 'text-stone-400'}`}>● {i.sentiment}</span>}
+                <p className="text-[13px] text-stone-600 mt-0.5">{i.text}</p>
+                <span className="text-[11px] text-stone-400">{new Date(i.at).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => onSave({ ...i, handled: !i.handled })} title={i.handled ? 'Riapri' : 'Segna gestito'} className={`w-8 h-8 rounded-lg border flex items-center justify-center cursor-pointer ${i.handled ? 'border-stone-200 text-stone-400' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}><Check className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setEditing(i)} className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><Pencil className="w-3.5 h-3.5" /></button>
+                <button onClick={() => onDelete(i.id)} className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>{editing && (
+        <ModalShell title={editing.from ? 'Modifica messaggio' : 'Nuovo messaggio'} onClose={() => setEditing(null)}
+          footer={<><button onClick={() => setEditing(null)} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => { onSave(editing); setEditing(null); }} disabled={!editing.from.trim() || !editing.text.trim()} label="Salva" /></>}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Canale"><select className={IN} value={editing.channel} onChange={(e) => setEditing({ ...editing, channel: e.target.value as MktInboxChannel })}>{(Object.keys(INBOX_CH) as MktInboxChannel[]).map((c) => <option key={c} value={c}>{INBOX_CH[c]}</option>)}</select></Field>
+            <Field label="Mittente"><input className={IN} value={editing.from} onChange={(e) => setEditing({ ...editing, from: e.target.value })} placeholder="@handle / nome" /></Field>
+            <Field label="Messaggio" full><textarea className={`${IN} h-auto py-2 min-h-[70px]`} value={editing.text} onChange={(e) => setEditing({ ...editing, text: e.target.value })} /></Field>
+            <Field label="Sentiment"><select className={IN} value={editing.sentiment || 'neutro'} onChange={(e) => setEditing({ ...editing, sentiment: e.target.value as any })}><option value="positivo">Positivo</option><option value="neutro">Neutro</option><option value="negativo">Negativo</option></select></Field>
+            <Field label="Cliente"><select className={IN} value={editing.clientId || ''} onChange={(e) => setEditing({ ...editing, clientId: e.target.value || null })}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          </div>
+        </ModalShell>
+      )}</AnimatePresence>
+    </div>
+  );
+};
+
+/* ============================== CONSENSI GDPR ============================== */
+const CONSENT_SCOPES: { id: MktConsentScope; label: string }[] = [
+  { id: 'marketing', label: 'Marketing' }, { id: 'newsletter', label: 'Newsletter' }, { id: 'profilazione', label: 'Profilazione' }, { id: 'terzi', label: 'Terzi' },
+];
+const ConsentsTab: React.FC<{ consents: MktConsent[]; clients: Record<string, ClientRecord>; onSave: (c: MktConsent) => void; onDelete: (id: string) => void }> = ({ consents, clients, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktConsent | null>(null);
+  const sorted = [...consents].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const active = consents.filter((c) => c.granted).length;
+  const blank = (): MktConsent => ({ id: uid('cs'), subject: '', scopes: ['marketing'], granted: true, grantedAt: Date.now(), createdAt: Date.now() });
+  const toggleGrant = (c: MktConsent) => onSave({ ...c, granted: !c.granted, grantedAt: !c.granted ? Date.now() : c.grantedAt, revokedAt: !c.granted ? null : Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<ShieldCheck className="w-4 h-4" />} label="Consensi" value={String(consents.length)} accent={ACCENT} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Attivi" value={String(active)} accent="#059669" />
+        <Kpi icon={<XCircle className="w-4 h-4" />} label="Revocati" value={String(consents.length - active)} accent="#dc2626" />
+        <Kpi icon={<Mail className="w-4 h-4" />} label="Newsletter" value={String(consents.filter((c) => c.granted && c.scopes.includes('newsletter')).length)} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuovo consenso" /></div>
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<ShieldCheck className="w-6 h-6" />} title="Nessun consenso" text="Registro consensi GDPR: tieni traccia di base giuridica, finalità, data di rilascio e revoca per ogni contatto." />
+      ) : (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          {sorted.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#f3f3f3] last:border-0">
+              <div className="min-w-0 flex-1">
+                <b className="text-[13.5px] truncate block">{c.subject}{c.email && <span className="text-stone-400 font-normal"> · {c.email}</span>}</b>
+                <div className="flex flex-wrap gap-1 mt-0.5">{c.scopes.map((s) => <span key={s} className="text-[10px] bg-stone-100 text-stone-600 rounded-full px-1.5 py-0.5">{CONSENT_SCOPES.find((x) => x.id === s)?.label || s}</span>)}</div>
+              </div>
+              <button onClick={() => toggleGrant(c)} className={`text-[11px] font-bold px-2.5 py-1 rounded-full border cursor-pointer shrink-0 ${c.granted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>{c.granted ? 'Concesso' : 'Revocato'}</button>
+              <button onClick={() => setEditing(c)} className="w-8 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+              <button onClick={() => onDelete(c.id)} className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <AnimatePresence>{editing && (
+        <ModalShell title={editing.subject ? 'Modifica consenso' : 'Nuovo consenso'} onClose={() => setEditing(null)}
+          footer={<><button onClick={() => setEditing(null)} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => { onSave(editing); setEditing(null); }} disabled={!editing.subject.trim()} label="Salva" /></>}>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Soggetto" full><input className={IN} value={editing.subject} onChange={(e) => setEditing({ ...editing, subject: e.target.value })} placeholder="Nominativo / contatto" /></Field>
+            <Field label="Email"><input className={IN} value={editing.email || ''} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></Field>
+            <Field label="Cliente"><select className={IN} value={editing.clientId || ''} onChange={(e) => setEditing({ ...editing, clientId: e.target.value || null })}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <Field label="Finalità" full>
+              <div className="flex flex-wrap gap-1.5">{CONSENT_SCOPES.map((s) => { const on = editing.scopes.includes(s.id); return <button key={s.id} onClick={() => setEditing({ ...editing, scopes: on ? editing.scopes.filter((x) => x !== s.id) : [...editing.scopes, s.id] })} className={`text-[12px] font-bold px-3 py-1.5 rounded-full border cursor-pointer ${on ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-stone-500 border-stone-200'}`}>{s.label}</button>; })}</div>
+            </Field>
+            <Field label="Base giuridica" full><input className={IN} value={editing.basis || ''} onChange={(e) => setEditing({ ...editing, basis: e.target.value })} placeholder="Es. consenso esplicito art. 6.1.a" /></Field>
+            <Field label="Stato"><button onClick={() => setEditing({ ...editing, granted: !editing.granted, grantedAt: !editing.granted ? Date.now() : editing.grantedAt, revokedAt: !editing.granted ? null : Date.now() })} className={`h-10 px-3 rounded-lg border text-[12.5px] font-bold cursor-pointer ${editing.granted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>{editing.granted ? 'Concesso' : 'Revocato'}</button></Field>
+          </div>
+        </ModalShell>
+      )}</AnimatePresence>
     </div>
   );
 };

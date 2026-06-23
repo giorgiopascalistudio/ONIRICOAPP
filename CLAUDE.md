@@ -414,6 +414,10 @@ reporting/redditività, integrazioni esterne
   ⚠️ Aggiunti i nodi **Strategico/Produzione** (§22-ter): **`mktAssets`**, **`mktDeliverables`**,
   **`mktProofs`** (tutti read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**,
   altrimenti asset library, kanban e proofing danno "permission denied" con write silenziosa lato client.
+  ⚠️ Aggiunti i nodi **Strategico/Acquisizione-Dati-Compliance** (§22-quinquies): **`mktLeads`**, **`mktFlows`**,
+  **`mktSeo`**, **`mktAds`**, **`mktMetrics`**, **`mktInbox`**, **`mktConsents`** (tutti read/write studio attivo
+  non-cliente/non-partner): **ripubblicare le regole**, altrimenti lead/automation/SEO/ads/analytics/inbox/consensi
+  danno "permission denied" con write silenziosa lato client. La spesa ads riusa i nodi finanza esistenti.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -679,6 +683,24 @@ reporting/redditività, integrazioni esterne
   - **Backend** (`functions/src/index.ts`): `aiGenerate` (onCall, secret `ANTHROPIC_KEY`, solo studio attivo —
     chiama l'API Anthropic Messages, modello default `claude-sonnet-4-6`) e `marketingMonthlyReport` (onSchedule,
     sintesi mensile ad admin/manager via notifica + email SendGrid). Deploy a carico utente (vedi §18 e README).
+- **Acquisizione / Dati / Compliance (§22-quinquies, Blocchi D–K)** — 8 moduli, tutti in `StrategicoView`
+  (studio attivo non-cliente/non-partner). Dove servirebbero API esterne, i dati sono **manuali e predisposti**
+  per ricevere le API in seguito. Nuovi nodi: `mktLeads`, `mktFlows`, `mktSeo`, `mktAds`, `mktMetrics`,
+  `mktInbox`, `mktConsents` (gruppi pillbar **Acquisizione** e **Dati & Compliance**):
+  - **Lead** (`mktLeads`, `MktLead`): pipeline a 6 fasi + **lead scoring** (`suggestScore` da email/telefono/
+    azienda/valore/fase, override manuale) + valore pipeline/conversione.
+  - **Automation** (`mktFlows`, `MktFlow`): flussi nurturing multi-step (email/whatsapp/sms) con trigger; i
+    messaggi sono testo per gli invii via link (no invio automatico, coerente con la scelta "solo link").
+  - **SEO & Content** (`mktSeo`, `MktSeoItem`, `kind: keyword|brief`): keyword (volume/difficoltà/posizione
+    manuali) + content brief con **outline via AI** (`AiAssist`).
+  - **Advertising/PPC** (`mktAds`, `MktAdCampaign`): campagne paid per piattaforma con budget/metriche manuali;
+    "Registra spesa" (`handleRegisterAdsSpend`) → **fattura passiva** in Finanza (`sector:'strategico'`).
+  - **Analytics** (`mktMetrics`, `MktMetric`): metriche GA4/Ads/social inserite a mano (pluggable API).
+  - **Inbox** (`mktInbox`, `MktInboxItem`): messaggi/commenti social unificati manuali, sentiment + gestito.
+  - **Consensi GDPR** (`mktConsents`, `MktConsent`): registro consensi (finalità/base giuridica/grant-revoke).
+  - **Attività** (`ActivityTab`, **derivato**, nessun nodo): feed delle modifiche recenti su tutti i nodi `mkt*`.
+  - App: stato/sub/handler save-delete per i 7 nodi (+ Cestino, sezioni `mkt-lead|mkt-flow|mkt-seo|mkt-ad|
+    mkt-metric|mkt-inbox|mkt-consent`) + `handleRegisterAdsSpend`; props via `ProjectsView` → `StrategicoView`.
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

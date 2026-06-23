@@ -74,6 +74,13 @@ import {
   MktAsset,
   MktDeliverable,
   MktProof,
+  MktLead,
+  MktFlow,
+  MktSeoItem,
+  MktAdCampaign,
+  MktMetric,
+  MktInboxItem,
+  MktConsent,
   RsvpStatus
 } from './types';
 
@@ -346,6 +353,14 @@ export default function App() {
   const [mktAssets, setMktAssets] = useState<Record<string, MktAsset>>({});
   const [mktDeliverables, setMktDeliverables] = useState<Record<string, MktDeliverable>>({});
   const [mktProofs, setMktProofs] = useState<Record<string, MktProof>>({});
+  // Strategico — Acquisizione/Dati/Compliance (Blocchi D–K)
+  const [mktLeads, setMktLeads] = useState<Record<string, MktLead>>({});
+  const [mktFlows, setMktFlows] = useState<Record<string, MktFlow>>({});
+  const [mktSeo, setMktSeo] = useState<Record<string, MktSeoItem>>({});
+  const [mktAds, setMktAds] = useState<Record<string, MktAdCampaign>>({});
+  const [mktMetrics, setMktMetrics] = useState<Record<string, MktMetric>>({});
+  const [mktInbox, setMktInbox] = useState<Record<string, MktInboxItem>>({});
+  const [mktConsents, setMktConsents] = useState<Record<string, MktConsent>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -885,6 +900,124 @@ export default function App() {
     });
   };
 
+  // ----------------------------------------------------
+  // Strategico — Acquisizione/Dati/Compliance (Blocchi D–K)
+  // ----------------------------------------------------
+  const handleSaveMktLead = (l: MktLead) => {
+    const enriched: MktLead = { ...l, updatedAt: Date.now(), createdAt: l.createdAt || Date.now() };
+    setMktLeads((prev) => ({ ...prev, [l.id]: enriched }));
+    writeNode(`mktLeads/${l.id}`, enriched).catch(() => showToast('Errore lead (controlla regole).', 'err'));
+  };
+  const handleDeleteMktLead = (id: string) => {
+    const l = mktLeads[id];
+    askDelete('Eliminare questo lead?', l ? `"${l.name}"` : null, () => {
+      if (l) moveToTrash('mkt-lead', l.name || 'Lead', l);
+      setMktLeads((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktLeads/${id}`).catch(() => {});
+      showToast('Lead spostato nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktFlow = (f: MktFlow) => {
+    const enriched: MktFlow = { ...f, updatedAt: Date.now(), createdAt: f.createdAt || Date.now() };
+    setMktFlows((prev) => ({ ...prev, [f.id]: enriched }));
+    writeNode(`mktFlows/${f.id}`, enriched).catch(() => showToast('Errore automation (controlla regole).', 'err'));
+  };
+  const handleDeleteMktFlow = (id: string) => {
+    const f = mktFlows[id];
+    askDelete('Eliminare questo flusso?', f ? `"${f.name}"` : null, () => {
+      if (f) moveToTrash('mkt-flow', f.name || 'Flusso', f);
+      setMktFlows((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktFlows/${id}`).catch(() => {});
+      showToast('Flusso spostato nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktSeo = (s: MktSeoItem) => {
+    const enriched: MktSeoItem = { ...s, updatedAt: Date.now(), createdAt: s.createdAt || Date.now() };
+    setMktSeo((prev) => ({ ...prev, [s.id]: enriched }));
+    writeNode(`mktSeo/${s.id}`, enriched).catch(() => showToast('Errore SEO (controlla regole).', 'err'));
+  };
+  const handleDeleteMktSeo = (id: string) => {
+    const s = mktSeo[id];
+    askDelete('Eliminare questa voce SEO?', s ? `"${s.keyword || s.title || ''}"` : null, () => {
+      if (s) moveToTrash('mkt-seo', s.keyword || s.title || 'SEO', s);
+      setMktSeo((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktSeo/${id}`).catch(() => {});
+      showToast('Voce SEO spostata nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktAd = (a: MktAdCampaign) => {
+    const enriched: MktAdCampaign = { ...a, updatedAt: Date.now(), createdAt: a.createdAt || Date.now() };
+    setMktAds((prev) => ({ ...prev, [a.id]: enriched }));
+    writeNode(`mktAds/${a.id}`, enriched).catch(() => showToast('Errore advertising (controlla regole).', 'err'));
+  };
+  const handleDeleteMktAd = (id: string) => {
+    const a = mktAds[id];
+    askDelete('Eliminare questa campagna ads?', a ? `"${a.name}"` : null, () => {
+      if (a) moveToTrash('mkt-ad', a.name || 'Ads', a, undefined, eur(Number(a.spend || a.budget) || 0));
+      setMktAds((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktAds/${id}`).catch(() => {});
+      showToast('Campagna ads spostata nel Cestino.', 'err');
+    });
+  };
+  // Spesa ads → fattura passiva in Finanza (sector:'strategico')
+  const handleRegisterAdsSpend = (id: string) => {
+    const a = mktAds[id];
+    if (!a) return;
+    const amount = Number(a.spend) || Number(a.budget) || 0;
+    if (amount <= 0) { showToast('Imposta budget/spesa sulla campagna ads.', 'err'); return; }
+    const invId = `inp-${Date.now()}-${Math.floor(Math.random() * 900)}`;
+    const inv: InvoicePassive = {
+      id: invId, supplierName: `${a.platform.toUpperCase()} Ads`, projectId: '', projectName: '', amount,
+      category: 'Marketing / Advertising', status: 'ricevuta', date: todayISO(), dueDate: todayISO(),
+      sector: 'strategico', description: `Spesa ads ${a.name} (${a.platform})`,
+    };
+    handleSaveFinanceItem('finInvoicesPassive', inv);
+    handleSaveMktAd({ ...a, financeRefs: [...(a.financeRefs || []), invId] });
+    showToast(`Spesa ads "${a.name}" registrata in Finanze.`, 'ok');
+  };
+  const handleSaveMktMetric = (m: MktMetric) => {
+    const enriched: MktMetric = { ...m, updatedAt: Date.now(), createdAt: m.createdAt || Date.now() };
+    setMktMetrics((prev) => ({ ...prev, [m.id]: enriched }));
+    writeNode(`mktMetrics/${m.id}`, enriched).catch(() => showToast('Errore metriche (controlla regole).', 'err'));
+  };
+  const handleDeleteMktMetric = (id: string) => {
+    const m = mktMetrics[id];
+    askDelete('Eliminare questa metrica?', m ? `${m.metric} (${m.source})` : null, () => {
+      if (m) moveToTrash('mkt-metric', `${m.metric} · ${m.source}`, m);
+      setMktMetrics((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktMetrics/${id}`).catch(() => {});
+      showToast('Metrica spostata nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktInbox = (i: MktInboxItem) => {
+    const enriched: MktInboxItem = { ...i, updatedAt: Date.now(), createdAt: i.createdAt || Date.now() };
+    setMktInbox((prev) => ({ ...prev, [i.id]: enriched }));
+    writeNode(`mktInbox/${i.id}`, enriched).catch(() => showToast('Errore inbox (controlla regole).', 'err'));
+  };
+  const handleDeleteMktInbox = (id: string) => {
+    const i = mktInbox[id];
+    askDelete('Eliminare questo messaggio?', i ? `${i.from}` : null, () => {
+      if (i) moveToTrash('mkt-inbox', `${i.from} · ${i.channel}`, i);
+      setMktInbox((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktInbox/${id}`).catch(() => {});
+      showToast('Messaggio spostato nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktConsent = (c: MktConsent) => {
+    const enriched: MktConsent = { ...c, updatedAt: Date.now(), createdAt: c.createdAt || Date.now() };
+    setMktConsents((prev) => ({ ...prev, [c.id]: enriched }));
+    writeNode(`mktConsents/${c.id}`, enriched).catch(() => showToast('Errore consensi (controlla regole).', 'err'));
+  };
+  const handleDeleteMktConsent = (id: string) => {
+    const c = mktConsents[id];
+    askDelete('Eliminare questo consenso?', c ? `"${c.subject}"` : null, () => {
+      if (c) moveToTrash('mkt-consent', c.subject || 'Consenso', c);
+      setMktConsents((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktConsents/${id}`).catch(() => {});
+      showToast('Consenso spostato nel Cestino.', 'err');
+    });
+  };
+
   // ---- Marketing lato portale (cliente/partner) ----
   const handleRsvpEvent = (eventId: string, status: RsvpStatus) => {
     if (!currentUser) return;
@@ -1295,6 +1428,13 @@ export default function App() {
       subs.push(watchNode('mktAssets', (v) => setMktAssets(v || {}), () => {}));
       subs.push(watchNode('mktDeliverables', (v) => setMktDeliverables(v || {}), () => {}));
       subs.push(watchNode('mktProofs', (v) => setMktProofs(v || {}), () => {}));
+      subs.push(watchNode('mktLeads', (v) => setMktLeads(v || {}), () => {}));
+      subs.push(watchNode('mktFlows', (v) => setMktFlows(v || {}), () => {}));
+      subs.push(watchNode('mktSeo', (v) => setMktSeo(v || {}), () => {}));
+      subs.push(watchNode('mktAds', (v) => setMktAds(v || {}), () => {}));
+      subs.push(watchNode('mktMetrics', (v) => setMktMetrics(v || {}), () => {}));
+      subs.push(watchNode('mktInbox', (v) => setMktInbox(v || {}), () => {}));
+      subs.push(watchNode('mktConsents', (v) => setMktConsents(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => {
@@ -1659,6 +1799,34 @@ export default function App() {
         case 'mkt-proof':
           setMktProofs((prev) => ({ ...prev, [id]: pl }));
           writeNode(`mktProofs/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-lead':
+          setMktLeads((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktLeads/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-flow':
+          setMktFlows((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktFlows/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-seo':
+          setMktSeo((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktSeo/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-ad':
+          setMktAds((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktAds/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-metric':
+          setMktMetrics((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktMetrics/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-inbox':
+          setMktInbox((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktInbox/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-consent':
+          setMktConsents((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktConsents/${id}`, pl).catch(() => {});
           break;
         default:
           showToast('Sezione non ripristinabile automaticamente.', 'err');
@@ -3657,6 +3825,28 @@ export default function App() {
             onDeleteMktDeliverable={handleDeleteMktDeliverable}
             onSaveMktProof={handleSaveMktProof}
             onDeleteMktProof={handleDeleteMktProof}
+            mktLeads={Object.values(mktLeads)}
+            mktFlows={Object.values(mktFlows)}
+            mktSeo={Object.values(mktSeo)}
+            mktAds={Object.values(mktAds)}
+            mktMetrics={Object.values(mktMetrics)}
+            mktInbox={Object.values(mktInbox)}
+            mktConsents={Object.values(mktConsents)}
+            onSaveMktLead={handleSaveMktLead}
+            onDeleteMktLead={handleDeleteMktLead}
+            onSaveMktFlow={handleSaveMktFlow}
+            onDeleteMktFlow={handleDeleteMktFlow}
+            onSaveMktSeo={handleSaveMktSeo}
+            onDeleteMktSeo={handleDeleteMktSeo}
+            onSaveMktAd={handleSaveMktAd}
+            onDeleteMktAd={handleDeleteMktAd}
+            onRegisterAdsSpend={handleRegisterAdsSpend}
+            onSaveMktMetric={handleSaveMktMetric}
+            onDeleteMktMetric={handleDeleteMktMetric}
+            onSaveMktInbox={handleSaveMktInbox}
+            onDeleteMktInbox={handleDeleteMktInbox}
+            onSaveMktConsent={handleSaveMktConsent}
+            onDeleteMktConsent={handleDeleteMktConsent}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}

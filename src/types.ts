@@ -1010,6 +1010,144 @@ export interface MktProof {
   updatedAt?: number;
 }
 
+// ============================================================
+// Strategico — Acquisizione / Dati / Compliance (Blocchi D–K).
+// Moduli con dati inseriti a mano, predisposti per ricevere le API esterne
+// (SEO/Ads/GA4/social) in un secondo momento. I dati economici (spesa ads)
+// confluiscono in Finanza con sector:'strategico'.
+// ============================================================
+
+// D. Lead & pipeline marketing — nodo mktLeads/<id>.
+export type MktLeadStage = 'nuovo' | 'contattato' | 'qualificato' | 'proposta' | 'vinto' | 'perso';
+export interface MktLead {
+  id: string;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source?: string | null;          // origine (sito, referral, evento, ads…)
+  stage: MktLeadStage;
+  score?: number | null;           // 0-100 (suggerito dai campi, override manuale)
+  value?: number | null;           // valore potenziale €
+  tags?: string[];
+  ownerUid?: string | null;
+  ownerName?: string | null;
+  note?: string | null;
+  lastContactAt?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// E. Marketing automation — flussi nurturing — nodo mktFlows/<id>.
+export type MktFlowChannel = 'email' | 'whatsapp' | 'sms';
+export interface MktFlowStep {
+  id: string;
+  offsetDays: number;
+  channel: MktFlowChannel;
+  subject?: string | null;
+  message: string;
+}
+export interface MktFlow {
+  id: string;
+  name: string;
+  trigger?: string | null;         // descrizione trigger (iscrizione, evento, acquisto…)
+  audienceTiers?: number[];
+  steps: MktFlowStep[];
+  active: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// F. SEO & Content — nodo mktSeo/<id> (kind discrimina keyword vs brief).
+export type MktSeoKind = 'keyword' | 'brief';
+export type MktBriefStatus = 'idea' | 'in_lavorazione' | 'pubblicato';
+export interface MktSeoItem {
+  id: string;
+  kind: MktSeoKind;
+  keyword?: string | null;
+  volume?: number | null;
+  difficulty?: number | null;      // 0-100
+  position?: number | null;        // posizione attuale (manuale)
+  url?: string | null;             // pagina target
+  intent?: string | null;
+  title?: string | null;           // brief
+  outline?: string | null;
+  status?: MktBriefStatus;
+  clientId?: string | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// G. Advertising & PPC — nodo mktAds/<id>.
+export type MktAdPlatform = 'google' | 'meta' | 'tiktok' | 'linkedin';
+export type MktAdStatus = 'attiva' | 'in_pausa' | 'conclusa';
+export interface MktAdCampaign {
+  id: string;
+  name: string;
+  platform: MktAdPlatform;
+  clientId?: string | null;
+  clientName?: string | null;
+  budget?: number | null;
+  spend?: number | null;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
+  status: MktAdStatus;
+  startAt?: number | null;
+  endAt?: number | null;
+  financeRefs?: string[];          // voci passive generate in Finanza
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// H. Analytics — metriche manuali (pluggable GA4/Ads) — nodo mktMetrics/<id>.
+export type MktMetricSource = 'ga4' | 'google_ads' | 'meta' | 'linkedin' | 'tiktok' | 'altro';
+export interface MktMetric {
+  id: string;
+  source: MktMetricSource;
+  metric: string;                  // es. sessioni, conversioni, CTR
+  value: number;
+  date: number;                    // periodo
+  clientId?: string | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// I. Inbox unificata (manuale) — nodo mktInbox/<id>.
+export type MktInboxChannel = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'email' | 'whatsapp' | 'altro';
+export type MktSentiment = 'positivo' | 'neutro' | 'negativo';
+export interface MktInboxItem {
+  id: string;
+  channel: MktInboxChannel;
+  from: string;                    // mittente/handle
+  text: string;
+  clientId?: string | null;
+  handled?: boolean;
+  sentiment?: MktSentiment | null;
+  at: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// J. GDPR — registro consensi — nodo mktConsents/<id>.
+export type MktConsentScope = 'marketing' | 'newsletter' | 'profilazione' | 'terzi';
+export interface MktConsent {
+  id: string;
+  subject: string;                 // nominativo/contatto
+  email?: string | null;
+  clientId?: string | null;
+  scopes: MktConsentScope[];
+  granted: boolean;
+  basis?: string | null;           // base giuridica
+  grantedAt?: number | null;
+  revokedAt?: number | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 // Voce di time tracking — nodo mktTimeEntries/<id>.
 export interface MktTimeEntry {
   id: string;

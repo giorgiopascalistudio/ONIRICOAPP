@@ -39,7 +39,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry, MktAsset, MktDeliverable, MktProof } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry, MktAsset, MktDeliverable, MktProof, MktLead, MktFlow, MktSeoItem, MktAdCampaign, MktMetric, MktInboxItem, MktConsent } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -158,6 +158,29 @@ interface ProjectsViewProps {
   onDeleteMktDeliverable?: (id: string) => void;
   onSaveMktProof?: (p: MktProof) => void;
   onDeleteMktProof?: (id: string) => void;
+  // Strategico — Acquisizione/Dati/Compliance (Blocchi D–K)
+  mktLeads?: MktLead[];
+  mktFlows?: MktFlow[];
+  mktSeo?: MktSeoItem[];
+  mktAds?: MktAdCampaign[];
+  mktMetrics?: MktMetric[];
+  mktInbox?: MktInboxItem[];
+  mktConsents?: MktConsent[];
+  onSaveMktLead?: (l: MktLead) => void;
+  onDeleteMktLead?: (id: string) => void;
+  onSaveMktFlow?: (f: MktFlow) => void;
+  onDeleteMktFlow?: (id: string) => void;
+  onSaveMktSeo?: (s: MktSeoItem) => void;
+  onDeleteMktSeo?: (id: string) => void;
+  onSaveMktAd?: (a: MktAdCampaign) => void;
+  onDeleteMktAd?: (id: string) => void;
+  onRegisterAdsSpend?: (id: string) => void;
+  onSaveMktMetric?: (m: MktMetric) => void;
+  onDeleteMktMetric?: (id: string) => void;
+  onSaveMktInbox?: (i: MktInboxItem) => void;
+  onDeleteMktInbox?: (id: string) => void;
+  onSaveMktConsent?: (c: MktConsent) => void;
+  onDeleteMktConsent?: (id: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -283,6 +306,28 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onDeleteMktDeliverable,
   onSaveMktProof,
   onDeleteMktProof,
+  mktLeads = [],
+  mktFlows = [],
+  mktSeo = [],
+  mktAds = [],
+  mktMetrics = [],
+  mktInbox = [],
+  mktConsents = [],
+  onSaveMktLead,
+  onDeleteMktLead,
+  onSaveMktFlow,
+  onDeleteMktFlow,
+  onSaveMktSeo,
+  onDeleteMktSeo,
+  onSaveMktAd,
+  onDeleteMktAd,
+  onRegisterAdsSpend,
+  onSaveMktMetric,
+  onDeleteMktMetric,
+  onSaveMktInbox,
+  onDeleteMktInbox,
+  onSaveMktConsent,
+  onDeleteMktConsent,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -2514,6 +2559,28 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onDeleteDeliverable={onDeleteMktDeliverable || (() => {})}
           onSaveProof={onSaveMktProof || (() => {})}
           onDeleteProof={onDeleteMktProof || (() => {})}
+          leads={mktLeads}
+          flows={mktFlows}
+          seo={mktSeo}
+          ads={mktAds}
+          metrics={mktMetrics}
+          inbox={mktInbox}
+          consents={mktConsents}
+          onSaveLead={onSaveMktLead || (() => {})}
+          onDeleteLead={onDeleteMktLead || (() => {})}
+          onSaveFlow={onSaveMktFlow || (() => {})}
+          onDeleteFlow={onDeleteMktFlow || (() => {})}
+          onSaveSeo={onSaveMktSeo || (() => {})}
+          onDeleteSeo={onDeleteMktSeo || (() => {})}
+          onSaveAd={onSaveMktAd || (() => {})}
+          onDeleteAd={onDeleteMktAd || (() => {})}
+          onRegisterAdsSpend={onRegisterAdsSpend || (() => {})}
+          onSaveMetric={onSaveMktMetric || (() => {})}
+          onDeleteMetric={onDeleteMktMetric || (() => {})}
+          onSaveInbox={onSaveMktInbox || (() => {})}
+          onDeleteInbox={onDeleteMktInbox || (() => {})}
+          onSaveConsent={onSaveMktConsent || (() => {})}
+          onDeleteConsent={onDeleteMktConsent || (() => {})}
         />
       ) : showMatericoInbox ? (
         <MatericoView
