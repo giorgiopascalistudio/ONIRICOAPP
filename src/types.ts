@@ -803,6 +803,7 @@ export interface EventInvitee {
 
 export interface MarketingEvent {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   title: string;
   date: number;               // data/ora evento
   location?: string | null;
@@ -831,6 +832,7 @@ export interface CampaignStep {
 }
 export interface Campaign {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   name: string;
   channel: CampaignChannel;
   season?: string | null;     // stagionalità (es. "Natale 2026")
@@ -861,6 +863,7 @@ export interface SurveyQuestion {
 }
 export interface Survey {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   title: string;
   intro?: string | null;
   questions: SurveyQuestion[];
@@ -883,6 +886,7 @@ export type SocialStatus = 'idea' | 'bozza' | 'programmato' | 'pubblicato';
 // Voce del calendario editoriale social.
 export interface SocialPost {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   platform: SocialPlatform;
   caption: string;
   mediaUrl?: string | null;    // link/asset (renderizzato con safeUrl)
@@ -969,6 +973,7 @@ export type MktPriority = 'bassa' | 'media' | 'alta';
 // Deliverable della board kanban marketing — nodo mktDeliverables/<id>.
 export interface MktDeliverable {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   title: string;
   stage: MktDeliverableStage;
   clientId?: string | null;
@@ -998,6 +1003,7 @@ export type ProofStatus = 'in_revisione' | 'approvato' | 'modifiche_richieste';
 // Proof/revisione di un creativo — nodo mktProofs/<id>.
 export interface MktProof {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   title: string;
   imageUrl?: string | null;        // immagine/anteprima (url o driveUrl)
   clientId?: string | null;
@@ -1006,6 +1012,28 @@ export interface MktProof {
   status: ProofStatus;
   annotations?: ProofAnnotation[];
   deliverableId?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// ============================================================
+// Strategico — Progetto marketing (contenitore principale, §22-sex).
+// Le entità operative (eventi, campagne, social, deliverable, proof, ads, seo,
+// metriche, time, inbox, sondaggi) sono scoped da `mktProjectId`. Lead, contratti,
+// consensi, asset e flussi restano GLOBALI (non hanno mktProjectId obbligatorio).
+// ============================================================
+export type MktProjectStatus = 'attivo' | 'in_pausa' | 'concluso';
+export interface MktProject {
+  id: string;
+  name: string;
+  clientId?: string | null;        // cliente della rubrica
+  clientName?: string | null;
+  status: MktProjectStatus;
+  goal?: string | null;
+  color?: string | null;
+  startAt?: number | null;
+  endAt?: number | null;
+  note?: string | null;
   createdAt: number;
   updatedAt?: number;
 }
@@ -1063,6 +1091,7 @@ export type MktSeoKind = 'keyword' | 'brief';
 export type MktBriefStatus = 'idea' | 'in_lavorazione' | 'pubblicato';
 export interface MktSeoItem {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   kind: MktSeoKind;
   keyword?: string | null;
   volume?: number | null;
@@ -1084,6 +1113,7 @@ export type MktAdPlatform = 'google' | 'meta' | 'tiktok' | 'linkedin';
 export type MktAdStatus = 'attiva' | 'in_pausa' | 'conclusa';
 export interface MktAdCampaign {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   name: string;
   platform: MktAdPlatform;
   clientId?: string | null;
@@ -1105,6 +1135,7 @@ export interface MktAdCampaign {
 export type MktMetricSource = 'ga4' | 'google_ads' | 'meta' | 'linkedin' | 'tiktok' | 'altro';
 export interface MktMetric {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   source: MktMetricSource;
   metric: string;                  // es. sessioni, conversioni, CTR
   value: number;
@@ -1120,6 +1151,7 @@ export type MktInboxChannel = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' |
 export type MktSentiment = 'positivo' | 'neutro' | 'negativo';
 export interface MktInboxItem {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   channel: MktInboxChannel;
   from: string;                    // mittente/handle
   text: string;
@@ -1151,6 +1183,7 @@ export interface MktConsent {
 // Voce di time tracking — nodo mktTimeEntries/<id>.
 export interface MktTimeEntry {
   id: string;
+  mktProjectId?: string | null;   // progetto marketing (scope §22-sex)
   date: number;
   minutes: number;
   whoUid?: string | null;          // collaboratore

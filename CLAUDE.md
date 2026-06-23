@@ -635,6 +635,27 @@ reporting/redditività, integrazioni esterne
 - **Video**: SEMPRE URL online (Firebase Storage consigliato, vedi §13) — un unico mp4 continuo
   per pagina; le scene puntano ai suoi secondi. Niente upload dal client.
 
+## 22-sex. Strategico — architettura project-centric (IA a 3 livelli)
+**IMPORTANTE**: il modulo NON è più una lista piatta di sezioni globali. È organizzato **per progetto**
+(richiesta esplicita utente: "non posso mischiare i dati a caso"). `StrategicoView` ha 3 livelli:
+- **Livello 0/1 — Home** (`homeTab`): pillbar **Dashboard · Progetti · Lead · Contratti · Consensi · Libreria ·
+  Automation**. La **Dashboard** (`DashboardTab`) è solo overview (KPI globali + griglia progetti cliccabile +
+  alert "richiede attenzione" + `AnalisiTab`). **Progetti** (`MktProjectsTab`) elenca i progetti marketing.
+- **Livello 2 — dentro un progetto** (`activeId` ≠ null → `ProjectWorkspace`): pillbar di progetto
+  **Panoramica · Deliverable · Revisioni · Campagne · Social · Eventi · Ads · SEO · Sondaggi · Analytics · Time ·
+  Inbox · Report**. Ogni entità è **filtrata per `mktProjectId`** (`inProj`) e le nuove voci vengono **timbrate**
+  col progetto + cliente (`stamp`). `ProjectPanoramica` = tile-KPI del progetto con salto alle sezioni.
+- **Contenitore**: nuova entità **`MktProject`** (`mktProjects/<id>`) — `{name, clientId, status, color…}`,
+  legata a un cliente della rubrica. Handler `handleSaveMktProject`/`handleDeleteMktProject` (Cestino `mkt-progetto`).
+- **Campo `mktProjectId`** aggiunto alle entità operative: `MarketingEvent, Campaign, SocialPost, Survey,
+  MktDeliverable, MktProof, MktAdCampaign, MktSeoItem, MktMetric, MktInboxItem, MktTimeEntry`. Le entità
+  **globali** (NON per progetto) restano senza scope: `MktLead, MktContract, MktConsent, MktAsset, MktFlow`.
+- **Migrazione**: le voci legacy senza `mktProjectId` finiscono nel bucket **"Non assegnati"** (pseudo-progetto
+  `__unassigned__` in `MktProjectsTab`), apribile per riassegnarle. Nessun dato perso.
+- Il `ReportTab` accetta `reportTitle` ed è usato sia globale sia per-progetto (dati filtrati). `EconomiaTab`/
+  `ActivityTab` legacy non più montati (codice morto, sostituiti da Dashboard/Panoramica).
+- ⚠️ Regole: aggiunto nodo **`mktProjects`** in `firebase-rules.json` → ripubblicare.
+
 ## 22. Modulo Strategico / Marketing
 - **Dove**: **dentro Progetti**, divisione **STRATEGICO** (come Unico nella divisione UNICO). Toggle
   sub-tab **"Progetti | Marketing & Eventi"** (`strategicoTab` in `ProjectsView`, `showStrategicoStudio`

@@ -81,6 +81,7 @@ import {
   MktMetric,
   MktInboxItem,
   MktConsent,
+  MktProject,
   RsvpStatus
 } from './types';
 
@@ -361,6 +362,8 @@ export default function App() {
   const [mktMetrics, setMktMetrics] = useState<Record<string, MktMetric>>({});
   const [mktInbox, setMktInbox] = useState<Record<string, MktInboxItem>>({});
   const [mktConsents, setMktConsents] = useState<Record<string, MktConsent>>({});
+  // Strategico — Progetti marketing (contenitore, §22-sex)
+  const [mktProjects, setMktProjects] = useState<Record<string, MktProject>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -901,6 +904,24 @@ export default function App() {
   };
 
   // ----------------------------------------------------
+  // Strategico — Progetti marketing (contenitore, §22-sex)
+  // ----------------------------------------------------
+  const handleSaveMktProject = (p: MktProject) => {
+    const enriched: MktProject = { ...p, updatedAt: Date.now(), createdAt: p.createdAt || Date.now() };
+    setMktProjects((prev) => ({ ...prev, [p.id]: enriched }));
+    writeNode(`mktProjects/${p.id}`, enriched).catch(() => showToast('Errore progetto marketing (controlla regole).', 'err'));
+  };
+  const handleDeleteMktProject = (id: string) => {
+    const p = mktProjects[id];
+    askDelete('Eliminare questo progetto marketing?', p ? `"${p.name}" — le voci collegate restano (diventano "Non assegnate")` : null, () => {
+      if (p) moveToTrash('mkt-progetto', p.name || 'Progetto', p);
+      setMktProjects((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktProjects/${id}`).catch(() => {});
+      showToast('Progetto marketing spostato nel Cestino.', 'err');
+    });
+  };
+
+  // ----------------------------------------------------
   // Strategico — Acquisizione/Dati/Compliance (Blocchi D–K)
   // ----------------------------------------------------
   const handleSaveMktLead = (l: MktLead) => {
@@ -1435,6 +1456,7 @@ export default function App() {
       subs.push(watchNode('mktMetrics', (v) => setMktMetrics(v || {}), () => {}));
       subs.push(watchNode('mktInbox', (v) => setMktInbox(v || {}), () => {}));
       subs.push(watchNode('mktConsents', (v) => setMktConsents(v || {}), () => {}));
+      subs.push(watchNode('mktProjects', (v) => setMktProjects(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => {
@@ -1827,6 +1849,10 @@ export default function App() {
         case 'mkt-consent':
           setMktConsents((prev) => ({ ...prev, [id]: pl }));
           writeNode(`mktConsents/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-progetto':
+          setMktProjects((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktProjects/${id}`, pl).catch(() => {});
           break;
         default:
           showToast('Sezione non ripristinabile automaticamente.', 'err');
@@ -3847,6 +3873,9 @@ export default function App() {
             onDeleteMktInbox={handleDeleteMktInbox}
             onSaveMktConsent={handleSaveMktConsent}
             onDeleteMktConsent={handleDeleteMktConsent}
+            mktProjects={Object.values(mktProjects)}
+            onSaveMktProject={handleSaveMktProject}
+            onDeleteMktProject={handleDeleteMktProject}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}
