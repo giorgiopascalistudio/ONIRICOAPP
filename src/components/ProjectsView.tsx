@@ -378,7 +378,6 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const [quoteDraft, setQuoteDraft] = useState<Quote | null>(null);
   const [matericoTab, setMatericoTab] = useState<'progetti' | 'richieste'>('progetti');
   const [unicoTab, setUnicoTab] = useState<'progetti' | 'studio'>('progetti');
-  const [strategicoTab, setStrategicoTab] = useState<'progetti' | 'studio'>('progetti');
   
   // For Materico & Strategico tools
   const [newEstOpen, setNewEstOpen] = useState(false);
@@ -2274,7 +2273,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   // Unico: dentro la divisione Unico l'operatore passa da "Progetti" al modulo "Operazioni & Investitori".
   const showUnicoStudio = divisionFilter === 'unico' && isInternalBoss && unicoTab === 'studio';
   // Strategico: dentro la divisione Strategico l'operatore passa da "Progetti" al modulo Marketing.
-  const showStrategicoStudio = divisionFilter === 'strategico' && isInternalBoss && strategicoTab === 'studio';
+  // Strategico = società di marketing: per admin/manager mostra SEMPRE il modulo marketing
+  // (project-centric), senza più l'interruttore "Progetti | Marketing & Eventi".
+  const showStrategicoStudio = divisionFilter === 'strategico' && isInternalBoss;
   // Nasconde lista/filtri progetti quando è attiva una sotto-vista dedicata.
   const hideProjectsUI = showMatericoInbox || showUnicoStudio || showStrategicoStudio;
 
@@ -2386,35 +2387,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
             </div>
           )}
 
-          {divisionFilter === 'strategico' && isInternalBoss && (
-            <div className="flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] w-full sm:w-auto relative z-10">
-              {([
-                { id: 'progetti', label: 'Progetti' },
-                { id: 'studio', label: 'Marketing & Eventi' }
-              ] as const).map(t => {
-                const active = strategicoTab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setStrategicoTab(t.id)}
-                    className={`relative flex-1 sm:flex-initial text-center text-[11px] sm:text-[12px] font-extrabold px-3.5 sm:px-4 py-1.5 rounded-full cursor-pointer select-none transition-colors duration-300 border-none bg-transparent inline-flex items-center justify-center gap-1.5 ${
-                      active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'
-                    }`}
-                    style={{ touchAction: 'none' }}
-                  >
-                    {active && (
-                      <motion.div
-                        layoutId="strategicoSubTabActivePill"
-                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                        className="absolute inset-0 bg-white rounded-full z-0 shadow-xs"
-                      />
-                    )}
-                    <span className="relative z-10 font-extrabold">{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* Strategico = società di marketing: niente pratiche, solo il modulo marketing
+              (Dashboard → Progetti marketing → workspace). Nessun interruttore. */}
 
           {/* Main Status Navbar */}
           {!hideProjectsUI && (<>

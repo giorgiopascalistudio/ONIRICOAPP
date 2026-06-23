@@ -657,13 +657,12 @@ reporting/redditività, integrazioni esterne
 - ⚠️ Regole: aggiunto nodo **`mktProjects`** in `firebase-rules.json` → ripubblicare.
 
 ## 22. Modulo Strategico / Marketing
-- **Dove**: **dentro Progetti**, divisione **STRATEGICO** (come Unico nella divisione UNICO). Toggle
-  sub-tab **"Progetti | Marketing & Eventi"** (`strategicoTab` in `ProjectsView`, `showStrategicoStudio`
-  → mostra `StrategicoView`, importato diretto in `ProjectsView`). **Non** è una voce sidebar/route a sé.
-  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). Navigazione
-  raggruppata (`TAB_GROUPS`) con landing **Dashboard** (tile per funzione + KPI): **Panoramica**
-  (Dashboard · Analisi), **Economia** (Contratti & Retainer · Time tracking · Economia — vedi §22-bis),
-  **Relazioni & Contenuti** (Eventi · Campagne · Social · Sondaggi). Dati/handler arrivano da App via `ProjectsView`.
+- **Dove**: **dentro Progetti**, divisione **STRATEGICO**. Per admin/manager (`isInternalBoss`) la divisione
+  mostra **direttamente** `StrategicoView` (`showStrategicoStudio = divisionFilter==='strategico' && isInternalBoss`):
+  **l'interruttore "Progetti | Marketing & Eventi" è stato RIMOSSO** — Strategico è una società di marketing,
+  non ha pratiche, il suo "progetto" è il **progetto marketing** (`MktProject`, §22-sex). **Non** è una voce
+  sidebar/route a sé. Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10).
+  Architettura **project-centric a 3 livelli**: vedi **§22-sex** (Dashboard → Progetti → workspace di progetto).
 - **Economia (§22-bis, Blocco A) — ogni dato economico confluisce in Finanza** con `sector:'strategico'`
   (nessun nodo finanza nuovo; stesso schema di `handleEmitMilestone`):
   - **Contratti & Retainer** (`mktContracts/<id>`, tipo `MktContract`): abbonamenti ricorrenti
