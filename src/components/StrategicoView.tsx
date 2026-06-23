@@ -28,7 +28,7 @@ import type {
   MktDeliverableStage, MktPriority, ProofAnnotation, ProofStatus,
   MktLead, MktLeadStage, MktFlow, MktFlowStep, MktFlowChannel, MktSeoItem,
   MktAdCampaign, MktAdPlatform, MktMetric, MktMetricSource, MktInboxItem,
-  MktInboxChannel, MktConsent, MktConsentScope,
+  MktInboxChannel, MktConsent, MktConsentScope, MktProject, MktProjectStatus,
 } from '../types';
 import type { InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { eur, safeUrl } from '../utils';
@@ -111,100 +111,258 @@ interface Props {
   onDeleteInbox: (id: string) => void;
   onSaveConsent: (c: MktConsent) => void;
   onDeleteConsent: (id: string) => void;
+  // Progetti marketing (contenitore, §22-sex)
+  mktProjects: MktProject[];
+  onSaveMktProject: (p: MktProject) => void;
+  onDeleteMktProject: (id: string) => void;
 }
 
-type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi'
-  | 'asset' | 'deliverable' | 'proof' | 'report'
-  | 'lead' | 'automation' | 'seo' | 'ads' | 'metriche' | 'inbox' | 'consensi' | 'attivita';
-
-// Raggruppamento coerente delle funzioni (usato dalla dashboard + pillbar).
-const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.ElementType; desc: string }[] }[] = [
-  { group: 'Panoramica', items: [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Quadro generale di Strategico' },
-    { id: 'analisi', label: 'Analisi', icon: BarChart3, desc: 'Adesione, risposta, conversione, soddisfazione' },
-    { id: 'report', label: 'Report', icon: FileBarChart, desc: 'Report white-label + sintesi AI' },
-    { id: 'attivita', label: 'Attività', icon: Activity, desc: 'Registro attività recenti del modulo' },
-  ] },
-  { group: 'Acquisizione', items: [
-    { id: 'lead', label: 'Lead', icon: Target, desc: 'Pipeline lead + scoring + segmentazione' },
-    { id: 'automation', label: 'Automation', icon: Workflow, desc: 'Flussi nurturing multi-step' },
-    { id: 'seo', label: 'SEO & Content', icon: Search, desc: 'Keyword, posizioni, content brief' },
-    { id: 'ads', label: 'Advertising', icon: MousePointerClick, desc: 'Campagne PPC + budget → Finanza' },
-  ] },
-  { group: 'Economia', items: [
-    { id: 'contratti', label: 'Contratti & Retainer', icon: FileText, desc: 'Abbonamenti ricorrenti → fattura in Finanza' },
-    { id: 'time', label: 'Time tracking', icon: Timer, desc: 'Ore per cliente/progetto → fatturabili' },
-    { id: 'economia', label: 'Economia', icon: Wallet, desc: 'Contributo di Strategico al consolidato' },
-  ] },
-  { group: 'Produzione', items: [
-    { id: 'deliverable', label: 'Deliverable', icon: Columns, desc: 'Board kanban dei contenuti' },
-    { id: 'proof', label: 'Revisioni', icon: Eye, desc: 'Proofing con annotazioni e approvazione' },
-    { id: 'asset', label: 'Asset library', icon: FolderOpen, desc: 'Libreria media con tag' },
-  ] },
-  { group: 'Relazioni & Contenuti', items: [
-    { id: 'eventi', label: 'Eventi', icon: Calendar, desc: 'Eventi e inviti con RSVP' },
-    { id: 'campagne', label: 'Campagne', icon: Megaphone, desc: 'Follow-up, UTM, budget' },
-    { id: 'social', label: 'Social', icon: Share2, desc: 'Calendario editoriale' },
-    { id: 'inbox', label: 'Inbox', icon: Inbox, desc: 'Messaggi/commenti social unificati' },
-    { id: 'sondaggi', label: 'Sondaggi', icon: ClipboardList, desc: 'Customer satisfaction' },
-  ] },
-  { group: 'Dati & Compliance', items: [
-    { id: 'metriche', label: 'Analytics', icon: TrendingUp, desc: 'Metriche GA4/Ads/social (manuali)' },
-    { id: 'consensi', label: 'Consensi GDPR', icon: ShieldCheck, desc: 'Registro consensi e opt-out' },
-  ] },
+// Livello 1 — aree HOME (globali / overview). Le aree operative stanno DENTRO un progetto (Livello 2).
+type HomeTab = 'dashboard' | 'progetti' | 'lead' | 'contratti' | 'consensi' | 'asset' | 'automation';
+type ProjTab = 'panoramica' | 'deliverable' | 'revisioni' | 'campagne' | 'social' | 'eventi' | 'ads' | 'seo' | 'sondaggi' | 'analytics' | 'time' | 'inbox' | 'report';
+const HOME_TABS: { id: HomeTab; label: string; icon: React.ElementType }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'progetti', label: 'Progetti', icon: FolderOpen },
+  { id: 'lead', label: 'Lead', icon: Target },
+  { id: 'contratti', label: 'Contratti', icon: FileText },
+  { id: 'consensi', label: 'Consensi GDPR', icon: ShieldCheck },
+  { id: 'asset', label: 'Libreria', icon: ImageIcon },
+  { id: 'automation', label: 'Automation', icon: Workflow },
 ];
-const ALL_TABS = TAB_GROUPS.flatMap((g) => g.items);
+const PROJ_TABS: { id: ProjTab; label: string; icon: React.ElementType }[] = [
+  { id: 'panoramica', label: 'Panoramica', icon: LayoutDashboard },
+  { id: 'deliverable', label: 'Deliverable', icon: Columns },
+  { id: 'revisioni', label: 'Revisioni', icon: Eye },
+  { id: 'campagne', label: 'Campagne', icon: Megaphone },
+  { id: 'social', label: 'Social', icon: Share2 },
+  { id: 'eventi', label: 'Eventi', icon: Calendar },
+  { id: 'ads', label: 'Ads', icon: MousePointerClick },
+  { id: 'seo', label: 'SEO', icon: Search },
+  { id: 'sondaggi', label: 'Sondaggi', icon: ClipboardList },
+  { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+  { id: 'time', label: 'Time', icon: Timer },
+  { id: 'inbox', label: 'Inbox', icon: Inbox },
+  { id: 'report', label: 'Report', icon: FileBarChart },
+];
+const PROJ_STATUS_META: Record<MktProjectStatus, { label: string; cls: string }> = {
+  attivo: { label: 'Attivo', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  in_pausa: { label: 'In pausa', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  concluso: { label: 'Concluso', cls: 'bg-stone-100 text-stone-500 border-stone-200' },
+};
+const UNASSIGNED = '__unassigned__';
 
 export const StrategicoView: React.FC<Props> = (props) => {
-  const { events, campaigns, surveys, social, responses, clients, contracts, timeEntries, projects } = props;
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const { clients } = props;
+  const [activeId, setActiveId] = useState<string | null>(null);   // progetto aperto (o UNASSIGNED, o null=home)
+  const [homeTab, setHomeTab] = useState<HomeTab>('dashboard');
+  const [projTab, setProjTab] = useState<ProjTab>('panoramica');
+  const openProject = (id: string) => { setActiveId(id); setProjTab('panoramica'); };
 
+  const Pillbar = ({ items, current, onPick }: { items: { id: string; label: string; icon: React.ElementType }[]; current: string; onPick: (id: any) => void }) => (
+    <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start max-w-full overflow-x-auto">
+      {items.map((t) => {
+        const active = current === t.id; const Icon = t.icon;
+        return (
+          <button key={t.id} onClick={() => onPick(t.id)}
+            className={`relative text-[12px] font-extrabold px-4 py-1.5 rounded-full transition-colors border-none bg-transparent cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'}`}>
+            {active && <motion.div layoutId="strPill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 bg-white rounded-full z-0 shadow-xs" />}
+            <span className="relative z-10 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  // ---- Livello 2: dentro un progetto ----
+  if (activeId) {
+    const proj = activeId === UNASSIGNED ? null : props.mktProjects.find((p) => p.id === activeId) || null;
+    const title = proj ? proj.name : 'Non assegnati';
+    return (
+      <div className="flex flex-col gap-5 text-left">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setActiveId(null)} className="w-9 h-9 rounded-xl border border-[#e2e2e2] bg-white hover:bg-stone-50 flex items-center justify-center text-stone-500 cursor-pointer shrink-0" title="Torna ai progetti"><ArrowRight className="w-4.5 h-4.5 rotate-180" /></button>
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: proj?.color || ACCENT }}><Megaphone className="w-5 h-5" /></div>
+          <div className="min-w-0">
+            <button onClick={() => setActiveId(null)} className="text-[11px] text-stone-400 hover:text-[#b45309] bg-transparent border-none cursor-pointer p-0">Strategico · Progetti</button>
+            <h1 className="text-[19px] font-extrabold tracking-tight truncate">{title}</h1>
+            {proj?.clientName && <p className="text-[12px] text-stone-400">{proj.clientName}</p>}
+          </div>
+        </div>
+        <Pillbar items={PROJ_TABS} current={projTab} onPick={setProjTab} />
+        <ProjectWorkspace {...props} projectId={activeId} tab={projTab} goTab={setProjTab} />
+      </div>
+    );
+  }
+
+  // ---- Livello 0/1: home ----
   return (
     <div className="flex flex-col gap-5 text-left">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white" style={{ background: ACCENT }}><Megaphone className="w-5 h-5" /></div>
         <div>
           <h1 className="text-[20px] font-extrabold tracking-tight">Strategico</h1>
-          <p className="text-[12.5px] text-stone-400">Marketing, eventi e comunicazione del gruppo Onirico</p>
+          <p className="text-[12.5px] text-stone-400">Marketing del gruppo Onirico — scegli un progetto per lavorare</p>
         </div>
       </div>
+      <Pillbar items={HOME_TABS} current={homeTab} onPick={setHomeTab} />
 
-      <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start max-w-full overflow-x-auto">
-        {ALL_TABS.map((t) => {
-          const active = tab === t.id;
+      {homeTab === 'dashboard' && <DashboardTab {...props} onOpenProject={openProject} goHome={setHomeTab} />}
+      {homeTab === 'progetti' && <MktProjectsTab {...props} onOpenProject={openProject} />}
+      {homeTab === 'lead' && <LeadsTab leads={props.leads} clients={clients} team={props.team} onSave={props.onSaveLead} onDelete={props.onDeleteLead} />}
+      {homeTab === 'contratti' && <ContractsTab contracts={props.contracts} clients={clients} projects={props.projects} onSave={props.onSaveContract} onDelete={props.onDeleteContract} onEmit={props.onEmitContractInvoice} />}
+      {homeTab === 'consensi' && <ConsentsTab consents={props.consents} clients={clients} onSave={props.onSaveConsent} onDelete={props.onDeleteConsent} />}
+      {homeTab === 'asset' && <AssetsTab assets={props.assets} clients={clients} campaigns={props.campaigns} onSave={props.onSaveAsset} onDelete={props.onDeleteAsset} />}
+      {homeTab === 'automation' && <AutomationTab flows={props.flows} clients={clients} onSave={props.onSaveFlow} onDelete={props.onDeleteFlow} />}
+    </div>
+  );
+};
+
+// Workspace di un singolo progetto: filtra le entità per mktProjectId e timbra le nuove.
+const ProjectWorkspace: React.FC<Props & { projectId: string; tab: ProjTab; goTab: (t: ProjTab) => void }> = (props) => {
+  const { projectId, tab, clients } = props;
+  const isReal = projectId !== UNASSIGNED;
+  const proj = isReal ? props.mktProjects.find((p) => p.id === projectId) || null : null;
+  function inProj<T extends { mktProjectId?: string | null }>(arr: T[]): T[] {
+    return arr.filter((x) => (isReal ? x.mktProjectId === projectId : !x.mktProjectId));
+  }
+  function stamp<T extends { mktProjectId?: string | null; clientId?: string | null; clientName?: string | null }>(fn: (x: T) => void): (x: T) => void {
+    return (x: T) => fn(isReal ? { ...x, mktProjectId: projectId, clientId: x.clientId ?? proj?.clientId ?? null, clientName: x.clientName ?? proj?.clientName ?? null } : x);
+  }
+  return (
+    <>
+      {tab === 'panoramica' && <ProjectPanoramica {...props} inProj={inProj} goTab={props.goTab} />}
+      {tab === 'deliverable' && <DeliverablesTab deliverables={inProj(props.deliverables)} clients={clients} campaigns={inProj(props.campaigns)} team={props.team} onSave={stamp(props.onSaveDeliverable)} onDelete={props.onDeleteDeliverable} />}
+      {tab === 'revisioni' && <ProofsTab proofs={inProj(props.proofs)} clients={clients} onSave={stamp(props.onSaveProof)} onDelete={props.onDeleteProof} />}
+      {tab === 'campagne' && <CampaignsTab campaigns={inProj(props.campaigns)} clients={clients} onSave={stamp(props.onSaveCampaign)} onDelete={props.onDeleteCampaign} onRegisterSpend={props.onRegisterCampaignSpend} />}
+      {tab === 'social' && <SocialTab social={inProj(props.social)} campaigns={inProj(props.campaigns)} onSave={stamp(props.onSaveSocialPost)} onDelete={props.onDeleteSocialPost} />}
+      {tab === 'eventi' && <EventsTab events={inProj(props.events)} clients={clients} onSave={stamp(props.onSaveEvent)} onDelete={props.onDeleteEvent} onRegisterFinance={props.onRegisterEventFinance} />}
+      {tab === 'ads' && <AdsTab ads={inProj(props.ads)} clients={clients} onSave={stamp(props.onSaveAd)} onDelete={props.onDeleteAd} onRegisterSpend={props.onRegisterAdsSpend} />}
+      {tab === 'seo' && <SeoTab items={inProj(props.seo)} clients={clients} onSave={stamp(props.onSaveSeo)} onDelete={props.onDeleteSeo} />}
+      {tab === 'sondaggi' && <SurveysTab surveys={inProj(props.surveys)} responses={props.responses} onSave={stamp(props.onSaveSurvey)} onDelete={props.onDeleteSurvey} />}
+      {tab === 'analytics' && <MetricsTab metrics={inProj(props.metrics)} clients={clients} onSave={stamp(props.onSaveMetric)} onDelete={props.onDeleteMetric} />}
+      {tab === 'time' && <TimeTab entries={inProj(props.timeEntries)} clients={clients} projects={props.projects} campaigns={inProj(props.campaigns)} onSave={stamp(props.onSaveTimeEntry)} onDelete={props.onDeleteTimeEntry} onBill={props.onBillTimeEntries} />}
+      {tab === 'inbox' && <InboxTab inbox={inProj(props.inbox)} clients={clients} onSave={stamp(props.onSaveInbox)} onDelete={props.onDeleteInbox} />}
+      {tab === 'report' && <ReportTab {...props} events={inProj(props.events)} campaigns={inProj(props.campaigns)} surveys={inProj(props.surveys)} social={inProj(props.social)} timeEntries={inProj(props.timeEntries)} reportTitle={proj?.name} />}
+    </>
+  );
+};
+
+// Panoramica di progetto: conteggi + economia + accesso rapido alle sezioni.
+const ProjectPanoramica: React.FC<Props & { inProj: <T extends { mktProjectId?: string | null }>(a: T[]) => T[]; goTab: (t: ProjTab) => void }> = (props) => {
+  const { inProj, goTab } = props;
+  const dl = inProj(props.deliverables); const pr = inProj(props.proofs); const cm = inProj(props.campaigns);
+  const so = inProj(props.social); const ev = inProj(props.events); const ad = inProj(props.ads);
+  const tm = inProj(props.timeEntries);
+  const adSpend = ad.reduce((s, a) => s + (Number(a.spend) || 0), 0);
+  const ore = tm.reduce((s, t) => s + t.minutes, 0) / 60;
+  const proofOpen = pr.filter((p) => p.status !== 'approvato').length;
+  const dlOpen = dl.filter((d) => d.stage !== 'pubblicato').length;
+  const tiles: { tab: ProjTab; label: string; value: string; icon: React.ElementType; accent?: string }[] = [
+    { tab: 'deliverable', label: 'Deliverable aperti', value: `${dlOpen}/${dl.length}`, icon: Columns, accent: ACCENT },
+    { tab: 'revisioni', label: 'Revisioni da approvare', value: String(proofOpen), icon: Eye, accent: proofOpen ? '#b45309' : undefined },
+    { tab: 'campagne', label: 'Campagne', value: String(cm.length), icon: Megaphone },
+    { tab: 'social', label: 'Post social', value: String(so.length), icon: Share2 },
+    { tab: 'eventi', label: 'Eventi', value: String(ev.length), icon: Calendar },
+    { tab: 'ads', label: 'Spesa ads', value: eur(adSpend), icon: MousePointerClick, accent: '#dc2626' },
+    { tab: 'time', label: 'Ore tracciate', value: `${ore.toFixed(1)}h`, icon: Timer },
+    { tab: 'report', label: 'Report', value: 'Apri', icon: FileBarChart },
+  ];
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+        {tiles.map((t) => {
           const Icon = t.icon;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`relative text-[12px] font-extrabold px-4 py-1.5 rounded-full transition-colors border-none bg-transparent cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${active ? 'text-[#161616]' : 'text-[#8a8a8a] hover:text-[#161616]'}`}>
-              {active && <motion.div layoutId="strTab" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 bg-white rounded-full z-0 shadow-xs" />}
-              <span className="relative z-10 flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" /> {t.label}</span>
+            <button key={t.tab} onClick={() => goTab(t.tab)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors">
+              <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-stone-400"><Icon className="w-4 h-4" />{t.label}</span>
+              <b className="block text-[22px] mt-1.5 leading-none tracking-tight" style={t.accent ? { color: t.accent } : undefined}>{t.value}</b>
             </button>
           );
         })}
       </div>
-
-      {tab === 'dashboard' && <DashboardTab {...props} go={setTab} />}
-      {tab === 'contratti' && <ContractsTab contracts={contracts} clients={clients} projects={projects} onSave={props.onSaveContract} onDelete={props.onDeleteContract} onEmit={props.onEmitContractInvoice} />}
-      {tab === 'time' && <TimeTab entries={timeEntries} clients={clients} projects={projects} campaigns={campaigns} onSave={props.onSaveTimeEntry} onDelete={props.onDeleteTimeEntry} onBill={props.onBillTimeEntries} />}
-      {tab === 'economia' && <EconomiaTab {...props} go={setTab} />}
-      {tab === 'eventi' && <EventsTab events={events} clients={clients} onSave={props.onSaveEvent} onDelete={props.onDeleteEvent} onRegisterFinance={props.onRegisterEventFinance} />}
-      {tab === 'campagne' && <CampaignsTab campaigns={campaigns} clients={clients} onSave={props.onSaveCampaign} onDelete={props.onDeleteCampaign} onRegisterSpend={props.onRegisterCampaignSpend} />}
-      {tab === 'sondaggi' && <SurveysTab surveys={surveys} responses={responses} onSave={props.onSaveSurvey} onDelete={props.onDeleteSurvey} />}
-      {tab === 'social' && <SocialTab social={social} campaigns={campaigns} onSave={props.onSaveSocialPost} onDelete={props.onDeleteSocialPost} />}
-      {tab === 'deliverable' && <DeliverablesTab deliverables={props.deliverables} clients={clients} campaigns={campaigns} team={props.team} onSave={props.onSaveDeliverable} onDelete={props.onDeleteDeliverable} />}
-      {tab === 'proof' && <ProofsTab proofs={props.proofs} clients={clients} onSave={props.onSaveProof} onDelete={props.onDeleteProof} />}
-      {tab === 'asset' && <AssetsTab assets={props.assets} clients={clients} campaigns={campaigns} onSave={props.onSaveAsset} onDelete={props.onDeleteAsset} />}
-      {tab === 'analisi' && <AnalisiTab events={events} campaigns={campaigns} surveys={surveys} social={social} responses={responses} />}
-      {tab === 'report' && <ReportTab {...props} />}
-      {tab === 'attivita' && <ActivityTab {...props} />}
-      {tab === 'lead' && <LeadsTab leads={props.leads} clients={clients} team={props.team} onSave={props.onSaveLead} onDelete={props.onDeleteLead} />}
-      {tab === 'automation' && <AutomationTab flows={props.flows} clients={clients} onSave={props.onSaveFlow} onDelete={props.onDeleteFlow} />}
-      {tab === 'seo' && <SeoTab items={props.seo} clients={clients} onSave={props.onSaveSeo} onDelete={props.onDeleteSeo} />}
-      {tab === 'ads' && <AdsTab ads={props.ads} clients={clients} onSave={props.onSaveAd} onDelete={props.onDeleteAd} onRegisterSpend={props.onRegisterAdsSpend} />}
-      {tab === 'metriche' && <MetricsTab metrics={props.metrics} clients={clients} onSave={props.onSaveMetric} onDelete={props.onDeleteMetric} />}
-      {tab === 'inbox' && <InboxTab inbox={props.inbox} clients={clients} onSave={props.onSaveInbox} onDelete={props.onDeleteInbox} />}
-      {tab === 'consensi' && <ConsentsTab consents={props.consents} clients={clients} onSave={props.onSaveConsent} onDelete={props.onDeleteConsent} />}
     </div>
+  );
+};
+
+// Lista progetti marketing (Livello 1) — card cliccabili + "Non assegnati" + editor.
+const MktProjectsTab: React.FC<Props & { onOpenProject: (id: string) => void }> = (props) => {
+  const { clients, onOpenProject } = props;
+  const [editing, setEditing] = useState<MktProject | null>(null);
+  const projects = [...props.mktProjects].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+  const countFor = (pid: string) => props.deliverables.filter((d) => d.mktProjectId === pid).length
+    + props.campaigns.filter((c) => c.mktProjectId === pid).length + props.social.filter((s) => s.mktProjectId === pid).length
+    + props.events.filter((e) => e.mktProjectId === pid).length + props.ads.filter((a) => a.mktProjectId === pid).length;
+  const unassignedCount = [props.deliverables, props.campaigns, props.social, props.events, props.ads, props.proofs, props.seo, props.metrics, props.timeEntries, props.inbox, props.surveys]
+    .reduce((s, arr: any[]) => s + arr.filter((x) => !x.mktProjectId).length, 0);
+  const blank = (): MktProject => ({ id: uid('mp'), name: '', status: 'attivo', color: ACCENT, startAt: Date.now(), createdAt: Date.now() });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12.5px] text-stone-400">Ogni progetto raccoglie deliverable, contenuti, campagne, ads e dati di un cliente. Aprine uno per lavorarci.</span>
+        <AddBtn onClick={() => setEditing(blank())} label="Nuovo progetto" />
+      </div>
+      {projects.length === 0 && unassignedCount === 0 ? (
+        <EmptyBox icon={<FolderOpen className="w-6 h-6" />} title="Nessun progetto marketing" text="Crea il primo progetto (es. 'Rebranding Rossi', 'Lancio negozio') e collegalo a un cliente: al suo interno troverai tutte le sezioni operative." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {projects.map((p) => {
+            const meta = PROJ_STATUS_META[p.status];
+            return (
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px] flex flex-col" style={{ borderLeftColor: p.color || ACCENT }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <b className="block text-[16px] tracking-tight truncate">{p.name}</b>
+                    {p.clientName && <span className="text-[12px] text-stone-500">{p.clientName}</span>}
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${meta.cls}`}>{meta.label}</span>
+                </div>
+                {p.goal && <p className="text-[12.5px] text-stone-500 mt-2 line-clamp-2">{p.goal}</p>}
+                <span className="text-[11.5px] text-stone-400 mt-2">{countFor(p.id)} elementi collegati</span>
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
+                  <button onClick={() => onOpenProject(p.id)} className="flex-1 h-9 rounded-lg text-white text-[12.5px] font-bold border-none cursor-pointer flex items-center justify-center gap-1.5" style={{ background: ACCENT }}>Apri <ArrowRight className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setEditing(p)} className="w-9 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => props.onDeleteMktProject(p.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            );
+          })}
+          {unassignedCount > 0 && (
+            <button onClick={() => onOpenProject(UNASSIGNED)} className="text-left bg-[#fafafa] border border-dashed border-[#d8d8d8] rounded-[22px] p-5 cursor-pointer hover:border-[#b45309] flex flex-col justify-center">
+              <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">Migrazione</span>
+              <b className="block text-[15px] tracking-tight mt-1">Non assegnati</b>
+              <span className="text-[12px] text-stone-500 mt-1">{unassignedCount} voci senza progetto — aprile e riassegnale.</span>
+            </button>
+          )}
+        </div>
+      )}
+      <AnimatePresence>{editing && <MktProjectModal project={editing} clients={clients} onClose={() => setEditing(null)} onSave={(p) => { props.onSaveMktProject(p); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const MktProjectModal: React.FC<{ project: MktProject; clients: Record<string, ClientRecord>; onClose: () => void; onSave: (p: MktProject) => void }> = ({ project, clients, onClose, onSave }) => {
+  const [p, setP] = useState<MktProject>({ ...project });
+  const set = (x: Partial<MktProject>) => setP((s) => ({ ...s, ...x }));
+  const clientList = Object.values(clients).filter((c) => c.category !== 'partner');
+  return (
+    <ModalShell title={project.name ? 'Modifica progetto' : 'Nuovo progetto marketing'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(p)} disabled={!p.name.trim()} label="Salva progetto" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome progetto" full><input className={IN} value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="Es. Rebranding Rossi, Lancio negozio…" /></Field>
+        <Field label="Cliente (rubrica)" full>
+          <select className={IN} value={p.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : null }); }}>
+            <option value="">— nessuno —</option>
+            {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Stato"><select className={IN} value={p.status} onChange={(e) => set({ status: e.target.value as MktProjectStatus })}><option value="attivo">Attivo</option><option value="in_pausa">In pausa</option><option value="concluso">Concluso</option></select></Field>
+        <Field label="Colore"><input type="color" className="w-full h-10 rounded-lg border border-[#e2e2e2] bg-white cursor-pointer" value={p.color || '#b45309'} onChange={(e) => set({ color: e.target.value })} /></Field>
+        <Field label="Obiettivo" full><input className={IN} value={p.goal || ''} onChange={(e) => set({ goal: e.target.value })} placeholder="Es. +30% lead in 6 mesi" /></Field>
+        <Field label="Inizio"><input type="date" className={IN} value={dOnly(p.startAt)} onChange={(e) => set({ startAt: e.target.value ? parseD(e.target.value) : null })} /></Field>
+        <Field label="Fine"><input type="date" className={IN} value={dOnly(p.endAt)} onChange={(e) => set({ endAt: e.target.value ? parseD(e.target.value) : null })} /></Field>
+        <Field label="Note" full><textarea className={`${IN} h-auto py-2 min-h-[50px]`} value={p.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+      </div>
+    </ModalShell>
   );
 };
 
@@ -845,58 +1003,65 @@ const dOnly = (ts?: number | null) => (ts ? new Date(ts - new Date().getTimezone
 const parseD = (s: string) => (s ? new Date(`${s}T00:00:00`).getTime() : 0);
 const monthKey = (ts: number) => new Date(ts).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
 
-/* ============================== DASHBOARD ============================== */
-const DashboardTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
-  const { events, campaigns, surveys, social, contracts, timeEntries, invoicesActive, scadenze, go } = props;
+/* ============================== DASHBOARD (overview globale) ============================== */
+const DashboardTab: React.FC<Props & { onOpenProject: (id: string) => void; goHome: (t: HomeTab) => void }> = (props) => {
+  const { contracts, invoicesActive, leads, proofs, deliverables, mktProjects, onOpenProject, goHome } = props;
   const str = (arr: { sector?: string }[]) => arr.filter((x) => x.sector === 'strategico');
   const mrr = contracts.reduce((s, k) => s + monthlyOf(k), 0);
   const ricavi = str(invoicesActive).reduce((s, i) => s + (Number((i as InvoiceActive).amount) || 0), 0);
-  const now = Date.now();
-  const thisMonth = new Date().getMonth();
-  const minutesMonth = timeEntries.filter((t) => new Date(t.date).getMonth() === thisMonth).reduce((s, t) => s + t.minutes, 0);
-  const toBill = timeEntries.filter((t) => t.billable && !t.billedInvoiceId).reduce((s, t) => s + timeValue(t), 0);
-  const upcomingEvents = events.filter((e) => (e.date || 0) >= now).length;
-  const daScadere = str(scadenze).filter((s) => (s as ScadenzaItem).status !== 'pagato').reduce((sum, s) => sum + (Number((s as ScadenzaItem).amount) || 0), 0);
+  const activeProjects = mktProjects.filter((p) => p.status === 'attivo');
+  const openLeads = leads.filter((l) => l.stage !== 'vinto' && l.stage !== 'perso').length;
+  const proofOpen = proofs.filter((p) => p.status !== 'approvato').length;
+  const dlOpen = deliverables.filter((d) => d.stage !== 'pubblicato' && d.stage !== 'approvato').length;
+  const recent = [...mktProjects].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).slice(0, 6);
+  const elementsOf = (pid: string) => deliverables.filter((d) => d.mktProjectId === pid).length + props.campaigns.filter((c) => c.mktProjectId === pid).length + props.social.filter((s) => s.mktProjectId === pid).length + props.ads.filter((a) => a.mktProjectId === pid).length;
 
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={<RefreshCw className="w-4 h-4" />} label="Ricavo ricorrente / mese" value={eur(mrr)} sub={`${contracts.filter((k) => k.status === 'attivo').length} contratti attivi`} accent={ACCENT} />
-        <Kpi icon={<Receipt className="w-4 h-4" />} label="Fatturato Strategico" value={eur(ricavi)} sub="confluisce nel consolidato" accent="#059669" />
-        <Kpi icon={<Timer className="w-4 h-4" />} label="Ore tracciate (mese)" value={`${(minutesMonth / 60).toFixed(1)}h`} sub={`${eur(toBill)} da fatturare`} />
-        <Kpi icon={<Banknote className="w-4 h-4" />} label="Da incassare" value={eur(daScadere)} sub="scadenze Strategico aperte" />
+        <Kpi icon={<FolderOpen className="w-4 h-4" />} label="Progetti attivi" value={String(activeProjects.length)} sub={`${mktProjects.length} totali`} accent={ACCENT} />
+        <Kpi icon={<RefreshCw className="w-4 h-4" />} label="Ricavo ricorrente / mese" value={eur(mrr)} sub="contratti & retainer" />
+        <Kpi icon={<Receipt className="w-4 h-4" />} label="Fatturato Strategico" value={eur(ricavi)} accent="#059669" />
+        <Kpi icon={<Target className="w-4 h-4" />} label="Lead aperti" value={String(openLeads)} />
       </div>
 
-      {TAB_GROUPS.filter((g) => g.group !== 'Panoramica').map((g) => (
-        <div key={g.group}>
-          <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">{g.group}</span>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-2">
-            {g.items.map((it) => {
-              const Icon = it.icon;
-              const count = it.id === 'contratti' ? contracts.length : it.id === 'time' ? timeEntries.length
-                : it.id === 'eventi' ? events.length : it.id === 'campagne' ? campaigns.length
-                : it.id === 'social' ? social.length : it.id === 'sondaggi' ? surveys.length
-                : it.id === 'asset' ? props.assets.length : it.id === 'deliverable' ? props.deliverables.length
-                : it.id === 'proof' ? props.proofs.length
-                : it.id === 'lead' ? props.leads.length : it.id === 'automation' ? props.flows.length
-                : it.id === 'seo' ? props.seo.length : it.id === 'ads' ? props.ads.length
-                : it.id === 'metriche' ? props.metrics.length : it.id === 'inbox' ? props.inbox.length
-                : it.id === 'consensi' ? props.consents.length : null;
+      {(proofOpen > 0 || dlOpen > 0) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[18px] px-4 py-3 text-[13px] text-amber-800 flex items-center gap-4 flex-wrap">
+          <span className="font-bold flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Richiede attenzione:</span>
+          {proofOpen > 0 && <span>{proofOpen} revisioni da approvare</span>}
+          {dlOpen > 0 && <span>{dlOpen} deliverable in lavorazione</span>}
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">I tuoi progetti</span>
+          <button onClick={() => goHome('progetti')} className="text-[11.5px] font-bold text-[#b45309] bg-transparent border-none cursor-pointer flex items-center gap-1">Tutti i progetti <ArrowRight className="w-3.5 h-3.5" /></button>
+        </div>
+        {recent.length === 0 ? (
+          <EmptyBox icon={<FolderOpen className="w-6 h-6" />} title="Nessun progetto" text="Crea il primo progetto marketing dalla scheda 'Progetti' per iniziare a organizzare contenuti, campagne e ads per cliente." />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {recent.map((p) => {
+              const meta = PROJ_STATUS_META[p.status];
               return (
-                <button key={it.id} onClick={() => go(it.id)}
-                  className="group text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#b45309] flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
-                  <div className="min-w-0 flex-1">
-                    <b className="block text-[14px] tracking-tight flex items-center gap-1.5">{it.label}{count != null && <span className="text-[11px] font-bold text-stone-400">· {count}</span>}</b>
-                    <span className="text-[12px] text-stone-500 leading-snug">{it.desc}</span>
+                <button key={p.id} onClick={() => onOpenProject(p.id)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors border-l-[5px]" style={{ borderLeftColor: p.color || ACCENT }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0"><b className="block text-[14px] tracking-tight truncate">{p.name}</b>{p.clientName && <span className="text-[12px] text-stone-500">{p.clientName}</span>}</div>
+                    <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.cls}`}>{meta.label}</span>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-[#b45309] shrink-0 mt-1" />
+                  <span className="text-[11.5px] text-stone-400 mt-2 inline-block">{elementsOf(p.id)} elementi</span>
                 </button>
               );
             })}
           </div>
-        </div>
-      ))}
+        )}
+      </div>
+
+      <div>
+        <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">Andamento</span>
+        <div className="mt-2"><AnalisiTab events={props.events} campaigns={props.campaigns} surveys={props.surveys} social={props.social} responses={props.responses} /></div>
+      </div>
     </div>
   );
 };
@@ -1111,7 +1276,7 @@ const TimeModal: React.FC<{ entry: MktTimeEntry; clients: Record<string, ClientR
 };
 
 /* ============================== ECONOMIA ============================== */
-const EconomiaTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
+const EconomiaTab: React.FC<Props & { go: (t: string) => void }> = (props) => {
   const { contracts, timeEntries, invoicesActive, invoicesPassive, scadenze, go } = props;
   const strA = invoicesActive.filter((i) => i.sector === 'strategico');
   const strP = invoicesPassive.filter((i) => i.sector === 'strategico');
@@ -1550,8 +1715,8 @@ const AiAssist: React.FC<{ build: () => string; system?: string; onResult: (text
 };
 
 /* ============================== REPORT (white-label + AI) ============================== */
-const ReportTab: React.FC<Props> = (props) => {
-  const { events, campaigns, surveys, social, responses, contracts, timeEntries, invoicesActive, invoicesPassive, scadenze } = props;
+const ReportTab: React.FC<Props & { reportTitle?: string }> = (props) => {
+  const { events, campaigns, surveys, social, responses, contracts, timeEntries, invoicesActive, invoicesPassive, scadenze, reportTitle } = props;
   const [summary, setSummary] = useState('');
   const period = new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
 
@@ -1596,7 +1761,7 @@ const ReportTab: React.FC<Props> = (props) => {
       <div className="bg-white border border-[#e2e2e2] rounded-[22px] p-6 print-area">
         <div className="flex items-center justify-between border-b border-[#ececec] pb-4 mb-4">
           <div>
-            <b className="text-[20px] tracking-tight">Report marketing</b>
+            <b className="text-[20px] tracking-tight">Report marketing{reportTitle ? ` — ${reportTitle}` : ''}</b>
             <p className="text-[12.5px] text-stone-400 capitalize">{period} · Onirico Strategico</p>
           </div>
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white" style={{ background: ACCENT }}><Megaphone className="w-5 h-5" /></div>

@@ -39,7 +39,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry, MktAsset, MktDeliverable, MktProof, MktLead, MktFlow, MktSeoItem, MktAdCampaign, MktMetric, MktInboxItem, MktConsent } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry, MktAsset, MktDeliverable, MktProof, MktLead, MktFlow, MktSeoItem, MktAdCampaign, MktMetric, MktInboxItem, MktConsent, MktProject } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -181,6 +181,10 @@ interface ProjectsViewProps {
   onDeleteMktInbox?: (id: string) => void;
   onSaveMktConsent?: (c: MktConsent) => void;
   onDeleteMktConsent?: (id: string) => void;
+  // Strategico — Progetti marketing (§22-sex)
+  mktProjects?: MktProject[];
+  onSaveMktProject?: (p: MktProject) => void;
+  onDeleteMktProject?: (id: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -328,6 +332,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onDeleteMktInbox,
   onSaveMktConsent,
   onDeleteMktConsent,
+  mktProjects = [],
+  onSaveMktProject,
+  onDeleteMktProject,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -2581,6 +2588,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onDeleteInbox={onDeleteMktInbox || (() => {})}
           onSaveConsent={onSaveMktConsent || (() => {})}
           onDeleteConsent={onDeleteMktConsent || (() => {})}
+          mktProjects={mktProjects}
+          onSaveMktProject={onSaveMktProject || (() => {})}
+          onDeleteMktProject={onDeleteMktProject || (() => {})}
         />
       ) : showMatericoInbox ? (
         <MatericoView
