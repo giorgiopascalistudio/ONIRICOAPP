@@ -884,7 +884,7 @@ const SocialTab: React.FC<{ social: SocialPost[]; campaigns: Campaign[]; onSave:
           {SOCIAL_COLS.map((col) => {
             const items = social.filter((p) => p.status === col.id).sort((a, b) => (a.scheduledAt || 0) - (b.scheduledAt || 0));
             return (
-              <div key={col.id} className="bg-[#f6f6f4] border border-[#e8e8e6] rounded-[18px] p-3">
+              <div key={col.id} className="bg-[#f6f6f4] border border-[#e8e8e6] rounded-[20px] p-3">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <b className="text-[12.5px]">{col.label}</b>
                   <span className="text-[11px] text-stone-400 font-bold">{items.length}</span>
@@ -1026,7 +1026,7 @@ const DashboardTab: React.FC<Props & { onOpenProject: (id: string) => void; goHo
       </div>
 
       {(proofOpen > 0 || dlOpen > 0) && (
-        <div className="bg-amber-50 border border-amber-200 rounded-[18px] px-4 py-3 text-[13px] text-amber-800 flex items-center gap-4 flex-wrap">
+        <div className="bg-amber-50 border border-amber-200 rounded-[20px] px-4 py-3 text-[13px] text-amber-800 flex items-center gap-4 flex-wrap">
           <span className="font-bold flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Richiede attenzione:</span>
           {proofOpen > 0 && <span>{proofOpen} revisioni da approvare</span>}
           {dlOpen > 0 && <span>{dlOpen} deliverable in lavorazione</span>}
@@ -1290,7 +1290,7 @@ const EconomiaTab: React.FC<Props & { go: (t: string) => void }> = (props) => {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="bg-amber-50 border border-amber-200 rounded-[18px] px-4 py-3 text-[12.5px] text-amber-800 flex items-start gap-2">
+      <div className="bg-amber-50 border border-amber-200 rounded-[20px] px-4 py-3 text-[12.5px] text-amber-800 flex items-start gap-2">
         <Wallet className="w-4 h-4 mt-0.5 shrink-0" />
         <span>Tutti i dati economici di Strategico (contratti, ore fatturate, spese campagne/eventi) confluiscono nei nodi finanza con società <b>Strategico</b> e compaiono nel <b>Consolidato</b> di Finanze e in Statistiche & BEP.</span>
       </div>
@@ -1384,7 +1384,7 @@ const AssetsTab: React.FC<{ assets: MktAsset[]; clients: Record<string, ClientRe
           {filtered.map((a) => {
             const M = ASSET_KIND_META[a.kind]; const Icon = M.icon; const href = safeUrl(a.url || '') || '#';
             return (
-              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[18px] overflow-hidden flex flex-col">
+              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden flex flex-col">
                 <a href={href} target="_blank" rel="noreferrer" className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden">
                   {a.kind === 'immagine' && a.url ? <img src={href} alt={a.name} className="w-full h-full object-cover" /> : <Icon className="w-8 h-8 text-stone-300" />}
                 </a>
@@ -1463,7 +1463,7 @@ const DeliverablesTab: React.FC<{ deliverables: MktDeliverable[]; clients: Recor
         {STAGES.map((st) => {
           const items = deliverables.filter((d) => d.stage === st.id).sort((a, b) => (a.dueAt || Infinity) - (b.dueAt || Infinity));
           return (
-            <div key={st.id} className="bg-[#f7f7f5] border border-[#e8e8e8] rounded-[18px] p-2.5 flex flex-col gap-2 min-h-[120px]">
+            <div key={st.id} className="bg-[#f7f7f5] border border-[#e8e8e8] rounded-[20px] p-2.5 flex flex-col gap-2 min-h-[120px]">
               <div className="flex items-center justify-between px-1">
                 <span className={`text-[11px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                 <span className="text-[11px] text-stone-400 font-bold">{items.length}</span>
@@ -1472,7 +1472,7 @@ const DeliverablesTab: React.FC<{ deliverables: MktDeliverable[]; clients: Recor
                 const idx = STAGES.findIndex((s) => s.id === d.stage);
                 const overdue = d.dueAt && d.dueAt < Date.now() && d.stage !== 'pubblicato';
                 return (
-                  <div key={d.id} className="bg-white border border-[#e2e2e2] rounded-[14px] p-3 flex flex-col gap-1.5">
+                  <div key={d.id} className="bg-white border border-[#e2e2e2] rounded-[16px] p-3 flex flex-col gap-1.5">
                     <div className="flex items-start gap-1.5">
                       <b className="text-[13px] leading-snug flex-1">{d.title}</b>
                       {d.priority && <span className={`text-[10px] font-bold ${PRIO_META[d.priority]}`}>●</span>}
@@ -1551,7 +1551,7 @@ const ProofsTab: React.FC<{ proofs: MktProof[]; clients: Record<string, ClientRe
           {sorted.map((p) => {
             const open = (p.annotations || []).filter((a) => !a.resolved).length; const href = safeUrl(p.imageUrl || '') || '';
             return (
-              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[18px] overflow-hidden flex flex-col">
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden flex flex-col">
                 <button onClick={() => setViewing(p)} className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden border-none cursor-pointer p-0">
                   {href ? <img src={href} alt={p.title} className="w-full h-full object-cover" /> : <Eye className="w-8 h-8 text-stone-300" />}
                 </button>
