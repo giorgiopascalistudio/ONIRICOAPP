@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { LayoutGrid, Calendar, Folder, FileText, Users, Bell, Target, Inbox } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { LayoutGrid, Calendar, Folder, FileText, Users, Bell, Target, Inbox, DollarSign, Trash2, MoreHorizontal, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 import { initials } from '../utils';
 
@@ -33,18 +33,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNotificationsClick,
   pendingCount = 0
 }) => {
+  const [moreOpen, setMoreOpen] = useState(false);
+
   if (!profile) return null;
 
+  const isBoss = profile.role === 'admin' || profile.role === 'manager';
+
+  // Bottom bar: voci principali a portata di pollice (compatte).
   const tabs = [
     { id: 'dashboard', label: 'Home', icon: LayoutGrid },
     { id: 'calendario', label: 'Agenda', icon: Calendar },
     { id: 'progetti', label: 'Progetti', icon: Folder },
-    ...(profile.role === 'admin' || profile.role === 'manager'
-      ? [{ id: 'crm', label: 'CRM', icon: Target }, { id: 'richieste-clienti', label: 'Richieste', icon: Inbox }]
-      : []),
-    { id: 'documenti', label: 'Documenti', icon: FileText },
-    ...(profile.role === 'admin' ? [{ id: 'team', label: 'Team', icon: Users }] : [])
+    ...(isBoss ? [{ id: 'crm', label: 'CRM', icon: Target }] : []),
+    { id: 'documenti', label: 'Documenti', icon: FileText }
   ];
+
+  // Menu "Altro": TUTTE le sezioni (così niente resta nascosto su mobile — incl. Finanze e Cestino).
+  const allItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'calendario', label: 'Calendario', icon: Calendar },
+    { id: 'progetti', label: 'Progetti', icon: Folder },
+    ...(isBoss ? [{ id: 'crm', label: 'CRM', icon: Target }, { id: 'richieste-clienti', label: 'Richieste clienti', icon: Inbox }] : []),
+    { id: 'documenti', label: 'Documenti', icon: FileText },
+    ...(isBoss ? [{ id: 'finanze', label: 'Finanze & Statistiche', icon: DollarSign }] : []),
+    ...(profile.role === 'admin' ? [{ id: 'team', label: 'Team', icon: Users }] : []),
+    ...(isBoss ? [{ id: 'cestino', label: 'Cestino', icon: Trash2 }] : [])
+  ];
+  // Mostra "Altro" solo se ci sono sezioni non già presenti nella bottom bar.
+  const barIds = new Set(tabs.map(t => t.id));
+  const hasExtra = allItems.some(i => !barIds.has(i.id));
 
   return (
     <>
@@ -144,9 +161,72 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               );
             })}
+
+            {hasExtra && (() => {
+              const moreActive = !barIds.has(route) && route !== 'progetto';
+              return (
+                <button
+                  onClick={() => setMoreOpen(true)}
+                  className={`relative flex-1 inline-flex items-center justify-center gap-1.5 border-none bg-transparent py-3 px-2 rounded-full font-bold text-[13px] sm:text-[14px] cursor-pointer transition-colors duration-300 select-none ${
+                    moreActive ? 'text-[#161616] flex-[1.4]' : 'text-[#9a9a9a] hover:text-white'
+                  }`}
+                  style={{ touchAction: 'none' }}
+                  aria-label="Altre sezioni"
+                >
+                  {moreActive && (
+                    <motion.div layoutId="mobileNavActivePill" transition={{ type: 'spring', stiffness: 420, damping: 32 }} className="absolute inset-0 bg-white rounded-full z-0" />
+                  )}
+                  <div className="relative z-10 flex items-center justify-center gap-1.5">
+                    <MoreHorizontal className="w-[21px] h-[21px] flex-shrink-0" />
+                    <span className={`overflow-hidden transition-all duration-300 ease-out flex items-center ${moreActive ? 'max-w-[120px] opacity-100 font-bold' : 'max-w-0 opacity-0'}`}>
+                      <span className="pr-1">Altro</span>
+                    </span>
+                  </div>
+                </button>
+              );
+            })()}
           </div>
         </nav>
       )}
+
+      {/* Menu "Altro" (bottom sheet) — espone tutte le sezioni su mobile (Finanze, Cestino…) */}
+      <AnimatePresence>
+        {moreOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-end justify-center"
+            onClick={() => setMoreOpen(false)}
+          >
+            <motion.div
+              initial={{ y: 40 }} animate={{ y: 0 }} exit={{ y: 40, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-white rounded-t-[26px] border-t border-[#ececec] shadow-2xl p-4 pb-[calc(env(safe-area-inset-bottom,0px)+18px)]"
+            >
+              <div className="flex items-center justify-between px-1 pb-3">
+                <b className="text-[15px] tracking-tight">Tutte le sezioni</b>
+                <button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><X className="w-4.5 h-4.5" /></button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {allItems.map(item => {
+                  const Icon = item.icon;
+                  const active = route === item.id || (item.id === 'progetti' && route === 'progetto');
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { onNav(item.id); setMoreOpen(false); }}
+                      className={`flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-2xl border text-[12px] font-bold transition-colors ${active ? 'bg-[#161616] text-white border-[#161616]' : 'bg-[#fafafa] border-[#ececec] text-[#3a3a3a] hover:border-[#cfcfcf]'}`}
+                    >
+                      <Icon className="w-[22px] h-[22px]" />
+                      <span className="text-center leading-tight px-1">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
