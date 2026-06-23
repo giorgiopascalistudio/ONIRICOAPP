@@ -39,7 +39,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -137,6 +137,17 @@ interface ProjectsViewProps {
   onDeleteSurvey?: (id: string) => void;
   onSaveSocialPost?: (p: SocialPost) => void;
   onDeleteSocialPost?: (id: string) => void;
+  // Strategico — Economia (Blocco A)
+  mktContracts?: MktContract[];
+  mktTime?: MktTimeEntry[];
+  onSaveMktContract?: (k: MktContract) => void;
+  onDeleteMktContract?: (id: string) => void;
+  onEmitContractInvoice?: (id: string, periodLabel?: string) => void;
+  onSaveMktTimeEntry?: (t: MktTimeEntry) => void;
+  onDeleteMktTimeEntry?: (id: string) => void;
+  onBillTimeEntries?: (ids: string[]) => void;
+  onRegisterCampaignSpend?: (id: string) => void;
+  onRegisterEventFinance?: (id: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -243,6 +254,16 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onDeleteSurvey,
   onSaveSocialPost,
   onDeleteSocialPost,
+  mktContracts = [],
+  mktTime = [],
+  onSaveMktContract,
+  onDeleteMktContract,
+  onEmitContractInvoice,
+  onSaveMktTimeEntry,
+  onDeleteMktTimeEntry,
+  onBillTimeEntries,
+  onRegisterCampaignSpend,
+  onRegisterEventFinance,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -2450,6 +2471,20 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onDeleteSurvey={onDeleteSurvey || (() => {})}
           onSaveSocialPost={onSaveSocialPost || (() => {})}
           onDeleteSocialPost={onDeleteSocialPost || (() => {})}
+          contracts={mktContracts}
+          timeEntries={mktTime}
+          projects={projects}
+          invoicesActive={finInvoicesActive}
+          invoicesPassive={finInvoicesPassive}
+          scadenze={finScadenze}
+          onSaveContract={onSaveMktContract || (() => {})}
+          onDeleteContract={onDeleteMktContract || (() => {})}
+          onEmitContractInvoice={onEmitContractInvoice || (() => {})}
+          onSaveTimeEntry={onSaveMktTimeEntry || (() => {})}
+          onDeleteTimeEntry={onDeleteMktTimeEntry || (() => {})}
+          onBillTimeEntries={onBillTimeEntries || (() => {})}
+          onRegisterCampaignSpend={onRegisterCampaignSpend || (() => {})}
+          onRegisterEventFinance={onRegisterEventFinance || (() => {})}
         />
       ) : showMatericoInbox ? (
         <MatericoView

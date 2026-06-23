@@ -812,6 +812,10 @@ export interface MarketingEvent {
   coverUrl?: string | null;
   invitees: Record<string, EventInvitee>; // keyed (uid o id contatto) → RSVP granulare
   status?: 'bozza' | 'pubblicato' | 'concluso';
+  // Economia evento (→ confluisce in Finanza, sector:'strategico')
+  budget?: number | null;          // costo previsto/sostenuto
+  revenue?: number | null;         // ricavi (biglietti/sponsor)
+  financeRefs?: string[];          // id voci finanza generate
   createdAt: number;
   updatedAt?: number;
 }
@@ -838,6 +842,11 @@ export interface Campaign {
   status: CampaignStatus;
   sentCount?: number;          // contatori manuali
   responses?: number;
+  // Economia campagna (→ confluisce in Finanza, sector:'strategico')
+  budget?: number | null;      // budget pianificato
+  spend?: number | null;       // spesa effettiva (es. ads)
+  utm?: CampaignUtm | null;    // tracciamento UTM
+  financeRefs?: string[];      // id voci finanza generate
   startAt?: number | null;
   createdAt: number;
   updatedAt?: number;
@@ -884,6 +893,73 @@ export interface SocialPost {
   campaignId?: string | null;  // campagna collegata
   reach?: number | null;       // metriche manuali
   likes?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Parametri UTM di una campagna (UTM builder, Strategico).
+export interface CampaignUtm {
+  baseUrl?: string | null;     // URL di destinazione
+  source?: string | null;      // utm_source
+  medium?: string | null;      // utm_medium
+  campaign?: string | null;    // utm_campaign
+  term?: string | null;        // utm_term
+  content?: string | null;     // utm_content
+}
+
+// ============================================================
+// Strategico — Economia (Blocco A): contratti/retainer + time tracking.
+// I dati economici confluiscono SEMPRE nei nodi finanza globali
+// (finInvoicesActive/finScadenze/finInvoicesPassive) con sector:'strategico'.
+// ============================================================
+export type MktContractCadence = 'mensile' | 'trimestrale' | 'annuale' | 'una_tantum';
+export type MktContractStatus = 'attivo' | 'sospeso' | 'concluso';
+// Una emissione (fattura+scadenza) generata da un contratto/retainer.
+export interface MktContractEmission {
+  id: string;
+  invoiceId: string;           // id fattura attiva generata (finInvoicesActive)
+  scadenzaId?: string | null;  // id scadenza generata (finScadenze)
+  periodLabel: string;         // es. "Giugno 2026"
+  amount: number;              // imponibile emesso
+  at: number;
+}
+// Contratto/retainer marketing — nodo mktContracts/<id>.
+export interface MktContract {
+  id: string;
+  title: string;
+  clientId?: string | null;        // rubrica clients
+  clientName: string;
+  amount: number;                  // imponibile per periodo
+  cadence: MktContractCadence;
+  vatPct?: number | null;          // default 22 (null/0 = no IVA)
+  cassaPct?: number | null;        // cassa previdenziale
+  startAt: number;
+  endAt?: number | null;           // scadenza/rinnovo
+  autoRenew?: boolean;
+  status: MktContractStatus;
+  scope?: string | null;           // servizi inclusi
+  projectId?: string | null;
+  emissions?: MktContractEmission[]; // storico fatturazioni ricorrenti
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Voce di time tracking — nodo mktTimeEntries/<id>.
+export interface MktTimeEntry {
+  id: string;
+  date: number;
+  minutes: number;
+  whoUid?: string | null;          // collaboratore
+  whoName?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  projectId?: string | null;
+  campaignId?: string | null;
+  activity?: string | null;        // tipologia attività
+  note?: string | null;
+  rate?: number | null;            // €/h → valore economico
+  billable?: boolean;              // fatturabile
+  billedInvoiceId?: string | null; // se già fatturata in Finanza
   createdAt: number;
   updatedAt?: number;
 }

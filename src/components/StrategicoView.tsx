@@ -15,12 +15,16 @@ import {
   Plus, X, Calendar, MapPin, Users, Megaphone, ClipboardList, Share2, BarChart3,
   Trash2, Pencil, Mail, MessageCircle, CheckCircle2, XCircle, HelpCircle, Send,
   Star, Instagram, Facebook, Linkedin, Youtube, Clock, TrendingUp, ListChecks,
+  LayoutDashboard, FileText, Timer, Wallet, ArrowRight, Link2, Copy, Receipt,
+  Banknote, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import type {
   MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, ClientRecord,
   EventInvitee, RsvpStatus, CampaignStep, SurveyQuestion, CampaignChannel,
-  SocialPlatform, SocialStatus,
+  SocialPlatform, SocialStatus, MktContract, MktTimeEntry, MktContractCadence,
+  Project,
 } from '../types';
+import type { InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { eur, safeUrl } from '../utils';
 
 const ACCENT = '#b45309';
@@ -51,21 +55,48 @@ interface Props {
   onDeleteSurvey: (id: string) => void;
   onSaveSocialPost: (p: SocialPost) => void;
   onDeleteSocialPost: (id: string) => void;
+  // Economia (Blocco A)
+  contracts: MktContract[];
+  timeEntries: MktTimeEntry[];
+  projects: Project[];
+  invoicesActive: InvoiceActive[];
+  invoicesPassive: InvoicePassive[];
+  scadenze: ScadenzaItem[];
+  onSaveContract: (k: MktContract) => void;
+  onDeleteContract: (id: string) => void;
+  onEmitContractInvoice: (id: string, periodLabel?: string) => void;
+  onSaveTimeEntry: (t: MktTimeEntry) => void;
+  onDeleteTimeEntry: (id: string) => void;
+  onBillTimeEntries: (ids: string[]) => void;
+  onRegisterCampaignSpend: (id: string) => void;
+  onRegisterEventFinance: (id: string) => void;
 }
 
-type Tab = 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi';
+type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi';
+
+// Raggruppamento coerente delle funzioni (usato dalla dashboard + pillbar).
+const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.ElementType; desc: string }[] }[] = [
+  { group: 'Panoramica', items: [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Quadro generale di Strategico' },
+    { id: 'analisi', label: 'Analisi', icon: BarChart3, desc: 'Adesione, risposta, conversione, soddisfazione' },
+  ] },
+  { group: 'Economia', items: [
+    { id: 'contratti', label: 'Contratti & Retainer', icon: FileText, desc: 'Abbonamenti ricorrenti → fattura in Finanza' },
+    { id: 'time', label: 'Time tracking', icon: Timer, desc: 'Ore per cliente/progetto → fatturabili' },
+    { id: 'economia', label: 'Economia', icon: Wallet, desc: 'Contributo di Strategico al consolidato' },
+  ] },
+  { group: 'Relazioni & Contenuti', items: [
+    { id: 'eventi', label: 'Eventi', icon: Calendar, desc: 'Eventi e inviti con RSVP' },
+    { id: 'campagne', label: 'Campagne', icon: Megaphone, desc: 'Follow-up, UTM, budget' },
+    { id: 'social', label: 'Social', icon: Share2, desc: 'Calendario editoriale' },
+    { id: 'sondaggi', label: 'Sondaggi', icon: ClipboardList, desc: 'Customer satisfaction' },
+  ] },
+];
+const ALL_TABS = TAB_GROUPS.flatMap((g) => g.items);
 
 export const StrategicoView: React.FC<Props> = (props) => {
-  const { events, campaigns, surveys, social, responses, clients } = props;
-  const [tab, setTab] = useState<Tab>('eventi');
-
-  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'eventi', label: 'Eventi', icon: Calendar },
-    { id: 'campagne', label: 'Campagne', icon: Megaphone },
-    { id: 'sondaggi', label: 'Sondaggi', icon: ClipboardList },
-    { id: 'social', label: 'Social', icon: Share2 },
-    { id: 'analisi', label: 'Analisi', icon: BarChart3 },
-  ];
+  const { events, campaigns, surveys, social, responses, clients, contracts, timeEntries, projects } = props;
+  const [tab, setTab] = useState<Tab>('dashboard');
 
   return (
     <div className="flex flex-col gap-5 text-left">
@@ -78,7 +109,7 @@ export const StrategicoView: React.FC<Props> = (props) => {
       </div>
 
       <div className="pillbar flex items-center bg-[#f0f0f0] border border-[#e2e2e2] p-[3px] rounded-full gap-[2px] self-start max-w-full overflow-x-auto">
-        {TABS.map((t) => {
+        {ALL_TABS.map((t) => {
           const active = tab === t.id;
           const Icon = t.icon;
           return (
@@ -91,14 +122,28 @@ export const StrategicoView: React.FC<Props> = (props) => {
         })}
       </div>
 
-      {tab === 'eventi' && <EventsTab events={events} clients={clients} onSave={props.onSaveEvent} onDelete={props.onDeleteEvent} />}
-      {tab === 'campagne' && <CampaignsTab campaigns={campaigns} clients={clients} onSave={props.onSaveCampaign} onDelete={props.onDeleteCampaign} />}
+      {tab === 'dashboard' && <DashboardTab {...props} go={setTab} />}
+      {tab === 'contratti' && <ContractsTab contracts={contracts} clients={clients} projects={projects} onSave={props.onSaveContract} onDelete={props.onDeleteContract} onEmit={props.onEmitContractInvoice} />}
+      {tab === 'time' && <TimeTab entries={timeEntries} clients={clients} projects={projects} campaigns={campaigns} onSave={props.onSaveTimeEntry} onDelete={props.onDeleteTimeEntry} onBill={props.onBillTimeEntries} />}
+      {tab === 'economia' && <EconomiaTab {...props} go={setTab} />}
+      {tab === 'eventi' && <EventsTab events={events} clients={clients} onSave={props.onSaveEvent} onDelete={props.onDeleteEvent} onRegisterFinance={props.onRegisterEventFinance} />}
+      {tab === 'campagne' && <CampaignsTab campaigns={campaigns} clients={clients} onSave={props.onSaveCampaign} onDelete={props.onDeleteCampaign} onRegisterSpend={props.onRegisterCampaignSpend} />}
       {tab === 'sondaggi' && <SurveysTab surveys={surveys} responses={responses} onSave={props.onSaveSurvey} onDelete={props.onDeleteSurvey} />}
       {tab === 'social' && <SocialTab social={social} campaigns={campaigns} onSave={props.onSaveSocialPost} onDelete={props.onDeleteSocialPost} />}
       {tab === 'analisi' && <AnalisiTab events={events} campaigns={campaigns} surveys={surveys} social={social} responses={responses} />}
     </div>
   );
 };
+
+/* ============================== ECONOMIA — helper ============================== */
+const CADENCE_LABEL: Record<MktContractCadence, string> = { mensile: 'Mensile', trimestrale: 'Trimestrale', annuale: 'Annuale', una_tantum: 'Una tantum' };
+// Ricavo mensile ricorrente (MRR) normalizzato di un contratto attivo.
+const monthlyOf = (k: MktContract): number => {
+  if (k.status !== 'attivo') return 0;
+  const a = Number(k.amount) || 0;
+  return k.cadence === 'mensile' ? a : k.cadence === 'trimestrale' ? a / 3 : k.cadence === 'annuale' ? a / 12 : 0;
+};
+const timeValue = (t: MktTimeEntry) => (t.minutes / 60) * (Number(t.rate) || 0);
 
 /* ============================== KPI / UI shared ============================== */
 const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: string; sub?: string; accent?: string }> = ({ icon, label, value, sub, accent }) => (
@@ -148,7 +193,7 @@ const EmptyBox: React.FC<{ icon: React.ReactNode; title: string; text: string }>
 );
 
 /* ============================== EVENTI ============================== */
-const EventsTab: React.FC<{ events: MarketingEvent[]; clients: Record<string, ClientRecord>; onSave: (e: MarketingEvent) => void; onDelete: (id: string) => void }> = ({ events, clients, onSave, onDelete }) => {
+const EventsTab: React.FC<{ events: MarketingEvent[]; clients: Record<string, ClientRecord>; onSave: (e: MarketingEvent) => void; onDelete: (id: string) => void; onRegisterFinance: (id: string) => void }> = ({ events, clients, onSave, onDelete, onRegisterFinance }) => {
   const [editing, setEditing] = useState<MarketingEvent | null>(null);
   const sorted = [...events].sort((a, b) => (b.date || 0) - (a.date || 0));
   const upcoming = sorted.filter((e) => (e.date || 0) >= Date.now()).length;
@@ -191,8 +236,18 @@ const EventsTab: React.FC<{ events: MarketingEvent[]; clients: Record<string, Cl
                   <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /> {acc}</span>
                   {e.capacity ? <span className="text-stone-400">/ {e.capacity} posti</span> : null}
                 </div>
+                {(Number(e.revenue) > 0 || Number(e.budget) > 0) && (
+                  <div className="flex items-center gap-3 mt-2 text-[12px]">
+                    {Number(e.revenue) > 0 && <span className="text-emerald-600 font-bold">+{eur(Number(e.revenue))}</span>}
+                    {Number(e.budget) > 0 && <span className="text-red-500 font-bold">−{eur(Number(e.budget))}</span>}
+                    {(e.financeRefs || []).length > 0 && <span className="text-[10.5px] text-stone-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> in Finanza</span>}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
                   <button onClick={() => setEditing(e)} className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer"><Pencil className="w-3.5 h-3.5" /> Gestisci</button>
+                  {(Number(e.revenue) > 0 || Number(e.budget) > 0) && (
+                    <button onClick={() => onRegisterFinance(e.id)} title="Registra ricavi/costi in Finanza" className="w-9 h-9 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-700 cursor-pointer"><Banknote className="w-3.5 h-3.5" /></button>
+                  )}
                   <button onClick={() => onDelete(e.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
@@ -234,6 +289,8 @@ const EventModal: React.FC<{ event: MarketingEvent; clients: Record<string, Clie
         <Field label="Tipo"><input className={IN} value={e.kind || ''} onChange={(ev) => set({ kind: ev.target.value })} placeholder="Open day, webinar…" /></Field>
         <Field label="Luogo"><input className={IN} value={e.location || ''} onChange={(ev) => set({ location: ev.target.value })} /></Field>
         <Field label="Capienza"><input type="number" className={IN} value={e.capacity || ''} onChange={(ev) => set({ capacity: ev.target.value ? Number(ev.target.value) : null })} /></Field>
+        <Field label="Costo evento (€)"><input type="number" className={IN} value={e.budget ?? ''} onChange={(ev) => set({ budget: ev.target.value ? Number(ev.target.value) : null })} placeholder="0" /></Field>
+        <Field label="Ricavi (biglietti/sponsor) (€)"><input type="number" className={IN} value={e.revenue ?? ''} onChange={(ev) => set({ revenue: ev.target.value ? Number(ev.target.value) : null })} placeholder="0" /></Field>
         <Field label="Descrizione" full><textarea className={`${IN} h-auto py-2 min-h-[60px]`} value={e.description || ''} onChange={(ev) => set({ description: ev.target.value })} /></Field>
         <Field label="Stato" full>
           <div className="flex gap-1.5">
@@ -273,7 +330,7 @@ const EventModal: React.FC<{ event: MarketingEvent; clients: Record<string, Clie
 const CHANNELS: { id: CampaignChannel; label: string }[] = [
   { id: 'email', label: 'Email' }, { id: 'whatsapp', label: 'WhatsApp' }, { id: 'social', label: 'Social' }, { id: 'misto', label: 'Misto' },
 ];
-const CampaignsTab: React.FC<{ campaigns: Campaign[]; clients: Record<string, ClientRecord>; onSave: (c: Campaign) => void; onDelete: (id: string) => void }> = ({ campaigns, clients, onSave, onDelete }) => {
+const CampaignsTab: React.FC<{ campaigns: Campaign[]; clients: Record<string, ClientRecord>; onSave: (c: Campaign) => void; onDelete: (id: string) => void; onRegisterSpend: (id: string) => void }> = ({ campaigns, clients, onSave, onDelete, onRegisterSpend }) => {
   const [editing, setEditing] = useState<Campaign | null>(null);
   const sorted = [...campaigns].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const active = sorted.filter((c) => c.status === 'attiva').length;
@@ -302,13 +359,15 @@ const CampaignsTab: React.FC<{ campaigns: Campaign[]; clients: Record<string, Cl
                 </div>
                 <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border capitalize ${c.status === 'attiva' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : c.status === 'conclusa' ? 'bg-stone-100 text-stone-500 border-stone-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{c.status}</span>
               </div>
-              <div className="flex items-center gap-3 mt-3 text-[12px] text-stone-500">
+              <div className="flex items-center gap-3 mt-3 text-[12px] text-stone-500 flex-wrap">
                 <span className="flex items-center gap-1"><ListChecks className="w-3.5 h-3.5" /> {(c.steps || []).length} follow-up</span>
                 <span className="flex items-center gap-1"><Send className="w-3.5 h-3.5" /> {c.sentCount || 0} invii</span>
                 <span className="flex items-center gap-1 text-emerald-600"><TrendingUp className="w-3.5 h-3.5" /> {c.responses || 0}</span>
+                {Number(c.spend || c.budget) > 0 && <span className="flex items-center gap-1 text-red-500 font-bold"><Wallet className="w-3.5 h-3.5" /> {eur(Number(c.spend || c.budget))}{(c.financeRefs || []).length > 0 && ' ✓'}</span>}
               </div>
               <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
                 <button onClick={() => setEditing(c)} className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer"><Pencil className="w-3.5 h-3.5" /> Gestisci</button>
+                {Number(c.spend || c.budget) > 0 && <button onClick={() => onRegisterSpend(c.id)} title="Registra spesa in Finanza" className="w-9 h-9 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-700 cursor-pointer"><Banknote className="w-3.5 h-3.5" /></button>}
                 <button onClick={() => onDelete(c.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </div>
@@ -334,6 +393,18 @@ const CampaignModal: React.FC<{ campaign: Campaign; clients: Record<string, Clie
   // Destinatari dalla rubrica secondo le fasce selezionate → link pronti
   const audience = Object.values(clients).filter((cl) => cl.category !== 'partner' && ((c.audienceTiers || []).length === 0 || (cl.tier != null && (c.audienceTiers || []).includes(cl.tier))));
   const enc = encodeURIComponent(c.message || '');
+  const setUtm = (p: Partial<NonNullable<Campaign['utm']>>) => set({ utm: { ...(c.utm || {}), ...p } });
+  const utm = c.utm || {};
+  const utmUrl = (() => {
+    const base = (utm.baseUrl || '').trim();
+    if (!base) return '';
+    const params = [
+      ['utm_source', utm.source], ['utm_medium', utm.medium], ['utm_campaign', utm.campaign || c.name],
+      ['utm_term', utm.term], ['utm_content', utm.content],
+    ].filter(([, v]) => v && String(v).trim()).map(([k, v]) => `${k}=${encodeURIComponent(String(v).trim())}`);
+    if (!params.length) return base;
+    return base + (base.includes('?') ? '&' : '?') + params.join('&');
+  })();
 
   return (
     <ModalShell title={campaign.name ? 'Gestisci campagna' : 'Nuova campagna'} onClose={onClose} wide
@@ -351,6 +422,26 @@ const CampaignModal: React.FC<{ campaign: Campaign; clients: Record<string, Clie
             <span className="text-[11px] text-stone-400 ml-1">{(c.audienceTiers || []).length === 0 ? 'tutte' : ''}</span>
           </div>
         </Field>
+        <Field label="Budget (€)"><input type="number" className={IN} value={c.budget ?? ''} onChange={(e) => set({ budget: e.target.value ? Number(e.target.value) : null })} placeholder="0" /></Field>
+        <Field label="Spesa effettiva (€)"><input type="number" className={IN} value={c.spend ?? ''} onChange={(e) => set({ spend: e.target.value ? Number(e.target.value) : null })} placeholder="0" /></Field>
+      </div>
+
+      {/* UTM builder */}
+      <div className="border-t border-[#ececec] pt-4">
+        <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400 flex items-center gap-1.5"><Link2 className="w-3.5 h-3.5" /> UTM builder</span>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <Field label="URL di destinazione" full><input className={IN} value={utm.baseUrl || ''} onChange={(e) => setUtm({ baseUrl: e.target.value })} placeholder="https://giorgiopascalistudio.github.io/…" /></Field>
+          <Field label="Source"><input className={IN} value={utm.source || ''} onChange={(e) => setUtm({ source: e.target.value })} placeholder="instagram" /></Field>
+          <Field label="Medium"><input className={IN} value={utm.medium || ''} onChange={(e) => setUtm({ medium: e.target.value })} placeholder="social" /></Field>
+          <Field label="Campaign"><input className={IN} value={utm.campaign || ''} onChange={(e) => setUtm({ campaign: e.target.value })} placeholder={c.name || 'utm_campaign'} /></Field>
+          <Field label="Content"><input className={IN} value={utm.content || ''} onChange={(e) => setUtm({ content: e.target.value })} placeholder="post_01" /></Field>
+        </div>
+        {utmUrl && (
+          <div className="flex items-center gap-2 mt-3 bg-[#fafafa] border border-[#ececec] rounded-xl px-3 py-2">
+            <span className="text-[12px] text-stone-600 truncate flex-1">{utmUrl}</span>
+            <button onClick={() => { navigator.clipboard?.writeText(utmUrl); }} className="shrink-0 flex items-center gap-1 text-[11.5px] font-bold text-[#b45309] bg-white border border-[#e2e2e2] rounded-lg px-2 py-1 cursor-pointer"><Copy className="w-3.5 h-3.5" /> Copia</button>
+          </div>
+        )}
       </div>
 
       {/* Follow-up */}
@@ -666,6 +757,341 @@ const AnalisiTab: React.FC<{ events: MarketingEvent[]; campaigns: Campaign[]; su
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+/* ============================== date helpers (Economia) ============================== */
+const dOnly = (ts?: number | null) => (ts ? new Date(ts - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : '');
+const parseD = (s: string) => (s ? new Date(`${s}T00:00:00`).getTime() : 0);
+const monthKey = (ts: number) => new Date(ts).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+
+/* ============================== DASHBOARD ============================== */
+const DashboardTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
+  const { events, campaigns, surveys, social, contracts, timeEntries, invoicesActive, scadenze, go } = props;
+  const str = (arr: { sector?: string }[]) => arr.filter((x) => x.sector === 'strategico');
+  const mrr = contracts.reduce((s, k) => s + monthlyOf(k), 0);
+  const ricavi = str(invoicesActive).reduce((s, i) => s + (Number((i as InvoiceActive).amount) || 0), 0);
+  const now = Date.now();
+  const thisMonth = new Date().getMonth();
+  const minutesMonth = timeEntries.filter((t) => new Date(t.date).getMonth() === thisMonth).reduce((s, t) => s + t.minutes, 0);
+  const toBill = timeEntries.filter((t) => t.billable && !t.billedInvoiceId).reduce((s, t) => s + timeValue(t), 0);
+  const upcomingEvents = events.filter((e) => (e.date || 0) >= now).length;
+  const daScadere = str(scadenze).filter((s) => (s as ScadenzaItem).status !== 'pagato').reduce((sum, s) => sum + (Number((s as ScadenzaItem).amount) || 0), 0);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<RefreshCw className="w-4 h-4" />} label="Ricavo ricorrente / mese" value={eur(mrr)} sub={`${contracts.filter((k) => k.status === 'attivo').length} contratti attivi`} accent={ACCENT} />
+        <Kpi icon={<Receipt className="w-4 h-4" />} label="Fatturato Strategico" value={eur(ricavi)} sub="confluisce nel consolidato" accent="#059669" />
+        <Kpi icon={<Timer className="w-4 h-4" />} label="Ore tracciate (mese)" value={`${(minutesMonth / 60).toFixed(1)}h`} sub={`${eur(toBill)} da fatturare`} />
+        <Kpi icon={<Banknote className="w-4 h-4" />} label="Da incassare" value={eur(daScadere)} sub="scadenze Strategico aperte" />
+      </div>
+
+      {TAB_GROUPS.filter((g) => g.group !== 'Panoramica').map((g) => (
+        <div key={g.group}>
+          <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">{g.group}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-2">
+            {g.items.map((it) => {
+              const Icon = it.icon;
+              const count = it.id === 'contratti' ? contracts.length : it.id === 'time' ? timeEntries.length
+                : it.id === 'eventi' ? events.length : it.id === 'campagne' ? campaigns.length
+                : it.id === 'social' ? social.length : it.id === 'sondaggi' ? surveys.length : null;
+              return (
+                <button key={it.id} onClick={() => go(it.id)}
+                  className="group text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#b45309] flex items-center justify-center shrink-0"><Icon className="w-5 h-5" /></div>
+                  <div className="min-w-0 flex-1">
+                    <b className="block text-[14px] tracking-tight flex items-center gap-1.5">{it.label}{count != null && <span className="text-[11px] font-bold text-stone-400">· {count}</span>}</b>
+                    <span className="text-[12px] text-stone-500 leading-snug">{it.desc}</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-[#b45309] shrink-0 mt-1" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ============================== CONTRATTI & RETAINER ============================== */
+const ContractsTab: React.FC<{ contracts: MktContract[]; clients: Record<string, ClientRecord>; projects: Project[]; onSave: (k: MktContract) => void; onDelete: (id: string) => void; onEmit: (id: string, periodLabel?: string) => void }> = ({ contracts, clients, projects, onSave, onDelete, onEmit }) => {
+  const [editing, setEditing] = useState<MktContract | null>(null);
+  const sorted = [...contracts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const attivi = sorted.filter((k) => k.status === 'attivo');
+  const mrr = sorted.reduce((s, k) => s + monthlyOf(k), 0);
+  const soon = sorted.filter((k) => k.endAt && k.endAt - Date.now() < 30 * 864e5 && k.endAt >= Date.now());
+  const blank = (): MktContract => ({ id: uid('ctr'), title: '', clientName: '', amount: 0, cadence: 'mensile', vatPct: 22, cassaPct: null, startAt: Date.now(), endAt: null, autoRenew: true, status: 'attivo', scope: '', createdAt: Date.now(), emissions: [] });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<FileText className="w-4 h-4" />} label="Contratti" value={String(contracts.length)} sub={`${attivi.length} attivi`} accent={ACCENT} />
+        <Kpi icon={<RefreshCw className="w-4 h-4" />} label="Ricorrente / mese" value={eur(mrr)} accent="#059669" />
+        <Kpi icon={<Banknote className="w-4 h-4" />} label="Ricorrente / anno" value={eur(mrr * 12)} />
+        <Kpi icon={<AlertTriangle className="w-4 h-4" />} label="Rinnovi ≤30gg" value={String(soon.length)} accent={soon.length ? '#b45309' : undefined} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuovo contratto" /></div>
+
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<FileText className="w-6 h-6" />} title="Nessun contratto" text="Crea contratti/retainer ricorrenti: ad ogni periodo emetti una bozza fattura attiva e una scadenza che confluiscono in Finanza (società Strategico)." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sorted.map((k) => {
+            const period = monthKey(Date.now());
+            const emittedThis = (k.emissions || []).some((e) => e.periodLabel === period);
+            const renewSoon = k.endAt && k.endAt - Date.now() < 30 * 864e5;
+            return (
+              <div key={k.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{CADENCE_LABEL[k.cadence]}</span>
+                    <b className="block text-[16px] tracking-tight truncate">{k.title || 'Senza titolo'}</b>
+                    <span className="text-[12px] text-stone-500">{k.clientName}</span>
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border capitalize ${k.status === 'attivo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : k.status === 'sospeso' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{k.status}</span>
+                </div>
+                <div className="flex items-baseline gap-2 mt-3">
+                  <b className="text-[20px] tracking-tight" style={{ color: ACCENT }}>{eur(k.amount)}</b>
+                  <span className="text-[12px] text-stone-400">/ {CADENCE_LABEL[k.cadence].toLowerCase()}{k.vatPct ? ` + IVA ${k.vatPct}%` : ''}</span>
+                </div>
+                <div className="flex items-center gap-3 mt-2 text-[12px] text-stone-500 flex-wrap">
+                  <span>{(k.emissions || []).length} emissioni</span>
+                  {k.endAt && <span className={renewSoon ? 'text-[#b45309] font-bold flex items-center gap-1' : 'flex items-center gap-1'}>{renewSoon && <AlertTriangle className="w-3.5 h-3.5" />}rinnovo {new Date(k.endAt).toLocaleDateString('it-IT')}</span>}
+                </div>
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#f0f0f0]">
+                  <button disabled={k.status !== 'attivo' || emittedThis} onClick={() => onEmit(k.id)} title="Emetti il periodo corrente in Finanza" className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-white text-[12.5px] font-bold border-none cursor-pointer disabled:opacity-40 disabled:cursor-default" style={{ background: emittedThis ? '#9ca3af' : ACCENT }}><Receipt className="w-3.5 h-3.5" /> {emittedThis ? `${period} emesso` : `Emetti ${period}`}</button>
+                  <button onClick={() => setEditing(k)} className="w-9 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white flex items-center justify-center cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => onDelete(k.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {editing && <ContractModal contract={editing} clients={clients} projects={projects} onClose={() => setEditing(null)} onSave={(k) => { onSave(k); setEditing(null); }} />}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const ContractModal: React.FC<{ contract: MktContract; clients: Record<string, ClientRecord>; projects: Project[]; onClose: () => void; onSave: (k: MktContract) => void }> = ({ contract, clients, projects, onClose, onSave }) => {
+  const [k, setK] = useState<MktContract>({ ...contract });
+  const set = (p: Partial<MktContract>) => setK((x) => ({ ...x, ...p }));
+  const clientList = Object.values(clients).filter((c) => c.category !== 'partner');
+
+  return (
+    <ModalShell title={contract.title ? 'Modifica contratto' : 'Nuovo contratto / retainer'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(k)} disabled={!k.title.trim() || !k.clientName.trim()} label="Salva contratto" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Titolo" full><input className={IN} value={k.title} onChange={(e) => set({ title: e.target.value })} placeholder="Es. Retainer social mensile" /></Field>
+        <Field label="Cliente (rubrica)" full>
+          <select className={IN} value={k.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : k.clientName }); }}>
+            <option value="">— seleziona / scrivi sotto —</option>
+            {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Nome cliente" full><input className={IN} value={k.clientName} onChange={(e) => set({ clientName: e.target.value })} placeholder="Cliente" /></Field>
+        <Field label="Importo per periodo (€)"><input type="number" className={IN} value={k.amount || ''} onChange={(e) => set({ amount: Number(e.target.value) || 0 })} /></Field>
+        <Field label="Cadenza"><select className={IN} value={k.cadence} onChange={(e) => set({ cadence: e.target.value as MktContractCadence })}>{(Object.keys(CADENCE_LABEL) as MktContractCadence[]).map((c) => <option key={c} value={c}>{CADENCE_LABEL[c]}</option>)}</select></Field>
+        <Field label="IVA %"><input type="number" className={IN} value={k.vatPct ?? ''} onChange={(e) => set({ vatPct: e.target.value === '' ? null : Number(e.target.value) })} placeholder="22" /></Field>
+        <Field label="Cassa %"><input type="number" className={IN} value={k.cassaPct ?? ''} onChange={(e) => set({ cassaPct: e.target.value === '' ? null : Number(e.target.value) })} placeholder="0" /></Field>
+        <Field label="Inizio"><input type="date" className={IN} value={dOnly(k.startAt)} onChange={(e) => set({ startAt: parseD(e.target.value) })} /></Field>
+        <Field label="Scadenza / rinnovo"><input type="date" className={IN} value={dOnly(k.endAt)} onChange={(e) => set({ endAt: e.target.value ? parseD(e.target.value) : null })} /></Field>
+        <Field label="Progetto collegato" full>
+          <select className={IN} value={k.projectId || ''} onChange={(e) => set({ projectId: e.target.value || null })}>
+            <option value="">— nessuno —</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Stato"><select className={IN} value={k.status} onChange={(e) => set({ status: e.target.value as MktContract['status'] })}><option value="attivo">Attivo</option><option value="sospeso">Sospeso</option><option value="concluso">Concluso</option></select></Field>
+        <Field label="Rinnovo automatico">
+          <button onClick={() => set({ autoRenew: !k.autoRenew })} className={`h-10 px-3 rounded-lg border text-[12.5px] font-bold cursor-pointer ${k.autoRenew ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-stone-500 border-stone-200'}`}>{k.autoRenew ? 'Sì' : 'No'}</button>
+        </Field>
+        <Field label="Servizi inclusi" full><textarea className={`${IN} h-auto py-2 min-h-[60px]`} value={k.scope || ''} onChange={(e) => set({ scope: e.target.value })} placeholder="Es. 12 post/mese, 2 reel, report mensile…" /></Field>
+      </div>
+      {(k.emissions || []).length > 0 && (
+        <div className="border-t border-[#ececec] pt-3">
+          <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">Emissioni in Finanza</span>
+          <div className="flex flex-col gap-1.5 mt-2 max-h-[140px] overflow-y-auto">
+            {[...(k.emissions || [])].reverse().map((em) => (
+              <div key={em.id} className="flex items-center gap-2 text-[12.5px] bg-[#fafafa] border border-[#ececec] rounded-lg px-3 py-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <b className="flex-1 truncate">{em.periodLabel}</b>
+                <span className="text-stone-500">{eur(em.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </ModalShell>
+  );
+};
+
+/* ============================== TIME TRACKING ============================== */
+const TimeTab: React.FC<{ entries: MktTimeEntry[]; clients: Record<string, ClientRecord>; projects: Project[]; campaigns: Campaign[]; onSave: (t: MktTimeEntry) => void; onDelete: (id: string) => void; onBill: (ids: string[]) => void }> = ({ entries, clients, projects, campaigns, onSave, onDelete, onBill }) => {
+  const [editing, setEditing] = useState<MktTimeEntry | null>(null);
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const sorted = [...entries].sort((a, b) => (b.date || 0) - (a.date || 0));
+  const thisMonth = new Date().getMonth();
+  const minutesMonth = entries.filter((t) => new Date(t.date).getMonth() === thisMonth).reduce((s, t) => s + t.minutes, 0);
+  const billable = sorted.filter((t) => t.billable && !t.billedInvoiceId);
+  const toBillValue = billable.reduce((s, t) => s + timeValue(t), 0);
+  const selIds = Object.keys(sel).filter((id) => sel[id]);
+  const blank = (): MktTimeEntry => ({ id: uid('tm'), date: Date.now(), minutes: 60, activity: '', clientName: '', rate: null, billable: true, createdAt: Date.now() });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Timer className="w-4 h-4" />} label="Ore questo mese" value={`${(minutesMonth / 60).toFixed(1)}h`} accent={ACCENT} />
+        <Kpi icon={<Clock className="w-4 h-4" />} label="Voci registrate" value={String(entries.length)} />
+        <Kpi icon={<Banknote className="w-4 h-4" />} label="Da fatturare" value={eur(toBillValue)} sub={`${billable.length} voci`} accent="#059669" />
+        <Kpi icon={<Wallet className="w-4 h-4" />} label="Ore totali" value={`${(entries.reduce((s, t) => s + t.minutes, 0) / 60).toFixed(1)}h`} />
+      </div>
+      <div className="flex justify-between items-center gap-2 flex-wrap">
+        {selIds.length > 0
+          ? <button onClick={() => { onBill(selIds); setSel({}); }} className="flex items-center gap-1.5 h-10 px-4 rounded-xl text-white font-bold text-[13px] border-none cursor-pointer" style={{ background: '#059669' }}><Receipt className="w-4 h-4" /> Fattura {selIds.length} voci in Finanza</button>
+          : <span className="text-[12px] text-stone-400">Spunta le voci fatturabili (con tariffa €/h) per generare una bozza fattura.</span>}
+        <AddBtn onClick={() => setEditing(blank())} label="Registra ore" />
+      </div>
+
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<Timer className="w-6 h-6" />} title="Nessuna ora registrata" text="Traccia il tempo per cliente, progetto o campagna. Le ore fatturabili (con tariffa €/h) si trasformano in una bozza fattura attiva nella società Strategico." />
+      ) : (
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+          <div className="hidden md:grid grid-cols-[28px_90px_1fr_1fr_70px_90px_90px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]">
+            <span></span><span>Data</span><span>Cliente</span><span>Attività</span><span>Ore</span><span>Tariffa</span><span>Valore</span><span></span>
+          </div>
+          {sorted.map((t) => {
+            const canBill = t.billable && !t.billedInvoiceId && timeValue(t) > 0;
+            return (
+              <div key={t.id} className="grid grid-cols-[28px_90px_1fr_1fr_70px_90px_90px_64px] gap-2 items-center px-4 py-2.5 border-b border-[#f3f3f3] text-[13px] last:border-0">
+                <span>{canBill && <input type="checkbox" checked={!!sel[t.id]} onChange={(e) => setSel((s) => ({ ...s, [t.id]: e.target.checked }))} />}</span>
+                <span className="text-stone-500 text-[12px]">{new Date(t.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}</span>
+                <span className="truncate">{t.clientName || '—'}</span>
+                <span className="truncate text-stone-600">{t.activity || '—'}{t.billedInvoiceId && <span className="text-[10px] text-emerald-600 ml-1">fatturata</span>}</span>
+                <span>{(t.minutes / 60).toFixed(1)}h</span>
+                <span className="text-stone-500">{t.rate ? `${eur(t.rate)}/h` : '—'}</span>
+                <span className="font-bold" style={{ color: ACCENT }}>{eur(timeValue(t))}</span>
+                <span className="flex items-center gap-1 justify-end">
+                  <button onClick={() => setEditing(t)} className="w-7 h-7 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => onDelete(t.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {editing && <TimeModal entry={editing} clients={clients} projects={projects} campaigns={campaigns} onClose={() => setEditing(null)} onSave={(t) => { onSave(t); setEditing(null); }} />}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const TimeModal: React.FC<{ entry: MktTimeEntry; clients: Record<string, ClientRecord>; projects: Project[]; campaigns: Campaign[]; onClose: () => void; onSave: (t: MktTimeEntry) => void }> = ({ entry, clients, projects, campaigns, onClose, onSave }) => {
+  const [t, setT] = useState<MktTimeEntry>({ ...entry });
+  const set = (p: Partial<MktTimeEntry>) => setT((x) => ({ ...x, ...p }));
+  const hours = (t.minutes / 60).toString();
+  const clientList = Object.values(clients).filter((c) => c.category !== 'partner');
+
+  return (
+    <ModalShell title={entry.activity ? 'Modifica ore' : 'Registra ore'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(t)} disabled={t.minutes <= 0} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Data"><input type="date" className={IN} value={dOnly(t.date)} onChange={(e) => set({ date: parseD(e.target.value) || Date.now() })} /></Field>
+        <Field label="Ore"><input type="number" step="0.25" className={IN} value={hours} onChange={(e) => set({ minutes: Math.round((Number(e.target.value) || 0) * 60) })} /></Field>
+        <Field label="Attività" full><input className={IN} value={t.activity || ''} onChange={(e) => set({ activity: e.target.value })} placeholder="Es. Grafica post, copywriting, meeting…" /></Field>
+        <Field label="Cliente (rubrica)" full>
+          <select className={IN} value={t.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : t.clientName }); }}>
+            <option value="">— seleziona —</option>
+            {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Progetto"><select className={IN} value={t.projectId || ''} onChange={(e) => set({ projectId: e.target.value || null })}><option value="">—</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <Field label="Campagna"><select className={IN} value={t.campaignId || ''} onChange={(e) => set({ campaignId: e.target.value || null })}><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Tariffa €/h"><input type="number" className={IN} value={t.rate ?? ''} onChange={(e) => set({ rate: e.target.value === '' ? null : Number(e.target.value) })} placeholder="0" /></Field>
+        <Field label="Fatturabile">
+          <button onClick={() => set({ billable: !t.billable })} className={`h-10 px-3 rounded-lg border text-[12.5px] font-bold cursor-pointer ${t.billable ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-stone-500 border-stone-200'}`}>{t.billable ? 'Sì' : 'No'}</button>
+        </Field>
+        <Field label="Note" full><textarea className={`${IN} h-auto py-2 min-h-[50px]`} value={t.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== ECONOMIA ============================== */
+const EconomiaTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
+  const { contracts, timeEntries, invoicesActive, invoicesPassive, scadenze, go } = props;
+  const strA = invoicesActive.filter((i) => i.sector === 'strategico');
+  const strP = invoicesPassive.filter((i) => i.sector === 'strategico');
+  const strS = scadenze.filter((s) => s.sector === 'strategico');
+  const ricavi = strA.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const costi = strP.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const incassato = strS.filter((s) => s.kind === 'entrata' && s.status === 'pagato').reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const daIncassare = strS.filter((s) => s.kind === 'entrata' && s.status !== 'pagato').reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const mrr = contracts.reduce((s, k) => s + monthlyOf(k), 0);
+  const oreNonFatt = timeEntries.filter((t) => t.billable && !t.billedInvoiceId).reduce((s, t) => s + timeValue(t), 0);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="bg-amber-50 border border-amber-200 rounded-[18px] px-4 py-3 text-[12.5px] text-amber-800 flex items-start gap-2">
+        <Wallet className="w-4 h-4 mt-0.5 shrink-0" />
+        <span>Tutti i dati economici di Strategico (contratti, ore fatturate, spese campagne/eventi) confluiscono nei nodi finanza con società <b>Strategico</b> e compaiono nel <b>Consolidato</b> di Finanze e in Statistiche & BEP.</span>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Receipt className="w-4 h-4" />} label="Ricavi (fatture)" value={eur(ricavi)} accent="#059669" />
+        <Kpi icon={<Wallet className="w-4 h-4" />} label="Costi" value={eur(costi)} accent="#dc2626" />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="Margine" value={eur(ricavi - costi)} accent={ACCENT} />
+        <Kpi icon={<RefreshCw className="w-4 h-4" />} label="Ricorrente / mese" value={eur(mrr)} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Incassato" value={eur(incassato)} accent="#059669" />
+        <Kpi icon={<Banknote className="w-4 h-4" />} label="Da incassare" value={eur(daIncassare)} accent="#b45309" />
+        <Kpi icon={<Timer className="w-4 h-4" />} label="Ore non fatturate" value={eur(oreNonFatt)} sub="valore potenziale" />
+        <Kpi icon={<FileText className="w-4 h-4" />} label="Contratti attivi" value={String(contracts.filter((k) => k.status === 'attivo').length)} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+          <div className="flex items-center justify-between mb-3">
+            <b className="text-[14px] flex items-center gap-1.5"><Receipt className="w-4 h-4" style={{ color: ACCENT }} /> Ultime fatture attive</b>
+            <button onClick={() => go('contratti')} className="text-[11.5px] font-bold text-[#b45309] bg-transparent border-none cursor-pointer flex items-center gap-1">Contratti <ArrowRight className="w-3.5 h-3.5" /></button>
+          </div>
+          {strA.length === 0 ? <span className="text-[13px] italic text-stone-400">Nessuna fattura Strategico.</span> : (
+            <div className="flex flex-col gap-1.5">
+              {[...strA].slice(-6).reverse().map((i) => (
+                <div key={i.id} className="flex items-center gap-2 text-[13px] bg-[#fafafa] border border-[#ececec] rounded-lg px-3 py-1.5">
+                  <b className="flex-1 truncate">{i.clientName}</b>
+                  <span className="text-[10.5px] text-stone-400">{i.date}</span>
+                  <span className="font-bold" style={{ color: '#059669' }}>{eur(Number(i.amount) || 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+          <div className="flex items-center justify-between mb-3">
+            <b className="text-[14px] flex items-center gap-1.5"><Wallet className="w-4 h-4 text-red-500" /> Ultimi costi</b>
+            <button onClick={() => go('campagne')} className="text-[11.5px] font-bold text-[#b45309] bg-transparent border-none cursor-pointer flex items-center gap-1">Campagne <ArrowRight className="w-3.5 h-3.5" /></button>
+          </div>
+          {strP.length === 0 ? <span className="text-[13px] italic text-stone-400">Nessun costo Strategico.</span> : (
+            <div className="flex flex-col gap-1.5">
+              {[...strP].slice(-6).reverse().map((i) => (
+                <div key={i.id} className="flex items-center gap-2 text-[13px] bg-[#fafafa] border border-[#ececec] rounded-lg px-3 py-1.5">
+                  <b className="flex-1 truncate">{i.supplierName}</b>
+                  <span className="text-[10.5px] text-stone-400 truncate max-w-[120px]">{i.description}</span>
+                  <span className="font-bold text-red-500">{eur(Number(i.amount) || 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

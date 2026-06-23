@@ -406,6 +406,11 @@ reporting/redditività, integrazioni esterne
   e **`clientMaterico/<uid>`**: **ripubblicare le regole**, altrimenti cliente/partner non vedono
   le richieste e le offerte falliscono in silenzio (lo studio continua a funzionare). Le richieste
   legacy vengono migrate da un backfill una-tantum quando un admin/manager apre l'app.
+  ⚠️ Aggiunti i nodi **Strategico/Economia** (§22-bis): **`mktContracts`** (contratti/retainer — read
+  studio attivo non-cliente/non-partner, write admin/manager) e **`mktTimeEntries`** (time tracking —
+  read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**, altrimenti contratti e
+  time tracking danno "permission denied" con write silenziosa lato client. I dati economici riusano i
+  nodi finanza esistenti (nessuna regola nuova lì).
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -624,8 +629,26 @@ reporting/redditività, integrazioni esterne
 - **Dove**: **dentro Progetti**, divisione **STRATEGICO** (come Unico nella divisione UNICO). Toggle
   sub-tab **"Progetti | Marketing & Eventi"** (`strategicoTab` in `ProjectsView`, `showStrategicoStudio`
   → mostra `StrategicoView`, importato diretto in `ProjectsView`). **Non** è una voce sidebar/route a sé.
-  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). 5 sotto-tab:
-  **Eventi · Campagne · Sondaggi · Social · Analisi**. Dati/handler arrivano da App via `ProjectsView`.
+  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). Navigazione
+  raggruppata (`TAB_GROUPS`) con landing **Dashboard** (tile per funzione + KPI): **Panoramica**
+  (Dashboard · Analisi), **Economia** (Contratti & Retainer · Time tracking · Economia — vedi §22-bis),
+  **Relazioni & Contenuti** (Eventi · Campagne · Social · Sondaggi). Dati/handler arrivano da App via `ProjectsView`.
+- **Economia (§22-bis, Blocco A) — ogni dato economico confluisce in Finanza** con `sector:'strategico'`
+  (nessun nodo finanza nuovo; stesso schema di `handleEmitMilestone`):
+  - **Contratti & Retainer** (`mktContracts/<id>`, tipo `MktContract`): abbonamenti ricorrenti
+    (mensile/trimestrale/annuale/una_tantum) con alert rinnovo (`endAt`). Pulsante "Emetti <periodo>"
+    (`handleEmitContractInvoice`) → bozza **fattura attiva** + **scadenza**, dedup per `periodLabel` nello
+    storico `emissions`. KPI MRR.
+  - **Time tracking** (`mktTimeEntries/<id>`, tipo `MktTimeEntry`): ore per cliente/progetto/campagna,
+    tariffa €/h, `billable`. Selezione multipla → "Fattura in Finanza" (`handleBillTimeEntries`) genera
+    fattura attiva + scadenza e marca `billedInvoiceId`.
+  - **Economia** (read-only): ricavi/costi/margine/incassato/da-incassare filtrati su `sector==='strategico'`
+    + MRR + valore ore non fatturate.
+  - **Campagne**: campi `budget`/`spend` + **UTM builder** (`Campaign.utm`); "Registra spesa"
+    (`handleRegisterCampaignSpend`) → **fattura passiva**. **Eventi**: `budget`/`revenue`; "Registra in
+    Finanza" (`handleRegisterEventFinance`) → ricavi=fattura attiva, costo=fattura passiva.
+  - App: stato `mktContracts`/`mktTime`, sub studio sui due nodi, handler save/delete (+ Cestino, sezioni
+    `mkt-contratto`/`mkt-time`) e i bridge-finanza sopra; props via `ProjectsView` → `StrategicoView`.
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

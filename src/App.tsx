@@ -69,6 +69,8 @@ import {
   Survey,
   SurveyResponse,
   SocialPost,
+  MktContract,
+  MktTimeEntry,
   RsvpStatus
 } from './types';
 
@@ -334,6 +336,9 @@ export default function App() {
   const [mktSocial, setMktSocial] = useState<Record<string, SocialPost>>({});
   // Studio: tutte le risposte sondaggio (surveyId → uid → risposta). Portale: solo le proprie.
   const [mktResponses, setMktResponses] = useState<Record<string, Record<string, SurveyResponse>>>({});
+  // Strategico — Economia (Blocco A): contratti/retainer + time tracking
+  const [mktContracts, setMktContracts] = useState<Record<string, MktContract>>({});
+  const [mktTime, setMktTime] = useState<Record<string, MktTimeEntry>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -697,6 +702,133 @@ export default function App() {
       setMktSocial((prev) => { const n = { ...prev }; delete n[id]; return n; });
       removeNode(`mktSocial/${id}`).catch(() => {});
     });
+  };
+
+  // ----------------------------------------------------
+  // Strategico — Economia (Blocco A): contratti/retainer + time tracking.
+  // Ogni voce economica confluisce nei nodi finanza globali con sector:'strategico'.
+  // ----------------------------------------------------
+  const rndId = (p: string) => `${p}-${Date.now()}-${Math.floor(Math.random() * 9000)}`;
+  const cadenceLabel = (c: MktContract['cadence']) =>
+    c === 'mensile' ? 'mese' : c === 'trimestrale' ? 'trimestre' : c === 'annuale' ? 'anno' : 'una tantum';
+
+  const handleSaveMktContract = (k: MktContract) => {
+    const enriched: MktContract = { ...k, updatedAt: Date.now(), createdAt: k.createdAt || Date.now() };
+    setMktContracts((prev) => ({ ...prev, [k.id]: enriched }));
+    writeNode(`mktContracts/${k.id}`, enriched).catch(() => showToast('Errore contratti (controlla regole).', 'err'));
+  };
+  const handleDeleteMktContract = (id: string) => {
+    const k = mktContracts[id];
+    askDelete('Eliminare questo contratto/retainer?', k ? `"${k.title}" · ${k.clientName}` : null, () => {
+      if (k) moveToTrash('mkt-contratto', `${k.title} · ${k.clientName}`, k, undefined, eur(k.amount || 0));
+      setMktContracts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktContracts/${id}`).catch(() => {});
+      showToast('Contratto spostato nel Cestino.', 'err');
+    });
+  };
+  // Emette il periodo corrente di un retainer → bozza fattura attiva + scadenza in Finanza.
+  const handleEmitContractInvoice = (contractId: string, periodLabel?: string) => {
+    const k = mktContracts[contractId];
+    if (!k) return;
+    const period = periodLabel || new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+    if ((k.emissions || []).some((e) => e.periodLabel === period)) { showToast('Periodo già emesso per questo contratto.', 'err'); return; }
+    const invId = rndId('inv');
+    const scaId = rndId('sca');
+    const inv: InvoiceActive = {
+      id: invId, clientName: k.clientName, projectId: k.projectId || '', projectName: k.projectId ? (projects[k.projectId]?.name || '') : '',
+      amount: k.amount, taxRate: k.vatPct == null ? 22 : k.vatPct, cassaPct: k.cassaPct ?? null,
+      status: 'bozza', sdiCode: '', date: todayISO(), dueDate: todayISO(), sector: 'strategico',
+    };
+    const sca: ScadenzaItem = {
+      id: scaId, kind: 'entrata', desc: `Retainer ${k.title} · ${period}`, clientOrSupplier: k.clientName,
+      amount: k.amount, dueDate: todayISO(), status: 'pago_attesa', projectId: k.projectId || undefined, sector: 'strategico',
+    };
+    handleSaveFinanceItem('finInvoicesActive', inv);
+    handleSaveFinanceItem('finScadenze', sca);
+    const emission = { id: rndId('em'), invoiceId: invId, scadenzaId: scaId, periodLabel: period, amount: k.amount, at: Date.now() };
+    handleSaveMktContract({ ...k, emissions: [...(k.emissions || []), emission] });
+    showToast(`Retainer "${k.title}" ${period}: bozza fattura + scadenza create in Finanze.`, 'ok');
+  };
+
+  const handleSaveMktTimeEntry = (t: MktTimeEntry) => {
+    const enriched: MktTimeEntry = { ...t, updatedAt: Date.now(), createdAt: t.createdAt || Date.now() };
+    setMktTime((prev) => ({ ...prev, [t.id]: enriched }));
+    writeNode(`mktTimeEntries/${t.id}`, enriched).catch(() => showToast('Errore time tracking (controlla regole).', 'err'));
+  };
+  const handleDeleteMktTimeEntry = (id: string) => {
+    const t = mktTime[id];
+    askDelete('Eliminare questa voce di time tracking?', t ? `${(t.minutes / 60).toFixed(1)}h · ${t.activity || ''}` : null, () => {
+      if (t) moveToTrash('mkt-time', `${(t.minutes / 60).toFixed(1)}h · ${t.clientName || t.activity || ''}`, t);
+      setMktTime((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktTimeEntries/${id}`).catch(() => {});
+      showToast('Voce spostata nel Cestino.', 'err');
+    });
+  };
+  // Fattura un gruppo di ore fatturabili → bozza fattura attiva + scadenza in Finanza.
+  const handleBillTimeEntries = (entryIds: string[]) => {
+    const entries = entryIds.map((id) => mktTime[id]).filter((e): e is MktTimeEntry => !!e && !e.billedInvoiceId && !!e.billable);
+    if (!entries.length) { showToast('Nessuna ora fatturabile selezionata.', 'err'); return; }
+    const total = entries.reduce((s, e) => s + (e.minutes / 60) * (Number(e.rate) || 0), 0);
+    if (total <= 0) { showToast('Imposta una tariffa €/h sulle ore da fatturare.', 'err'); return; }
+    const clientName = entries[0].clientName || 'Cliente';
+    const projectId = entries[0].projectId || '';
+    const invId = rndId('inv');
+    const inv: InvoiceActive = {
+      id: invId, clientName, projectId, projectName: projectId ? (projects[projectId]?.name || '') : '',
+      amount: Math.round(total * 100) / 100, taxRate: 22, cassaPct: null,
+      status: 'bozza', sdiCode: '', date: todayISO(), dueDate: todayISO(), sector: 'strategico',
+    };
+    const sca: ScadenzaItem = {
+      id: rndId('sca'), kind: 'entrata', desc: `Ore marketing · ${clientName} (${(entries.reduce((s, e) => s + e.minutes, 0) / 60).toFixed(1)}h)`,
+      clientOrSupplier: clientName, amount: inv.amount, dueDate: todayISO(), status: 'pago_attesa', projectId: projectId || undefined, sector: 'strategico',
+    };
+    handleSaveFinanceItem('finInvoicesActive', inv);
+    handleSaveFinanceItem('finScadenze', sca);
+    entries.forEach((e) => handleSaveMktTimeEntry({ ...e, billedInvoiceId: invId }));
+    showToast(`Fatturate ${entries.length} voci ore: bozza fattura + scadenza in Finanze.`, 'ok');
+  };
+
+  // Registra la spesa di una campagna come fattura passiva in Finanza (sector:'strategico').
+  const handleRegisterCampaignSpend = (campaignId: string) => {
+    const c = mktCampaigns[campaignId];
+    if (!c) return;
+    const amount = Number(c.spend) || Number(c.budget) || 0;
+    if (amount <= 0) { showToast('Imposta budget/spesa sulla campagna.', 'err'); return; }
+    const invId = rndId('inp');
+    const inv: InvoicePassive = {
+      id: invId, supplierName: c.name || 'Campagna', projectId: '', projectName: '', amount,
+      category: 'Marketing / Advertising', status: 'ricevuta', date: todayISO(), dueDate: todayISO(),
+      sector: 'strategico', description: `Spesa campagna ${c.name}${c.channel ? ' · ' + c.channel : ''}`,
+    };
+    handleSaveFinanceItem('finInvoicesPassive', inv);
+    handleSaveCampaign({ ...c, financeRefs: [...(c.financeRefs || []), invId] });
+    showToast(`Spesa campagna "${c.name}" registrata in Finanze.`, 'ok');
+  };
+  // Registra l'economia di un evento: ricavi → fattura attiva, costo → fattura passiva.
+  const handleRegisterEventFinance = (eventId: string) => {
+    const ev = mktEvents[eventId];
+    if (!ev) return;
+    const refs: string[] = [...(ev.financeRefs || [])];
+    if (Number(ev.revenue) > 0) {
+      const id = rndId('inv');
+      handleSaveFinanceItem('finInvoicesActive', {
+        id, clientName: ev.title || 'Evento', projectId: '', projectName: '', amount: Number(ev.revenue),
+        taxRate: 22, cassaPct: null, status: 'bozza', sdiCode: '', date: todayISO(), dueDate: todayISO(), sector: 'strategico',
+      } as InvoiceActive);
+      refs.push(id);
+    }
+    if (Number(ev.budget) > 0) {
+      const id = rndId('inp');
+      handleSaveFinanceItem('finInvoicesPassive', {
+        id, supplierName: ev.title || 'Evento', projectId: '', projectName: '', amount: Number(ev.budget),
+        category: 'Marketing / Eventi', status: 'ricevuta', date: todayISO(), dueDate: todayISO(),
+        sector: 'strategico', description: `Costo evento ${ev.title}`,
+      } as InvoicePassive);
+      refs.push(id);
+    }
+    if (refs.length === (ev.financeRefs || []).length) { showToast('Imposta ricavi o costo sull’evento.', 'err'); return; }
+    handleSaveMktEvent({ ...ev, financeRefs: refs });
+    showToast(`Economia evento "${ev.title}" registrata in Finanze.`, 'ok');
   };
 
   // ---- Marketing lato portale (cliente/partner) ----
@@ -1104,6 +1236,8 @@ export default function App() {
       subs.push(watchNode('mktSurveys', (v) => setMktSurveys(v || {}), () => {}));
       subs.push(watchNode('mktSocial', (v) => setMktSocial(v || {}), () => {}));
       subs.push(watchNode('mktSurveyResponses', (v) => setMktResponses(v || {}), () => {}));
+      subs.push(watchNode('mktContracts', (v) => setMktContracts(v || {}), () => {}));
+      subs.push(watchNode('mktTimeEntries', (v) => setMktTime(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => {
@@ -1448,6 +1582,14 @@ export default function App() {
         case 'mkt-social':
           setMktSocial((prev) => ({ ...prev, [id]: pl }));
           writeNode(`mktSocial/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-contratto':
+          setMktContracts((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktContracts/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-time':
+          setMktTime((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktTimeEntries/${id}`, pl).catch(() => {});
           break;
         default:
           showToast('Sezione non ripristinabile automaticamente.', 'err');
@@ -3427,6 +3569,16 @@ export default function App() {
             onDeleteSurvey={handleDeleteSurvey}
             onSaveSocialPost={handleSaveSocialPost}
             onDeleteSocialPost={handleDeleteSocialPost}
+            mktContracts={Object.values(mktContracts)}
+            mktTime={Object.values(mktTime)}
+            onSaveMktContract={handleSaveMktContract}
+            onDeleteMktContract={handleDeleteMktContract}
+            onEmitContractInvoice={handleEmitContractInvoice}
+            onSaveMktTimeEntry={handleSaveMktTimeEntry}
+            onDeleteMktTimeEntry={handleDeleteMktTimeEntry}
+            onBillTimeEntries={handleBillTimeEntries}
+            onRegisterCampaignSpend={handleRegisterCampaignSpend}
+            onRegisterEventFinance={handleRegisterEventFinance}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}
