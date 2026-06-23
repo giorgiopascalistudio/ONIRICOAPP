@@ -16,13 +16,15 @@ import {
   Trash2, Pencil, Mail, MessageCircle, CheckCircle2, XCircle, HelpCircle, Send,
   Star, Instagram, Facebook, Linkedin, Youtube, Clock, TrendingUp, ListChecks,
   LayoutDashboard, FileText, Timer, Wallet, ArrowRight, Link2, Copy, Receipt,
-  Banknote, RefreshCw, AlertTriangle,
+  Banknote, RefreshCw, AlertTriangle, Image as ImageIcon, Film, Search, Tag,
+  Columns, Eye, Check, FolderOpen,
 } from 'lucide-react';
 import type {
   MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, ClientRecord,
   EventInvitee, RsvpStatus, CampaignStep, SurveyQuestion, CampaignChannel,
   SocialPlatform, SocialStatus, MktContract, MktTimeEntry, MktContractCadence,
-  Project,
+  Project, UserProfile, MktAsset, MktDeliverable, MktProof, MktAssetKind,
+  MktDeliverableStage, MktPriority, ProofAnnotation, ProofStatus,
 } from '../types';
 import type { InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { eur, safeUrl } from '../utils';
@@ -70,9 +72,21 @@ interface Props {
   onBillTimeEntries: (ids: string[]) => void;
   onRegisterCampaignSpend: (id: string) => void;
   onRegisterEventFinance: (id: string) => void;
+  // Produzione (Blocco B)
+  assets: MktAsset[];
+  deliverables: MktDeliverable[];
+  proofs: MktProof[];
+  team: Record<string, UserProfile>;
+  onSaveAsset: (a: MktAsset) => void;
+  onDeleteAsset: (id: string) => void;
+  onSaveDeliverable: (d: MktDeliverable) => void;
+  onDeleteDeliverable: (id: string) => void;
+  onSaveProof: (p: MktProof) => void;
+  onDeleteProof: (id: string) => void;
 }
 
-type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi';
+type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi'
+  | 'asset' | 'deliverable' | 'proof';
 
 // Raggruppamento coerente delle funzioni (usato dalla dashboard + pillbar).
 const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.ElementType; desc: string }[] }[] = [
@@ -84,6 +98,11 @@ const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.
     { id: 'contratti', label: 'Contratti & Retainer', icon: FileText, desc: 'Abbonamenti ricorrenti → fattura in Finanza' },
     { id: 'time', label: 'Time tracking', icon: Timer, desc: 'Ore per cliente/progetto → fatturabili' },
     { id: 'economia', label: 'Economia', icon: Wallet, desc: 'Contributo di Strategico al consolidato' },
+  ] },
+  { group: 'Produzione', items: [
+    { id: 'deliverable', label: 'Deliverable', icon: Columns, desc: 'Board kanban dei contenuti' },
+    { id: 'proof', label: 'Revisioni', icon: Eye, desc: 'Proofing con annotazioni e approvazione' },
+    { id: 'asset', label: 'Asset library', icon: FolderOpen, desc: 'Libreria media con tag' },
   ] },
   { group: 'Relazioni & Contenuti', items: [
     { id: 'eventi', label: 'Eventi', icon: Calendar, desc: 'Eventi e inviti con RSVP' },
@@ -130,6 +149,9 @@ export const StrategicoView: React.FC<Props> = (props) => {
       {tab === 'campagne' && <CampaignsTab campaigns={campaigns} clients={clients} onSave={props.onSaveCampaign} onDelete={props.onDeleteCampaign} onRegisterSpend={props.onRegisterCampaignSpend} />}
       {tab === 'sondaggi' && <SurveysTab surveys={surveys} responses={responses} onSave={props.onSaveSurvey} onDelete={props.onDeleteSurvey} />}
       {tab === 'social' && <SocialTab social={social} campaigns={campaigns} onSave={props.onSaveSocialPost} onDelete={props.onDeleteSocialPost} />}
+      {tab === 'deliverable' && <DeliverablesTab deliverables={props.deliverables} clients={clients} campaigns={campaigns} team={props.team} onSave={props.onSaveDeliverable} onDelete={props.onDeleteDeliverable} />}
+      {tab === 'proof' && <ProofsTab proofs={props.proofs} clients={clients} onSave={props.onSaveProof} onDelete={props.onDeleteProof} />}
+      {tab === 'asset' && <AssetsTab assets={props.assets} clients={clients} campaigns={campaigns} onSave={props.onSaveAsset} onDelete={props.onDeleteAsset} />}
       {tab === 'analisi' && <AnalisiTab events={events} campaigns={campaigns} surveys={surveys} social={social} responses={responses} />}
     </div>
   );
@@ -797,7 +819,9 @@ const DashboardTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
               const Icon = it.icon;
               const count = it.id === 'contratti' ? contracts.length : it.id === 'time' ? timeEntries.length
                 : it.id === 'eventi' ? events.length : it.id === 'campagne' ? campaigns.length
-                : it.id === 'social' ? social.length : it.id === 'sondaggi' ? surveys.length : null;
+                : it.id === 'social' ? social.length : it.id === 'sondaggi' ? surveys.length
+                : it.id === 'asset' ? props.assets.length : it.id === 'deliverable' ? props.deliverables.length
+                : it.id === 'proof' ? props.proofs.length : null;
               return (
                 <button key={it.id} onClick={() => go(it.id)}
                   className="group text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors flex items-start gap-3">
@@ -1094,5 +1118,343 @@ const EconomiaTab: React.FC<Props & { go: (t: Tab) => void }> = (props) => {
         </div>
       </div>
     </div>
+  );
+};
+
+/* ============================== ASSET LIBRARY ============================== */
+const ASSET_KIND_META: Record<MktAssetKind, { label: string; icon: React.ElementType }> = {
+  immagine: { label: 'Immagine', icon: ImageIcon }, video: { label: 'Video', icon: Film },
+  documento: { label: 'Documento', icon: FileText }, link: { label: 'Link', icon: Link2 },
+};
+const AssetsTab: React.FC<{ assets: MktAsset[]; clients: Record<string, ClientRecord>; campaigns: Campaign[]; onSave: (a: MktAsset) => void; onDelete: (id: string) => void }> = ({ assets, clients, campaigns, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktAsset | null>(null);
+  const [q, setQ] = useState('');
+  const [tagF, setTagF] = useState('');
+  const allTags = Array.from(new Set(assets.flatMap((a) => a.tags || []))).sort();
+  const filtered = assets.filter((a) => (!q || a.name.toLowerCase().includes(q.toLowerCase()) || (a.tags || []).some((t) => t.toLowerCase().includes(q.toLowerCase()))) && (!tagF || (a.tags || []).includes(tagF)))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const blank = (): MktAsset => ({ id: uid('as'), name: '', kind: 'immagine', url: '', tags: [], createdAt: Date.now() });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<FolderOpen className="w-4 h-4" />} label="Asset" value={String(assets.length)} accent={ACCENT} />
+        <Kpi icon={<ImageIcon className="w-4 h-4" />} label="Immagini" value={String(assets.filter((a) => a.kind === 'immagine').length)} />
+        <Kpi icon={<Film className="w-4 h-4" />} label="Video" value={String(assets.filter((a) => a.kind === 'video').length)} />
+        <Kpi icon={<Tag className="w-4 h-4" />} label="Tag" value={String(allTags.length)} />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input className={`${IN} pl-9`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca per nome o tag…" />
+        </div>
+        <select className={`${IN} w-auto`} value={tagF} onChange={(e) => setTagF(e.target.value)}><option value="">Tutti i tag</option>{allTags.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+        <AddBtn onClick={() => setEditing(blank())} label="Nuovo asset" />
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyBox icon={<FolderOpen className="w-6 h-6" />} title="Nessun asset" text="Centralizza immagini, video, documenti e link riutilizzabili. Aggiungi tag per ritrovarli velocemente nelle campagne." />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((a) => {
+            const M = ASSET_KIND_META[a.kind]; const Icon = M.icon; const href = safeUrl(a.url || '') || '#';
+            return (
+              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[18px] overflow-hidden flex flex-col">
+                <a href={href} target="_blank" rel="noreferrer" className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden">
+                  {a.kind === 'immagine' && a.url ? <img src={href} alt={a.name} className="w-full h-full object-cover" /> : <Icon className="w-8 h-8 text-stone-300" />}
+                </a>
+                <div className="p-3 flex flex-col gap-1.5 flex-1">
+                  <b className="text-[13px] truncate">{a.name || 'Senza nome'}</b>
+                  <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{M.label}</span>
+                  {(a.tags || []).length > 0 && <div className="flex flex-wrap gap-1">{(a.tags || []).slice(0, 3).map((t) => <span key={t} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-1.5 py-0.5">{t}</span>)}</div>}
+                  <div className="flex items-center gap-1 mt-auto pt-1.5">
+                    <button onClick={() => setEditing(a)} className="flex-1 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12px] font-bold border-none cursor-pointer">Modifica</button>
+                    <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <AnimatePresence>{editing && <AssetModal asset={editing} clients={clients} campaigns={campaigns} onClose={() => setEditing(null)} onSave={(a) => { onSave(a); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const AssetModal: React.FC<{ asset: MktAsset; clients: Record<string, ClientRecord>; campaigns: Campaign[]; onClose: () => void; onSave: (a: MktAsset) => void }> = ({ asset, clients, campaigns, onClose, onSave }) => {
+  const [a, setA] = useState<MktAsset>({ ...a0(asset) });
+  function a0(x: MktAsset): MktAsset { return { ...x, tags: x.tags || [] }; }
+  const set = (p: Partial<MktAsset>) => setA((x) => ({ ...x, ...p }));
+  const [tagIn, setTagIn] = useState('');
+  const addTag = () => { const t = tagIn.trim(); if (t && !(a.tags || []).includes(t)) set({ tags: [...(a.tags || []), t] }); setTagIn(''); };
+
+  return (
+    <ModalShell title={asset.name ? 'Modifica asset' : 'Nuovo asset'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(a)} disabled={!a.name.trim()} label="Salva asset" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Nome" full><input className={IN} value={a.name} onChange={(e) => set({ name: e.target.value })} placeholder="Es. Logo bianco PNG" /></Field>
+        <Field label="Tipo"><select className={IN} value={a.kind} onChange={(e) => set({ kind: e.target.value as MktAssetKind })}>{(Object.keys(ASSET_KIND_META) as MktAssetKind[]).map((k) => <option key={k} value={k}>{ASSET_KIND_META[k].label}</option>)}</select></Field>
+        <Field label="Cliente"><select className={IN} value={a.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null }); void c; }}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="URL / link (Drive, Unsplash, sito…)" full><input className={IN} value={a.url || ''} onChange={(e) => set({ url: e.target.value })} placeholder="https://…" /></Field>
+        <Field label="Campagna"><select className={IN} value={a.campaignId || ''} onChange={(e) => set({ campaignId: e.target.value || null })}><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Tag" full>
+          <div className="flex items-center gap-2">
+            <input className={IN} value={tagIn} onChange={(e) => setTagIn(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} placeholder="Aggiungi tag e Invio" />
+            <button onClick={addTag} className="h-10 px-3 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[12.5px] cursor-pointer">+ Tag</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">{(a.tags || []).map((t) => <span key={t} className="text-[11.5px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 flex items-center gap-1">{t}<button onClick={() => set({ tags: (a.tags || []).filter((x) => x !== t) })} className="text-amber-700"><X className="w-3 h-3" /></button></span>)}</div>
+        </Field>
+        <Field label="Note" full><textarea className={`${IN} h-auto py-2 min-h-[50px]`} value={a.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== DELIVERABLE KANBAN ============================== */
+const STAGES: { id: MktDeliverableStage; label: string; cls: string }[] = [
+  { id: 'da_fare', label: 'Da fare', cls: 'bg-stone-100 text-stone-600' },
+  { id: 'in_lavorazione', label: 'In lavorazione', cls: 'bg-blue-50 text-blue-700' },
+  { id: 'in_revisione', label: 'In revisione', cls: 'bg-amber-50 text-amber-700' },
+  { id: 'approvato', label: 'Approvato', cls: 'bg-emerald-50 text-emerald-700' },
+  { id: 'pubblicato', label: 'Pubblicato', cls: 'bg-violet-50 text-violet-700' },
+];
+const PRIO_META: Record<MktPriority, string> = { bassa: 'text-stone-400', media: 'text-amber-600', alta: 'text-red-500' };
+const DeliverablesTab: React.FC<{ deliverables: MktDeliverable[]; clients: Record<string, ClientRecord>; campaigns: Campaign[]; team: Record<string, UserProfile>; onSave: (d: MktDeliverable) => void; onDelete: (id: string) => void }> = ({ deliverables, clients, campaigns, team, onSave, onDelete }) => {
+  const [editing, setEditing] = useState<MktDeliverable | null>(null);
+  const blank = (): MktDeliverable => ({ id: uid('dl'), title: '', stage: 'da_fare', priority: 'media', createdAt: Date.now() });
+  const move = (d: MktDeliverable, dir: -1 | 1) => {
+    const idx = STAGES.findIndex((s) => s.id === d.stage);
+    const next = STAGES[idx + dir]; if (next) onSave({ ...d, stage: next.id });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[12.5px] text-stone-400">Pipeline di produzione contenuti. Sposta le card tra le colonne con le frecce.</span>
+        <AddBtn onClick={() => setEditing(blank())} label="Nuovo deliverable" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {STAGES.map((st) => {
+          const items = deliverables.filter((d) => d.stage === st.id).sort((a, b) => (a.dueAt || Infinity) - (b.dueAt || Infinity));
+          return (
+            <div key={st.id} className="bg-[#f7f7f5] border border-[#e8e8e8] rounded-[18px] p-2.5 flex flex-col gap-2 min-h-[120px]">
+              <div className="flex items-center justify-between px-1">
+                <span className={`text-[11px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
+                <span className="text-[11px] text-stone-400 font-bold">{items.length}</span>
+              </div>
+              {items.map((d) => {
+                const idx = STAGES.findIndex((s) => s.id === d.stage);
+                const overdue = d.dueAt && d.dueAt < Date.now() && d.stage !== 'pubblicato';
+                return (
+                  <div key={d.id} className="bg-white border border-[#e2e2e2] rounded-[14px] p-3 flex flex-col gap-1.5">
+                    <div className="flex items-start gap-1.5">
+                      <b className="text-[13px] leading-snug flex-1">{d.title}</b>
+                      {d.priority && <span className={`text-[10px] font-bold ${PRIO_META[d.priority]}`}>●</span>}
+                    </div>
+                    {d.clientName && <span className="text-[11.5px] text-stone-500 truncate">{d.clientName}</span>}
+                    <div className="flex items-center gap-2 text-[11px] text-stone-400">
+                      {d.dueAt && <span className={overdue ? 'text-red-500 font-bold' : ''}>{new Date(d.dueAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
+                      {d.assigneeName && <span className="truncate">· {d.assigneeName}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <button disabled={idx === 0} onClick={() => move(d, -1)} className="w-7 h-7 rounded-lg border border-[#e2e2e2] bg-white disabled:opacity-30 cursor-pointer flex items-center justify-center text-stone-500">‹</button>
+                      <button disabled={idx === STAGES.length - 1} onClick={() => move(d, 1)} className="w-7 h-7 rounded-lg border border-[#e2e2e2] bg-white disabled:opacity-30 cursor-pointer flex items-center justify-center text-stone-500">›</button>
+                      <button onClick={() => setEditing(d)} className="flex-1 h-7 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[11.5px] font-bold border-none cursor-pointer">Apri</button>
+                      <button onClick={() => onDelete(d.id)} className="w-7 h-7 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <AnimatePresence>{editing && <DeliverableModal deliverable={editing} clients={clients} campaigns={campaigns} team={team} onClose={() => setEditing(null)} onSave={(d) => { onSave(d); setEditing(null); }} />}</AnimatePresence>
+    </div>
+  );
+};
+
+const DeliverableModal: React.FC<{ deliverable: MktDeliverable; clients: Record<string, ClientRecord>; campaigns: Campaign[]; team: Record<string, UserProfile>; onClose: () => void; onSave: (d: MktDeliverable) => void }> = ({ deliverable, clients, campaigns, team, onClose, onSave }) => {
+  const [d, setD] = useState<MktDeliverable>({ ...deliverable });
+  const set = (p: Partial<MktDeliverable>) => setD((x) => ({ ...x, ...p }));
+  const members = Object.values(team).filter((u) => u.active && u.role !== 'cliente' && u.role !== 'partner');
+
+  return (
+    <ModalShell title={deliverable.title ? 'Modifica deliverable' : 'Nuovo deliverable'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(d)} disabled={!d.title.trim()} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Titolo" full><input className={IN} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="Es. Reel lancio collezione" /></Field>
+        <Field label="Cliente"><select className={IN} value={d.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : null }); }}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Campagna"><select className={IN} value={d.campaignId || ''} onChange={(e) => set({ campaignId: e.target.value || null })}><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Assegnatario"><select className={IN} value={d.assigneeUid || ''} onChange={(e) => { const u = team[e.target.value]; set({ assigneeUid: e.target.value || null, assigneeName: u ? u.name : null }); }}><option value="">—</option>{members.map((u) => <option key={u.uid} value={u.uid}>{u.name}</option>)}</select></Field>
+        <Field label="Scadenza"><input type="date" className={IN} value={dOnly(d.dueAt)} onChange={(e) => set({ dueAt: e.target.value ? parseD(e.target.value) : null })} /></Field>
+        <Field label="Stato"><select className={IN} value={d.stage} onChange={(e) => set({ stage: e.target.value as MktDeliverableStage })}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>
+        <Field label="Priorità"><select className={IN} value={d.priority || 'media'} onChange={(e) => set({ priority: e.target.value as MktPriority })}><option value="bassa">Bassa</option><option value="media">Media</option><option value="alta">Alta</option></select></Field>
+        <Field label="Note" full><textarea className={`${IN} h-auto py-2 min-h-[60px]`} value={d.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+/* ============================== PROOFING / REVISIONI ============================== */
+const PROOF_META: Record<ProofStatus, { label: string; cls: string }> = {
+  in_revisione: { label: 'In revisione', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  approvato: { label: 'Approvato', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  modifiche_richieste: { label: 'Modifiche richieste', cls: 'bg-red-50 text-red-600 border-red-200' },
+};
+const ProofsTab: React.FC<{ proofs: MktProof[]; clients: Record<string, ClientRecord>; onSave: (p: MktProof) => void; onDelete: (id: string) => void }> = ({ proofs, clients, onSave, onDelete }) => {
+  const [viewing, setViewing] = useState<MktProof | null>(null);
+  const [editing, setEditing] = useState<MktProof | null>(null);
+  const sorted = [...proofs].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const blank = (): MktProof => ({ id: uid('pf'), title: '', imageUrl: '', version: 1, status: 'in_revisione', annotations: [], createdAt: Date.now() });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi icon={<Eye className="w-4 h-4" />} label="Revisioni" value={String(proofs.length)} accent={ACCENT} />
+        <Kpi icon={<AlertTriangle className="w-4 h-4" />} label="In revisione" value={String(proofs.filter((p) => p.status === 'in_revisione').length)} />
+        <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Approvate" value={String(proofs.filter((p) => p.status === 'approvato').length)} accent="#059669" />
+        <Kpi icon={<MessageCircle className="w-4 h-4" />} label="Annotazioni" value={String(proofs.reduce((s, p) => s + (p.annotations || []).length, 0))} />
+      </div>
+      <div className="flex justify-end"><AddBtn onClick={() => setEditing(blank())} label="Nuova revisione" /></div>
+
+      {sorted.length === 0 ? (
+        <EmptyBox icon={<Eye className="w-6 h-6" />} title="Nessuna revisione" text="Carica un creativo (immagine via link/Drive) e raccogli feedback puntuali: clicca sull'immagine per aggiungere annotazioni contestuali e approva o richiedi modifiche." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {sorted.map((p) => {
+            const open = (p.annotations || []).filter((a) => !a.resolved).length; const href = safeUrl(p.imageUrl || '') || '';
+            return (
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[18px] overflow-hidden flex flex-col">
+                <button onClick={() => setViewing(p)} className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden border-none cursor-pointer p-0">
+                  {href ? <img src={href} alt={p.title} className="w-full h-full object-cover" /> : <Eye className="w-8 h-8 text-stone-300" />}
+                </button>
+                <div className="p-3 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <b className="text-[13.5px] truncate">{p.title || 'Senza titolo'}</b>
+                    <span className="text-[10px] text-stone-400 shrink-0">v{p.version}</span>
+                  </div>
+                  <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border self-start ${PROOF_META[p.status].cls}`}>{PROOF_META[p.status].label}</span>
+                  <div className="flex items-center gap-2 text-[11.5px] text-stone-500">
+                    <MessageCircle className="w-3.5 h-3.5" /> {(p.annotations || []).length} note{open > 0 && <span className="text-amber-600 font-bold">· {open} aperte</span>}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <button onClick={() => setViewing(p)} className="flex-1 h-8 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12px] font-bold border-none cursor-pointer flex items-center justify-center gap-1"><Eye className="w-3.5 h-3.5" /> Rivedi</button>
+                    <button onClick={() => onDelete(p.id)} className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <AnimatePresence>
+        {editing && <ProofModal proof={editing} clients={clients} onClose={() => setEditing(null)} onSave={(p) => { onSave(p); setEditing(null); }} />}
+        {viewing && <ProofViewer proof={proofs.find((x) => x.id === viewing.id) || viewing} onClose={() => setViewing(null)} onSave={onSave} />}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const ProofModal: React.FC<{ proof: MktProof; clients: Record<string, ClientRecord>; onClose: () => void; onSave: (p: MktProof) => void }> = ({ proof, clients, onClose, onSave }) => {
+  const [p, setP] = useState<MktProof>({ ...proof });
+  const set = (x: Partial<MktProof>) => setP((s) => ({ ...s, ...x }));
+  return (
+    <ModalShell title={proof.title ? 'Modifica revisione' : 'Nuova revisione'} onClose={onClose}
+      footer={<><button onClick={onClose} className="h-10 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-[13px] border-none cursor-pointer">Annulla</button><SaveBtn onClick={() => onSave(p)} disabled={!p.title.trim()} label="Salva" /></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Titolo" full><input className={IN} value={p.title} onChange={(e) => set({ title: e.target.value })} placeholder="Es. Post lancio — v1" /></Field>
+        <Field label="URL immagine (Drive/link)" full><input className={IN} value={p.imageUrl || ''} onChange={(e) => set({ imageUrl: e.target.value })} placeholder="https://… (immagine)" /></Field>
+        <Field label="Cliente"><select className={IN} value={p.clientId || ''} onChange={(e) => { const c = clients[e.target.value]; set({ clientId: e.target.value || null, clientName: c ? c.name : null }); }}><option value="">—</option>{Object.values(clients).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+        <Field label="Stato"><select className={IN} value={p.status} onChange={(e) => set({ status: e.target.value as ProofStatus })}>{(Object.keys(PROOF_META) as ProofStatus[]).map((s) => <option key={s} value={s}>{PROOF_META[s].label}</option>)}</select></Field>
+      </div>
+    </ModalShell>
+  );
+};
+
+const ProofViewer: React.FC<{ proof: MktProof; onClose: () => void; onSave: (p: MktProof) => void }> = ({ proof, onClose, onSave }) => {
+  const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
+  const [text, setText] = useState('');
+  const href = safeUrl(proof.imageUrl || '') || '';
+  const anns = proof.annotations || [];
+
+  const onImgClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    setPending({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    setText('');
+  };
+  const addAnn = () => {
+    if (!pending || !text.trim()) return;
+    const a: ProofAnnotation = { id: uid('an'), x: pending.x, y: pending.y, text: text.trim(), at: Date.now(), resolved: false };
+    onSave({ ...proof, annotations: [...anns, a] });
+    setPending(null); setText('');
+  };
+  const toggle = (id: string) => onSave({ ...proof, annotations: anns.map((a) => (a.id === id ? { ...a, resolved: !a.resolved } : a)) });
+  const delAnn = (id: string) => onSave({ ...proof, annotations: anns.filter((a) => a.id !== id) });
+  const setStatus = (s: ProofStatus) => onSave({ ...proof, status: s });
+  const newVersion = () => onSave({ ...proof, version: (proof.version || 1) + 1, status: 'in_revisione', annotations: anns.filter((a) => !a.resolved) });
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[210] bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <motion.div initial={{ scale: 0.97 }} animate={{ scale: 1 }} onClick={(e) => e.stopPropagation()} className="bg-white w-full h-full sm:h-[90vh] sm:max-w-[1100px] sm:rounded-[22px] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#ececec]">
+          <div className="flex items-center gap-2 min-w-0">
+            <b className="text-[15px] truncate">{proof.title}</b>
+            <span className="text-[11px] text-stone-400">v{proof.version}</span>
+            <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${PROOF_META[proof.status].cls}`}>{PROOF_META[proof.status].label}</span>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-stone-100 flex items-center justify-center text-stone-500"><X className="w-4.5 h-4.5" /></button>
+        </div>
+        <div className="flex-1 flex flex-col md:flex-row min-h-0">
+          <div className="flex-1 bg-[#1b1b1b] flex items-center justify-center relative overflow-auto p-4">
+            {href ? (
+              <div className="relative inline-block max-w-full max-h-full cursor-crosshair" onClick={onImgClick}>
+                <img src={href} alt={proof.title} className="max-w-full max-h-[70vh] object-contain block" />
+                {anns.map((a, i) => (
+                  <span key={a.id} title={a.text} className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-white text-[11px] font-bold text-white flex items-center justify-center ${a.resolved ? 'bg-emerald-500' : 'bg-[#b45309]'}`} style={{ left: `${a.x}%`, top: `${a.y}%` }}>{i + 1}</span>
+                ))}
+                {pending && <span className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-white bg-blue-500 animate-pulse" style={{ left: `${pending.x}%`, top: `${pending.y}%` }} />}
+              </div>
+            ) : <span className="text-stone-400 text-[13px]">Nessuna immagine. Aggiungi un URL immagine nella revisione.</span>}
+          </div>
+          <div className="w-full md:w-[320px] border-t md:border-t-0 md:border-l border-[#ececec] flex flex-col">
+            <div className="px-4 py-3 border-b border-[#ececec]">
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-stone-400">Annotazioni ({anns.length})</span>
+              {pending ? (
+                <div className="mt-2 flex flex-col gap-2">
+                  <textarea autoFocus className={`${IN} h-auto py-2 min-h-[60px]`} value={text} onChange={(e) => setText(e.target.value)} placeholder="Scrivi il commento per questo punto…" />
+                  <div className="flex gap-2"><button onClick={() => setPending(null)} className="flex-1 h-9 rounded-lg bg-stone-100 font-bold text-[12.5px] border-none cursor-pointer">Annulla</button><button onClick={addAnn} disabled={!text.trim()} className="flex-1 h-9 rounded-lg text-white font-bold text-[12.5px] border-none cursor-pointer disabled:opacity-50" style={{ background: ACCENT }}>Aggiungi</button></div>
+                </div>
+              ) : href && <span className="block text-[11.5px] text-stone-400 mt-1.5">Clicca sull'immagine per aggiungere un'annotazione.</span>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+              {anns.map((a, i) => (
+                <div key={a.id} className={`border rounded-xl p-2.5 ${a.resolved ? 'bg-emerald-50/50 border-emerald-100' : 'bg-[#fafafa] border-[#ececec]'}`}>
+                  <div className="flex items-start gap-2">
+                    <span className={`w-5 h-5 rounded-full text-[10px] font-bold text-white flex items-center justify-center shrink-0 ${a.resolved ? 'bg-emerald-500' : 'bg-[#b45309]'}`}>{i + 1}</span>
+                    <span className="text-[12.5px] flex-1">{a.text}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1.5 justify-end">
+                    <button onClick={() => toggle(a.id)} className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer ${a.resolved ? 'bg-white border-stone-200 text-stone-500' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>{a.resolved ? 'Riapri' : 'Risolvi'}</button>
+                    <button onClick={() => delAnn(a.id)} className="w-6 h-6 rounded-lg hover:bg-red-50 text-red-500 flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              ))}
+              {anns.length === 0 && <span className="text-[12.5px] italic text-stone-400">Nessuna annotazione.</span>}
+            </div>
+            <div className="p-3 border-t border-[#ececec] flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button onClick={() => setStatus('approvato')} className="flex-1 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12.5px] border-none cursor-pointer flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Approva</button>
+                <button onClick={() => setStatus('modifiche_richieste')} className="flex-1 h-9 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-[12.5px] cursor-pointer">Richiedi modifiche</button>
+              </div>
+              <button onClick={newVersion} className="h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white font-bold text-[12.5px] border-none cursor-pointer flex items-center justify-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> Nuova versione</button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };

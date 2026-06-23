@@ -944,6 +944,72 @@ export interface MktContract {
   updatedAt?: number;
 }
 
+// ============================================================
+// Strategico — Produzione (Blocco B): asset library, kanban deliverable, proofing.
+// ============================================================
+export type MktAssetKind = 'immagine' | 'video' | 'documento' | 'link';
+// Asset della libreria media — nodo mktAssets/<id>.
+export interface MktAsset {
+  id: string;
+  name: string;
+  kind: MktAssetKind;
+  url?: string | null;             // link o driveUrl (render con safeUrl)
+  driveFileId?: string | null;
+  tags?: string[];
+  clientId?: string | null;
+  campaignId?: string | null;
+  note?: string | null;
+  by?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type MktDeliverableStage = 'da_fare' | 'in_lavorazione' | 'in_revisione' | 'approvato' | 'pubblicato';
+export type MktPriority = 'bassa' | 'media' | 'alta';
+// Deliverable della board kanban marketing — nodo mktDeliverables/<id>.
+export interface MktDeliverable {
+  id: string;
+  title: string;
+  stage: MktDeliverableStage;
+  clientId?: string | null;
+  clientName?: string | null;
+  campaignId?: string | null;
+  assigneeUid?: string | null;
+  assigneeName?: string | null;
+  dueAt?: number | null;
+  priority?: MktPriority;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Annotazione contestuale su una proof (coordinate in % sull'immagine).
+export interface ProofAnnotation {
+  id: string;
+  x: number;                       // 0-100 %
+  y: number;                       // 0-100 %
+  text: string;
+  by?: string | null;
+  byName?: string | null;
+  at: number;
+  resolved?: boolean;
+}
+export type ProofStatus = 'in_revisione' | 'approvato' | 'modifiche_richieste';
+// Proof/revisione di un creativo — nodo mktProofs/<id>.
+export interface MktProof {
+  id: string;
+  title: string;
+  imageUrl?: string | null;        // immagine/anteprima (url o driveUrl)
+  clientId?: string | null;
+  clientName?: string | null;
+  version: number;
+  status: ProofStatus;
+  annotations?: ProofAnnotation[];
+  deliverableId?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 // Voce di time tracking — nodo mktTimeEntries/<id>.
 export interface MktTimeEntry {
   id: string;

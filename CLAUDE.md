@@ -411,6 +411,9 @@ reporting/redditività, integrazioni esterne
   read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**, altrimenti contratti e
   time tracking danno "permission denied" con write silenziosa lato client. I dati economici riusano i
   nodi finanza esistenti (nessuna regola nuova lì).
+  ⚠️ Aggiunti i nodi **Strategico/Produzione** (§22-ter): **`mktAssets`**, **`mktDeliverables`**,
+  **`mktProofs`** (tutti read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**,
+  altrimenti asset library, kanban e proofing danno "permission denied" con write silenziosa lato client.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -649,6 +652,19 @@ reporting/redditività, integrazioni esterne
     Finanza" (`handleRegisterEventFinance`) → ricavi=fattura attiva, costo=fattura passiva.
   - App: stato `mktContracts`/`mktTime`, sub studio sui due nodi, handler save/delete (+ Cestino, sezioni
     `mkt-contratto`/`mkt-time`) e i bridge-finanza sopra; props via `ProjectsView` → `StrategicoView`.
+- **Produzione (§22-ter, Blocco B) — gruppo "Produzione" in `StrategicoView`** (studio, admin/manager):
+  - **Asset library** (`mktAssets/<id>`, tipo `MktAsset`): libreria media (immagine/video/documento/link)
+    con **tag** + ricerca, cliente/campagna collegati, URL Drive/link (`safeUrl`). Sezione Cestino `mkt-asset`.
+  - **Deliverable kanban** (`mktDeliverables/<id>`, tipo `MktDeliverable`): board a 5 colonne
+    (`da_fare|in_lavorazione|in_revisione|approvato|pubblicato`), cliente/campagna/assegnatario/scadenza/priorità;
+    spostamento con frecce; notifica all'assegnatario. Sezione Cestino `mkt-deliverable`.
+  - **Proofing/Revisioni** (`mktProofs/<id>`, tipo `MktProof`): creativo (immagine via URL) con **annotazioni
+    contestuali** (`ProofAnnotation` x/y%) cliccando sull'immagine (`ProofViewer`), stato
+    `in_revisione|approvato|modifiche_richieste`, **versioning** (`version`, "Nuova versione" tiene solo le note
+    aperte). Sezione Cestino `mkt-proof`.
+  - App: stato `mktAssets`/`mktDeliverables`/`mktProofs`, sub studio, handler save/delete; props via
+    `ProjectsView` → `StrategicoView` (passa anche `users` come `team` per gli assegnatari). **Da fare (B,
+    fase portale)**: approvazione proof/deliverable e commenti lato cliente nel portale; lead scoring/segmentazione.
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

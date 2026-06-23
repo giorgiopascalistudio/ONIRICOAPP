@@ -71,6 +71,9 @@ import {
   SocialPost,
   MktContract,
   MktTimeEntry,
+  MktAsset,
+  MktDeliverable,
+  MktProof,
   RsvpStatus
 } from './types';
 
@@ -339,6 +342,10 @@ export default function App() {
   // Strategico — Economia (Blocco A): contratti/retainer + time tracking
   const [mktContracts, setMktContracts] = useState<Record<string, MktContract>>({});
   const [mktTime, setMktTime] = useState<Record<string, MktTimeEntry>>({});
+  // Strategico — Produzione (Blocco B): asset library + deliverable kanban + proofing
+  const [mktAssets, setMktAssets] = useState<Record<string, MktAsset>>({});
+  const [mktDeliverables, setMktDeliverables] = useState<Record<string, MktDeliverable>>({});
+  const [mktProofs, setMktProofs] = useState<Record<string, MktProof>>({});
 
   // Agenda condivisa (appuntamenti / note tra utenti)
   const [appointments, setAppointments] = useState<Record<string, Appointment>>({});
@@ -831,6 +838,53 @@ export default function App() {
     showToast(`Economia evento "${ev.title}" registrata in Finanze.`, 'ok');
   };
 
+  // ----------------------------------------------------
+  // Strategico — Produzione (Blocco B): asset library + deliverable kanban + proofing
+  // ----------------------------------------------------
+  const handleSaveMktAsset = (a: MktAsset) => {
+    const enriched: MktAsset = { ...a, by: a.by || currentUser?.uid || null, updatedAt: Date.now(), createdAt: a.createdAt || Date.now() };
+    setMktAssets((prev) => ({ ...prev, [a.id]: enriched }));
+    writeNode(`mktAssets/${a.id}`, enriched).catch(() => showToast('Errore asset (controlla regole).', 'err'));
+  };
+  const handleDeleteMktAsset = (id: string) => {
+    const a = mktAssets[id];
+    askDelete('Eliminare questo asset?', a ? `"${a.name}"` : null, () => {
+      if (a) moveToTrash('mkt-asset', a.name || 'Asset', a);
+      setMktAssets((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktAssets/${id}`).catch(() => {});
+      showToast('Asset spostato nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktDeliverable = (d: MktDeliverable) => {
+    const enriched: MktDeliverable = { ...d, updatedAt: Date.now(), createdAt: d.createdAt || Date.now() };
+    setMktDeliverables((prev) => ({ ...prev, [d.id]: enriched }));
+    writeNode(`mktDeliverables/${d.id}`, enriched).catch(() => showToast('Errore deliverable (controlla regole).', 'err'));
+    if (d.assigneeUid) pushNotification(d.assigneeUid, { type: 'task', title: `Deliverable: ${d.title}`, body: d.clientName || '', link: '#progetti' });
+  };
+  const handleDeleteMktDeliverable = (id: string) => {
+    const d = mktDeliverables[id];
+    askDelete('Eliminare questo deliverable?', d ? `"${d.title}"` : null, () => {
+      if (d) moveToTrash('mkt-deliverable', d.title || 'Deliverable', d);
+      setMktDeliverables((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktDeliverables/${id}`).catch(() => {});
+      showToast('Deliverable spostato nel Cestino.', 'err');
+    });
+  };
+  const handleSaveMktProof = (p: MktProof) => {
+    const enriched: MktProof = { ...p, updatedAt: Date.now(), createdAt: p.createdAt || Date.now() };
+    setMktProofs((prev) => ({ ...prev, [p.id]: enriched }));
+    writeNode(`mktProofs/${p.id}`, enriched).catch(() => showToast('Errore proof (controlla regole).', 'err'));
+  };
+  const handleDeleteMktProof = (id: string) => {
+    const p = mktProofs[id];
+    askDelete('Eliminare questa proof?', p ? `"${p.title}"` : null, () => {
+      if (p) moveToTrash('mkt-proof', p.title || 'Proof', p);
+      setMktProofs((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      removeNode(`mktProofs/${id}`).catch(() => {});
+      showToast('Proof spostata nel Cestino.', 'err');
+    });
+  };
+
   // ---- Marketing lato portale (cliente/partner) ----
   const handleRsvpEvent = (eventId: string, status: RsvpStatus) => {
     if (!currentUser) return;
@@ -1238,6 +1292,9 @@ export default function App() {
       subs.push(watchNode('mktSurveyResponses', (v) => setMktResponses(v || {}), () => {}));
       subs.push(watchNode('mktContracts', (v) => setMktContracts(v || {}), () => {}));
       subs.push(watchNode('mktTimeEntries', (v) => setMktTime(v || {}), () => {}));
+      subs.push(watchNode('mktAssets', (v) => setMktAssets(v || {}), () => {}));
+      subs.push(watchNode('mktDeliverables', (v) => setMktDeliverables(v || {}), () => {}));
+      subs.push(watchNode('mktProofs', (v) => setMktProofs(v || {}), () => {}));
       subs.push(watchNode('appointments', (v) => setAppointments(v || {}), () => {}));
       subs.push(watchNode('directory', (v) => setDirectory(v || {}), () => {}));
       subs.push(watchNode('matericoRequests', (v) => {
@@ -1590,6 +1647,18 @@ export default function App() {
         case 'mkt-time':
           setMktTime((prev) => ({ ...prev, [id]: pl }));
           writeNode(`mktTimeEntries/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-asset':
+          setMktAssets((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktAssets/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-deliverable':
+          setMktDeliverables((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktDeliverables/${id}`, pl).catch(() => {});
+          break;
+        case 'mkt-proof':
+          setMktProofs((prev) => ({ ...prev, [id]: pl }));
+          writeNode(`mktProofs/${id}`, pl).catch(() => {});
           break;
         default:
           showToast('Sezione non ripristinabile automaticamente.', 'err');
@@ -3579,6 +3648,15 @@ export default function App() {
             onBillTimeEntries={handleBillTimeEntries}
             onRegisterCampaignSpend={handleRegisterCampaignSpend}
             onRegisterEventFinance={handleRegisterEventFinance}
+            mktAssets={Object.values(mktAssets)}
+            mktDeliverables={Object.values(mktDeliverables)}
+            mktProofs={Object.values(mktProofs)}
+            onSaveMktAsset={handleSaveMktAsset}
+            onDeleteMktAsset={handleDeleteMktAsset}
+            onSaveMktDeliverable={handleSaveMktDeliverable}
+            onDeleteMktDeliverable={handleDeleteMktDeliverable}
+            onSaveMktProof={handleSaveMktProof}
+            onDeleteMktProof={handleDeleteMktProof}
             cantieri={cantieri}
             cantRapportini={cantRapportini}
             cantPresenze={cantPresenze}
