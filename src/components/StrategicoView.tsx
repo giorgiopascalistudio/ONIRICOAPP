@@ -273,7 +273,7 @@ const ProjectPanoramica: React.FC<Props & { inProj: <T extends { mktProjectId?: 
         {tiles.map((t) => {
           const Icon = t.icon;
           return (
-            <button key={t.tab} onClick={() => goTab(t.tab)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors">
+            <button key={t.tab} onClick={() => goTab(t.tab)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 shadow-sm cursor-pointer hover:border-[#b45309] hover:shadow-md transition-all duration-300">
               <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-stone-400"><Icon className="w-4 h-4" />{t.label}</span>
               <b className="block text-[22px] mt-1.5 leading-none tracking-tight" style={t.accent ? { color: t.accent } : undefined}>{t.value}</b>
             </button>
@@ -308,7 +308,7 @@ const MktProjectsTab: React.FC<Props & { onOpenProject: (id: string) => void }> 
           {projects.map((p) => {
             const meta = PROJ_STATUS_META[p.status];
             return (
-              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px] flex flex-col" style={{ borderLeftColor: p.color || ACCENT }}>
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm border-l-[5px] flex flex-col" style={{ borderLeftColor: p.color || ACCENT }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <b className="block text-[16px] tracking-tight truncate">{p.name}</b>
@@ -327,7 +327,7 @@ const MktProjectsTab: React.FC<Props & { onOpenProject: (id: string) => void }> 
             );
           })}
           {unassignedCount > 0 && (
-            <button onClick={() => onOpenProject(UNASSIGNED)} className="text-left bg-[#fafafa] border border-dashed border-[#d8d8d8] rounded-[22px] p-5 cursor-pointer hover:border-[#b45309] flex flex-col justify-center">
+            <button onClick={() => onOpenProject(UNASSIGNED)} className="text-left bg-[#fafafa] border border-dashed border-[#d8d8d8] rounded-[22px] p-5 shadow-sm cursor-pointer hover:border-[#b45309] flex flex-col justify-center">
               <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">Migrazione</span>
               <b className="block text-[15px] tracking-tight mt-1">Non assegnati</b>
               <span className="text-[12px] text-stone-500 mt-1">{unassignedCount} voci senza progetto — aprile e riassegnale.</span>
@@ -378,7 +378,7 @@ const timeValue = (t: MktTimeEntry) => (t.minutes / 60) * (Number(t.rate) || 0);
 
 /* ============================== KPI / UI shared ============================== */
 const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: string; sub?: string; accent?: string }> = ({ icon, label, value, sub, accent }) => (
-  <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-4">
+  <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-4 shadow-sm">
     <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{icon}{label}</span>
     <b className="block text-[22px] mt-1.5 leading-none tracking-tight" style={accent ? { color: accent } : undefined}>{value}</b>
     {sub && <span className="text-[11px] text-stone-400 mt-1 inline-block">{sub}</span>}
@@ -416,7 +416,7 @@ const SaveBtn: React.FC<{ onClick: () => void; disabled?: boolean; label?: strin
   </button>
 );
 const EmptyBox: React.FC<{ icon: React.ReactNode; title: string; text: string }> = ({ icon, title, text }) => (
-  <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-10 text-center">
+  <div className="bg-white border border-[#e2e2e2] rounded-[24px] p-10 shadow-sm text-center">
     <div className="w-12 h-12 rounded-2xl bg-amber-50 text-[#b45309] flex items-center justify-center mx-auto mb-3">{icon}</div>
     <b className="block text-[16px]">{title}</b>
     <p className="text-[13px] text-stone-500 mt-1.5 max-w-[420px] mx-auto">{text}</p>
@@ -581,7 +581,7 @@ const CampaignsTab: React.FC<{ campaigns: Campaign[]; clients: Record<string, Cl
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sorted.map((c) => (
-            <div key={c.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5">
+            <div key={c.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{c.channel}{c.season ? ` · ${c.season}` : ''}</span>
@@ -742,7 +742,7 @@ const SurveysTab: React.FC<{ surveys: Survey[]; responses: Record<string, Record
           {sorted.map((s) => {
             const n = Object.keys(responses[s.id] || {}).length;
             return (
-              <div key={s.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5">
+              <div key={s.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <b className="block text-[16px] tracking-tight truncate">{s.title || 'Senza titolo'}</b>
@@ -977,7 +977,7 @@ const AnalisiTab: React.FC<{ events: MarketingEvent[]; campaigns: Campaign[]; su
         <Kpi icon={<ClipboardList className="w-4 h-4" />} label="Sondaggi attivi" value={String(surveys.filter((s) => s.active).length)} />
       </div>
 
-      <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+      <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5 shadow-sm">
         <b className="text-[14px] flex items-center gap-1.5 mb-3"><BarChart3 className="w-4 h-4" style={{ color: ACCENT }} /> Performance per campagna</b>
         {campaigns.length === 0 ? <span className="text-[13px] italic text-stone-400">Nessuna campagna da analizzare.</span> : (
           <div className="flex flex-col gap-2">
@@ -1045,7 +1045,7 @@ const DashboardTab: React.FC<Props & { onOpenProject: (id: string) => void; goHo
             {recent.map((p) => {
               const meta = PROJ_STATUS_META[p.status];
               return (
-                <button key={p.id} onClick={() => onOpenProject(p.id)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 cursor-pointer hover:border-[#b45309] transition-colors border-l-[5px]" style={{ borderLeftColor: p.color || ACCENT }}>
+                <button key={p.id} onClick={() => onOpenProject(p.id)} className="text-left bg-white border border-[#e2e2e2] rounded-[20px] p-4 shadow-sm cursor-pointer hover:border-[#b45309] hover:shadow-md transition-all duration-300 border-l-[5px]" style={{ borderLeftColor: p.color || ACCENT }}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0"><b className="block text-[14px] tracking-tight truncate">{p.name}</b>{p.clientName && <span className="text-[12px] text-stone-500">{p.clientName}</span>}</div>
                     <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.cls}`}>{meta.label}</span>
@@ -1094,7 +1094,7 @@ const ContractsTab: React.FC<{ contracts: MktContract[]; clients: Record<string,
             const emittedThis = (k.emissions || []).some((e) => e.periodLabel === period);
             const renewSoon = k.endAt && k.endAt - Date.now() < 30 * 864e5;
             return (
-              <div key={k.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
+              <div key={k.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{CADENCE_LABEL[k.cadence]}</span>
@@ -1212,7 +1212,7 @@ const TimeTab: React.FC<{ entries: MktTimeEntry[]; clients: Record<string, Clien
       {sorted.length === 0 ? (
         <EmptyBox icon={<Timer className="w-6 h-6" />} title="Nessuna ora registrata" text="Traccia il tempo per cliente, progetto o campagna. Le ore fatturabili (con tariffa €/h) si trasformano in una bozza fattura attiva nella società Strategico." />
       ) : (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           <div className="hidden md:grid grid-cols-[28px_90px_1fr_1fr_70px_90px_90px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]">
             <span></span><span>Data</span><span>Cliente</span><span>Attività</span><span>Ore</span><span>Tariffa</span><span>Valore</span><span></span>
           </div>
@@ -1307,7 +1307,7 @@ const EconomiaTab: React.FC<Props & { go: (t: string) => void }> = (props) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <b className="text-[14px] flex items-center gap-1.5"><Receipt className="w-4 h-4" style={{ color: ACCENT }} /> Ultime fatture attive</b>
             <button onClick={() => go('contratti')} className="text-[11.5px] font-bold text-[#b45309] bg-transparent border-none cursor-pointer flex items-center gap-1">Contratti <ArrowRight className="w-3.5 h-3.5" /></button>
@@ -1324,7 +1324,7 @@ const EconomiaTab: React.FC<Props & { go: (t: string) => void }> = (props) => {
             </div>
           )}
         </div>
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <b className="text-[14px] flex items-center gap-1.5"><Wallet className="w-4 h-4 text-red-500" /> Ultimi costi</b>
             <button onClick={() => go('campagne')} className="text-[11.5px] font-bold text-[#b45309] bg-transparent border-none cursor-pointer flex items-center gap-1">Campagne <ArrowRight className="w-3.5 h-3.5" /></button>
@@ -1384,7 +1384,7 @@ const AssetsTab: React.FC<{ assets: MktAsset[]; clients: Record<string, ClientRe
           {filtered.map((a) => {
             const M = ASSET_KIND_META[a.kind]; const Icon = M.icon; const href = safeUrl(a.url || '') || '#';
             return (
-              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden flex flex-col">
+              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm flex flex-col">
                 <a href={href} target="_blank" rel="noreferrer" className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden">
                   {a.kind === 'immagine' && a.url ? <img src={href} alt={a.name} className="w-full h-full object-cover" /> : <Icon className="w-8 h-8 text-stone-300" />}
                 </a>
@@ -1472,7 +1472,7 @@ const DeliverablesTab: React.FC<{ deliverables: MktDeliverable[]; clients: Recor
                 const idx = STAGES.findIndex((s) => s.id === d.stage);
                 const overdue = d.dueAt && d.dueAt < Date.now() && d.stage !== 'pubblicato';
                 return (
-                  <div key={d.id} className="bg-white border border-[#e2e2e2] rounded-[16px] p-3 flex flex-col gap-1.5">
+                  <div key={d.id} className="bg-white border border-[#e2e2e2] rounded-[16px] p-3 shadow-sm flex flex-col gap-1.5">
                     <div className="flex items-start gap-1.5">
                       <b className="text-[13px] leading-snug flex-1">{d.title}</b>
                       {d.priority && <span className={`text-[10px] font-bold ${PRIO_META[d.priority]}`}>●</span>}
@@ -1551,7 +1551,7 @@ const ProofsTab: React.FC<{ proofs: MktProof[]; clients: Record<string, ClientRe
           {sorted.map((p) => {
             const open = (p.annotations || []).filter((a) => !a.resolved).length; const href = safeUrl(p.imageUrl || '') || '';
             return (
-              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden flex flex-col">
+              <div key={p.id} className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm flex flex-col">
                 <button onClick={() => setViewing(p)} className="block aspect-video bg-[#f3f3f3] flex items-center justify-center overflow-hidden border-none cursor-pointer p-0">
                   {href ? <img src={href} alt={p.title} className="w-full h-full object-cover" /> : <Eye className="w-8 h-8 text-stone-300" />}
                 </button>
@@ -1758,7 +1758,7 @@ const ReportTab: React.FC<Props & { reportTitle?: string }> = (props) => {
         <button onClick={() => window.print()} className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] border-none cursor-pointer"><Printer className="w-4 h-4" /> Stampa / PDF</button>
       </div>
 
-      <div className="bg-white border border-[#e2e2e2] rounded-[22px] p-6 print-area">
+      <div className="bg-white border border-[#e2e2e2] rounded-[22px] p-6 shadow-sm print-area">
         <div className="flex items-center justify-between border-b border-[#ececec] pb-4 mb-4">
           <div>
             <b className="text-[20px] tracking-tight">Report marketing{reportTitle ? ` — ${reportTitle}` : ''}</b>
@@ -1768,7 +1768,7 @@ const ReportTab: React.FC<Props & { reportTitle?: string }> = (props) => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {ROWS.map((r) => (
-            <div key={r.label} className="border border-[#eee] rounded-[16px] p-3">
+            <div key={r.label} className="border border-[#eee] rounded-[16px] p-3 shadow-sm">
               <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{r.label}</span>
               <b className="block text-[18px] tracking-tight mt-1" style={{ color: ACCENT }}>{r.value}</b>
             </div>
@@ -1823,7 +1823,7 @@ const ActivityTab: React.FC<Props> = (props) => {
       {sorted.length === 0 ? (
         <EmptyBox icon={<Activity className="w-6 h-6" />} title="Nessuna attività" text="Il registro mostra le modifiche più recenti su tutte le aree di Strategico." />
       ) : (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           {sorted.map((r) => (
             <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
               <span className="text-[10.5px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0 w-[92px] text-center">{r.cat}</span>
@@ -1872,7 +1872,7 @@ const LeadsTab: React.FC<{ leads: MktLead[]; clients: Record<string, ClientRecor
       {list.length === 0 ? (
         <EmptyBox icon={<Target className="w-6 h-6" />} title="Nessun lead" text="Traccia i potenziali clienti, assegna un punteggio (calcolato dai dati o manuale) e fai avanzare la pipeline fino alla conversione." />
       ) : (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           {list.map((l) => {
             const sc = l.score ?? suggestScore(l); const meta = LEAD_STAGES.find((s) => s.id === l.stage)!;
             return (
@@ -1941,7 +1941,7 @@ const AutomationTab: React.FC<{ flows: MktFlow[]; clients: Record<string, Client
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sorted.map((f) => (
-            <div key={f.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
+            <div key={f.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm border-l-[5px]" style={{ borderLeftColor: ACCENT }}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0"><b className="block text-[16px] tracking-tight truncate">{f.name || 'Senza nome'}</b>{f.trigger && <span className="text-[12px] text-stone-500">trigger: {f.trigger}</span>}</div>
                 <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${f.active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{f.active ? 'Attivo' : 'Off'}</span>
@@ -2028,7 +2028,7 @@ const SeoTab: React.FC<{ items: MktSeoItem[]; clients: Record<string, ClientReco
       {list.length === 0 ? (
         <EmptyBox icon={<Search className="w-6 h-6" />} title="Nessuna voce" text="Inserisci keyword (volume, difficoltà, posizione) e content brief. Dati manuali pronti per le API SEO; usa l'AI per generare gli outline." />
       ) : view === 'keyword' ? (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           <div className="hidden md:grid grid-cols-[1fr_80px_80px_80px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]"><span>Keyword</span><span>Volume</span><span>Diff.</span><span>Pos.</span><span></span></div>
           {list.map((k) => (
             <div key={k.id} className="grid grid-cols-[1fr_80px_80px_80px_64px] gap-2 items-center px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
@@ -2043,7 +2043,7 @@ const SeoTab: React.FC<{ items: MktSeoItem[]; clients: Record<string, ClientReco
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {list.map((b) => (
-            <div key={b.id} className="bg-white border border-[#e2e2e2] rounded-[20px] p-5">
+            <div key={b.id} className="bg-white border border-[#e2e2e2] rounded-[20px] p-5 shadow-sm">
               <div className="flex items-start justify-between gap-2"><b className="text-[15px] truncate">{b.title}</b><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${b.status === 'pubblicato' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : b.status === 'in_lavorazione' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{b.status}</span></div>
               {b.outline && <p className="text-[12.5px] text-stone-600 mt-2 whitespace-pre-wrap line-clamp-4">{b.outline}</p>}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#f0f0f0]"><button onClick={() => setEditing(b)} className="flex-1 h-9 rounded-lg bg-[#1b1b1b] hover:bg-black text-white text-[12.5px] font-bold border-none cursor-pointer">Apri</button><button onClick={() => onDelete(b.id)} className="w-9 h-9 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button></div>
@@ -2108,7 +2108,7 @@ const AdsTab: React.FC<{ ads: MktAdCampaign[]; clients: Record<string, ClientRec
           {sorted.map((a) => {
             const ctr = a.impressions ? ((Number(a.clicks) || 0) / a.impressions) * 100 : 0;
             return (
-              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5">
+              <div key={a.id} className="bg-white border border-[#e2e2e2] rounded-[22px] p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0"><span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{AD_PLAT[a.platform]}</span><b className="block text-[16px] tracking-tight truncate">{a.name || 'Senza nome'}</b>{a.clientName && <span className="text-[12px] text-stone-500">{a.clientName}</span>}</div>
                   <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border capitalize ${a.status === 'attiva' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : a.status === 'in_pausa' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-stone-100 text-stone-500 border-stone-200'}`}>{a.status.replace('_', ' ')}</span>
@@ -2175,7 +2175,7 @@ const MetricsTab: React.FC<{ metrics: MktMetric[]; clients: Record<string, Clien
       {sorted.length === 0 ? (
         <EmptyBox icon={<TrendingUp className="w-6 h-6" />} title="Nessuna metrica" text="Inserisci i KPI di canale per periodo (sessioni, conversioni, CTR, reach…) per costruire report e confronti." />
       ) : (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           <div className="hidden md:grid grid-cols-[90px_1fr_110px_100px_64px] gap-2 px-4 py-2.5 bg-[#fafafa] text-[10.5px] font-extrabold uppercase tracking-wide text-stone-400 border-b border-[#ececec]"><span>Fonte</span><span>Metrica</span><span>Valore</span><span>Periodo</span><span></span></div>
           {sorted.map((m) => (
             <div key={m.id} className="grid grid-cols-[90px_1fr_110px_100px_64px] gap-2 items-center px-4 py-2.5 border-b border-[#f3f3f3] last:border-0 text-[13px]">
@@ -2285,7 +2285,7 @@ const ConsentsTab: React.FC<{ consents: MktConsent[]; clients: Record<string, Cl
       {sorted.length === 0 ? (
         <EmptyBox icon={<ShieldCheck className="w-6 h-6" />} title="Nessun consenso" text="Registro consensi GDPR: tieni traccia di base giuridica, finalità, data di rilascio e revoca per ogni contatto." />
       ) : (
-        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden">
+        <div className="bg-white border border-[#e2e2e2] rounded-[20px] overflow-hidden shadow-sm">
           {sorted.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-4 py-3 border-b border-[#f3f3f3] last:border-0">
               <div className="min-w-0 flex-1">
