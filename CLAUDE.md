@@ -406,6 +406,18 @@ reporting/redditività, integrazioni esterne
   e **`clientMaterico/<uid>`**: **ripubblicare le regole**, altrimenti cliente/partner non vedono
   le richieste e le offerte falliscono in silenzio (lo studio continua a funzionare). Le richieste
   legacy vengono migrate da un backfill una-tantum quando un admin/manager apre l'app.
+  ⚠️ Aggiunti i nodi **Strategico/Economia** (§22-bis): **`mktContracts`** (contratti/retainer — read
+  studio attivo non-cliente/non-partner, write admin/manager) e **`mktTimeEntries`** (time tracking —
+  read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**, altrimenti contratti e
+  time tracking danno "permission denied" con write silenziosa lato client. I dati economici riusano i
+  nodi finanza esistenti (nessuna regola nuova lì).
+  ⚠️ Aggiunti i nodi **Strategico/Produzione** (§22-ter): **`mktAssets`**, **`mktDeliverables`**,
+  **`mktProofs`** (tutti read/write studio attivo non-cliente/non-partner): **ripubblicare le regole**,
+  altrimenti asset library, kanban e proofing danno "permission denied" con write silenziosa lato client.
+  ⚠️ Aggiunti i nodi **Strategico/Acquisizione-Dati-Compliance** (§22-quinquies): **`mktLeads`**, **`mktFlows`**,
+  **`mktSeo`**, **`mktAds`**, **`mktMetrics`**, **`mktInbox`**, **`mktConsents`** (tutti read/write studio attivo
+  non-cliente/non-partner): **ripubblicare le regole**, altrimenti lead/automation/SEO/ads/analytics/inbox/consensi
+  danno "permission denied" con write silenziosa lato client. La spesa ads riusa i nodi finanza esistenti.
 - **Google Drive (upload file del Cantiere, opzionale)**: in Google Cloud Console del progetto
   `oniricoapp-48953` → abilitare **Google Drive API**; creare un **ID client OAuth → Applicazione
   web** con JS origins `http://localhost:3000` e `https://giorgiopascalistudio.github.io`;
@@ -539,9 +551,12 @@ reporting/redditività, integrazioni esterne
   + `.firebaserc` (progetto `oniricoapp-48953`). Email via **SendGrid** (secret `SENDGRID_KEY`).
 - Funzioni: `onQuoteStatusChange` (preventivo accettato → notifica+email), `dailyReminders`
   (ferie 7gg prima + scadenze 3gg), `weeklyReport`/`monthlyReport` (attività completate per
-  collaboratore). Scrivono notifiche su `notifications/<uid>` (Admin SDK, bypassa le regole).
+  collaboratore), **`aiGenerate`** (callable AI Anthropic, §22-quater — secret `ANTHROPIC_KEY`, solo studio
+  attivo) e **`marketingMonthlyReport`** (sintesi marketing mensile ad admin/manager). Scrivono notifiche su
+  `notifications/<uid>` (Admin SDK, bypassa le regole).
 - **Deploy a carico utente** (vedi `functions/README.md`): `firebase login`, piano **Blaze**,
-  `firebase functions:secrets:set SENDGRID_KEY`, `firebase deploy --only functions`. Non verificabile
+  `firebase functions:secrets:set SENDGRID_KEY` (+ `ANTHROPIC_KEY` per l'AI assist),
+  `firebase deploy --only functions`. Non verificabile
   da Claude (serve auth/Blaze/API key). WhatsApp automatico = futuro (oggi link `wa.me` in app).
 - **Fallback senza Blaze — reminder in-app "soft"** (`App.tsx`, effetto `softRemRef`): finché le
   Functions non sono deployate, quando un membro dello studio apre l'app vengono generate notifiche
@@ -624,8 +639,68 @@ reporting/redditività, integrazioni esterne
 - **Dove**: **dentro Progetti**, divisione **STRATEGICO** (come Unico nella divisione UNICO). Toggle
   sub-tab **"Progetti | Marketing & Eventi"** (`strategicoTab` in `ProjectsView`, `showStrategicoStudio`
   → mostra `StrategicoView`, importato diretto in `ProjectsView`). **Non** è una voce sidebar/route a sé.
-  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). 5 sotto-tab:
-  **Eventi · Campagne · Sondaggi · Social · Analisi**. Dati/handler arrivano da App via `ProjectsView`.
+  Componente `src/components/StrategicoView.tsx`. Colore settore **ambra `#b45309`** (§10). Navigazione
+  raggruppata (`TAB_GROUPS`) con landing **Dashboard** (tile per funzione + KPI): **Panoramica**
+  (Dashboard · Analisi), **Economia** (Contratti & Retainer · Time tracking · Economia — vedi §22-bis),
+  **Relazioni & Contenuti** (Eventi · Campagne · Social · Sondaggi). Dati/handler arrivano da App via `ProjectsView`.
+- **Economia (§22-bis, Blocco A) — ogni dato economico confluisce in Finanza** con `sector:'strategico'`
+  (nessun nodo finanza nuovo; stesso schema di `handleEmitMilestone`):
+  - **Contratti & Retainer** (`mktContracts/<id>`, tipo `MktContract`): abbonamenti ricorrenti
+    (mensile/trimestrale/annuale/una_tantum) con alert rinnovo (`endAt`). Pulsante "Emetti <periodo>"
+    (`handleEmitContractInvoice`) → bozza **fattura attiva** + **scadenza**, dedup per `periodLabel` nello
+    storico `emissions`. KPI MRR.
+  - **Time tracking** (`mktTimeEntries/<id>`, tipo `MktTimeEntry`): ore per cliente/progetto/campagna,
+    tariffa €/h, `billable`. Selezione multipla → "Fattura in Finanza" (`handleBillTimeEntries`) genera
+    fattura attiva + scadenza e marca `billedInvoiceId`.
+  - **Economia** (read-only): ricavi/costi/margine/incassato/da-incassare filtrati su `sector==='strategico'`
+    + MRR + valore ore non fatturate.
+  - **Campagne**: campi `budget`/`spend` + **UTM builder** (`Campaign.utm`); "Registra spesa"
+    (`handleRegisterCampaignSpend`) → **fattura passiva**. **Eventi**: `budget`/`revenue`; "Registra in
+    Finanza" (`handleRegisterEventFinance`) → ricavi=fattura attiva, costo=fattura passiva.
+  - App: stato `mktContracts`/`mktTime`, sub studio sui due nodi, handler save/delete (+ Cestino, sezioni
+    `mkt-contratto`/`mkt-time`) e i bridge-finanza sopra; props via `ProjectsView` → `StrategicoView`.
+- **Produzione (§22-ter, Blocco B) — gruppo "Produzione" in `StrategicoView`** (studio, admin/manager):
+  - **Asset library** (`mktAssets/<id>`, tipo `MktAsset`): libreria media (immagine/video/documento/link)
+    con **tag** + ricerca, cliente/campagna collegati, URL Drive/link (`safeUrl`). Sezione Cestino `mkt-asset`.
+  - **Deliverable kanban** (`mktDeliverables/<id>`, tipo `MktDeliverable`): board a 5 colonne
+    (`da_fare|in_lavorazione|in_revisione|approvato|pubblicato`), cliente/campagna/assegnatario/scadenza/priorità;
+    spostamento con frecce; notifica all'assegnatario. Sezione Cestino `mkt-deliverable`.
+  - **Proofing/Revisioni** (`mktProofs/<id>`, tipo `MktProof`): creativo (immagine via URL) con **annotazioni
+    contestuali** (`ProofAnnotation` x/y%) cliccando sull'immagine (`ProofViewer`), stato
+    `in_revisione|approvato|modifiche_richieste`, **versioning** (`version`, "Nuova versione" tiene solo le note
+    aperte). Sezione Cestino `mkt-proof`.
+  - App: stato `mktAssets`/`mktDeliverables`/`mktProofs`, sub studio, handler save/delete; props via
+    `ProjectsView` → `StrategicoView` (passa anche `users` come `team` per gli assegnatari). **Da fare (B,
+    fase portale)**: approvazione proof/deliverable e commenti lato cliente nel portale; lead scoring/segmentazione.
+- **Direzione (§22-quater, Blocco C) — gruppo "Panoramica" → tab "Report" + AI assist**:
+  - **Report white-label** (`ReportTab`, client-side, nessun nodo): KPI aggregati di Strategico (eventi/
+    adesione, campagne, social/reach, sondaggi/soddisfazione media, economia ricavi/costi/margine/MRR, ore) +
+    pulsante **Stampa/PDF** (CSS `@media print` con `.print-area`/`.no-print` in `index.css`, brandizzato).
+  - **AI assist** (`AiAssist`): componente che chiama la Cloud Function **`aiGenerate`** (Anthropic) via
+    `callAi` in `src/firebase.ts` (`getFunctions(app,'europe-west1')` + `httpsCallable`). Usato per generare il
+    **messaggio campagna** (CampaignModal) e la **sintesi direzionale** del report. **Predisposto**: senza deploy
+    Functions / senza secret `ANTHROPIC_KEY` mostra un avviso e non blocca nulla.
+  - **Backend** (`functions/src/index.ts`): `aiGenerate` (onCall, secret `ANTHROPIC_KEY`, solo studio attivo —
+    chiama l'API Anthropic Messages, modello default `claude-sonnet-4-6`) e `marketingMonthlyReport` (onSchedule,
+    sintesi mensile ad admin/manager via notifica + email SendGrid). Deploy a carico utente (vedi §18 e README).
+- **Acquisizione / Dati / Compliance (§22-quinquies, Blocchi D–K)** — 8 moduli, tutti in `StrategicoView`
+  (studio attivo non-cliente/non-partner). Dove servirebbero API esterne, i dati sono **manuali e predisposti**
+  per ricevere le API in seguito. Nuovi nodi: `mktLeads`, `mktFlows`, `mktSeo`, `mktAds`, `mktMetrics`,
+  `mktInbox`, `mktConsents` (gruppi pillbar **Acquisizione** e **Dati & Compliance**):
+  - **Lead** (`mktLeads`, `MktLead`): pipeline a 6 fasi + **lead scoring** (`suggestScore` da email/telefono/
+    azienda/valore/fase, override manuale) + valore pipeline/conversione.
+  - **Automation** (`mktFlows`, `MktFlow`): flussi nurturing multi-step (email/whatsapp/sms) con trigger; i
+    messaggi sono testo per gli invii via link (no invio automatico, coerente con la scelta "solo link").
+  - **SEO & Content** (`mktSeo`, `MktSeoItem`, `kind: keyword|brief`): keyword (volume/difficoltà/posizione
+    manuali) + content brief con **outline via AI** (`AiAssist`).
+  - **Advertising/PPC** (`mktAds`, `MktAdCampaign`): campagne paid per piattaforma con budget/metriche manuali;
+    "Registra spesa" (`handleRegisterAdsSpend`) → **fattura passiva** in Finanza (`sector:'strategico'`).
+  - **Analytics** (`mktMetrics`, `MktMetric`): metriche GA4/Ads/social inserite a mano (pluggable API).
+  - **Inbox** (`mktInbox`, `MktInboxItem`): messaggi/commenti social unificati manuali, sentiment + gestito.
+  - **Consensi GDPR** (`mktConsents`, `MktConsent`): registro consensi (finalità/base giuridica/grant-revoke).
+  - **Attività** (`ActivityTab`, **derivato**, nessun nodo): feed delle modifiche recenti su tutti i nodi `mkt*`.
+  - App: stato/sub/handler save-delete per i 7 nodi (+ Cestino, sezioni `mkt-lead|mkt-flow|mkt-seo|mkt-ad|
+    mkt-metric|mkt-inbox|mkt-consent`) + `handleRegisterAdsSpend`; props via `ProjectsView` → `StrategicoView`.
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

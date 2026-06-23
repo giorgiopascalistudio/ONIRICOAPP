@@ -15,6 +15,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { onValueWritten } from 'firebase-functions/v2/database';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
@@ -28,6 +29,9 @@ setGlobalOptions({ region: 'europe-west1' });
 const DB_INSTANCE = 'oniricoapp-48953-default-rtdb';
 
 const SENDGRID_KEY = defineSecret('SENDGRID_KEY');
+// AI assist Strategico (§22-quater): chiave Anthropic. Impostare con
+//   firebase functions:secrets:set ANTHROPIC_KEY
+const ANTHROPIC_KEY = defineSecret('ANTHROPIC_KEY');
 // TODO: sostituire con un mittente VERIFICATO su SendGrid (Single Sender o dominio autenticato)
 const FROM_EMAIL = 'noreply@giorgiopascalistudio.it';
 
@@ -139,4 +143,68 @@ export const weeklyReport = onSchedule(
 export const monthlyReport = onSchedule(
   { schedule: '1 of month 08:00', timeZone: 'Europe/Rome', secrets: [SENDGRID_KEY] },
   async () => { await buildReport(Date.now() - 30 * 86400000, 'mensile'); }
+);
+
+// ---- 5. AI assist Strategico (§22-quater) ----
+// Callable: genera testo via Anthropic. Predisposta — funziona dopo deploy +
+// secret ANTHROPIC_KEY. Solo studio attivo (no cliente/partner).
+export const aiGenerate = onCall(
+  { secrets: [ANTHROPIC_KEY] },
+  async (req): Promise<{ text: string }> => {
+    if (!req.auth) throw new HttpsError('unauthenticated', 'Login richiesto.');
+    const user = (await db.ref(`users/${req.auth.uid}`).get()).val();
+    if (!user || user.active !== true || user.role === 'cliente' || user.role === 'partner')
+      throw new HttpsError('permission-denied', 'Riservato allo studio.');
+    const key = ANTHROPIC_KEY.value();
+    if (!key) throw new HttpsError('failed-precondition', 'AI non configurata: manca il secret ANTHROPIC_KEY.');
+    const { prompt, system, maxTokens, model } = (req.data || {}) as { prompt?: string; system?: string; maxTokens?: number; model?: string };
+    if (!prompt || !String(prompt).trim()) throw new HttpsError('invalid-argument', 'Prompt mancante.');
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: model || 'claude-sonnet-4-6',
+          max_tokens: Math.min(Number(maxTokens) || 700, 2000),
+          system: system || 'Sei un assistente marketing per uno studio italiano di architettura/ingegneria (gruppo Onirico). Rispondi in italiano, tono professionale e concreto, senza preamboli.',
+          messages: [{ role: 'user', content: String(prompt).slice(0, 8000) }],
+        }),
+      });
+      if (!resp.ok) { logger.error('Anthropic error', resp.status, await resp.text()); throw new HttpsError('internal', 'Errore del servizio AI.'); }
+      const j = await resp.json() as { content?: Array<{ text?: string }> };
+      const text = (j.content || []).map((b) => b.text || '').join('').trim();
+      return { text };
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      logger.error('aiGenerate failure', e);
+      throw new HttpsError('internal', 'Errore AI.');
+    }
+  }
+);
+
+// ---- 6. Report marketing mensile (§22) ----
+// Sintesi Strategico (eventi/campagne/sondaggi/social + economia) ad admin/manager.
+export const marketingMonthlyReport = onSchedule(
+  { schedule: '1 of month 08:30', timeZone: 'Europe/Rome', secrets: [SENDGRID_KEY] },
+  async () => {
+    const members = await studioMembers();
+    const adminMgr = members.filter((m) => m.role === 'admin' || m.role === 'manager');
+    if (!adminMgr.length) return;
+    const events = arr((await db.ref('mktEvents').get()).val());
+    const campaigns = arr((await db.ref('mktCampaigns').get()).val());
+    const surveys = arr((await db.ref('mktSurveys').get()).val());
+    const invA = arr((await db.ref('finInvoicesActive').get()).val()).filter((i: any) => i.sector === 'strategico');
+    const ricavi = invA.reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
+    const invitati = events.reduce((s: number, e: any) => s + Object.keys(e.invitees || {}).length, 0);
+    const accettati = events.reduce((s: number, e: any) => s + Object.values(e.invitees || {}).filter((x: any) => x.status === 'accettato').length, 0);
+    const title = 'Report marketing mensile';
+    const body = [
+      `Eventi: ${events.length} (${invitati} invitati, ${accettati} conferme)`,
+      `Campagne: ${campaigns.length}`,
+      `Sondaggi attivi: ${surveys.filter((s: any) => s.active).length}`,
+      `Ricavi Strategico (fatture): € ${ricavi.toLocaleString('it-IT')}`,
+    ].join('\n');
+    await Promise.all(adminMgr.map((m) => pushNotification(m.uid, { type: 'report', title, body: `${events.length} eventi · ${campaigns.length} campagne`, link: '#progetti' })));
+    await emailMembers(adminMgr, title, body);
+  }
 );

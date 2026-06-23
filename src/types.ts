@@ -812,6 +812,10 @@ export interface MarketingEvent {
   coverUrl?: string | null;
   invitees: Record<string, EventInvitee>; // keyed (uid o id contatto) → RSVP granulare
   status?: 'bozza' | 'pubblicato' | 'concluso';
+  // Economia evento (→ confluisce in Finanza, sector:'strategico')
+  budget?: number | null;          // costo previsto/sostenuto
+  revenue?: number | null;         // ricavi (biglietti/sponsor)
+  financeRefs?: string[];          // id voci finanza generate
   createdAt: number;
   updatedAt?: number;
 }
@@ -838,6 +842,11 @@ export interface Campaign {
   status: CampaignStatus;
   sentCount?: number;          // contatori manuali
   responses?: number;
+  // Economia campagna (→ confluisce in Finanza, sector:'strategico')
+  budget?: number | null;      // budget pianificato
+  spend?: number | null;       // spesa effettiva (es. ads)
+  utm?: CampaignUtm | null;    // tracciamento UTM
+  financeRefs?: string[];      // id voci finanza generate
   startAt?: number | null;
   createdAt: number;
   updatedAt?: number;
@@ -884,6 +893,277 @@ export interface SocialPost {
   campaignId?: string | null;  // campagna collegata
   reach?: number | null;       // metriche manuali
   likes?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Parametri UTM di una campagna (UTM builder, Strategico).
+export interface CampaignUtm {
+  baseUrl?: string | null;     // URL di destinazione
+  source?: string | null;      // utm_source
+  medium?: string | null;      // utm_medium
+  campaign?: string | null;    // utm_campaign
+  term?: string | null;        // utm_term
+  content?: string | null;     // utm_content
+}
+
+// ============================================================
+// Strategico — Economia (Blocco A): contratti/retainer + time tracking.
+// I dati economici confluiscono SEMPRE nei nodi finanza globali
+// (finInvoicesActive/finScadenze/finInvoicesPassive) con sector:'strategico'.
+// ============================================================
+export type MktContractCadence = 'mensile' | 'trimestrale' | 'annuale' | 'una_tantum';
+export type MktContractStatus = 'attivo' | 'sospeso' | 'concluso';
+// Una emissione (fattura+scadenza) generata da un contratto/retainer.
+export interface MktContractEmission {
+  id: string;
+  invoiceId: string;           // id fattura attiva generata (finInvoicesActive)
+  scadenzaId?: string | null;  // id scadenza generata (finScadenze)
+  periodLabel: string;         // es. "Giugno 2026"
+  amount: number;              // imponibile emesso
+  at: number;
+}
+// Contratto/retainer marketing — nodo mktContracts/<id>.
+export interface MktContract {
+  id: string;
+  title: string;
+  clientId?: string | null;        // rubrica clients
+  clientName: string;
+  amount: number;                  // imponibile per periodo
+  cadence: MktContractCadence;
+  vatPct?: number | null;          // default 22 (null/0 = no IVA)
+  cassaPct?: number | null;        // cassa previdenziale
+  startAt: number;
+  endAt?: number | null;           // scadenza/rinnovo
+  autoRenew?: boolean;
+  status: MktContractStatus;
+  scope?: string | null;           // servizi inclusi
+  projectId?: string | null;
+  emissions?: MktContractEmission[]; // storico fatturazioni ricorrenti
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// ============================================================
+// Strategico — Produzione (Blocco B): asset library, kanban deliverable, proofing.
+// ============================================================
+export type MktAssetKind = 'immagine' | 'video' | 'documento' | 'link';
+// Asset della libreria media — nodo mktAssets/<id>.
+export interface MktAsset {
+  id: string;
+  name: string;
+  kind: MktAssetKind;
+  url?: string | null;             // link o driveUrl (render con safeUrl)
+  driveFileId?: string | null;
+  tags?: string[];
+  clientId?: string | null;
+  campaignId?: string | null;
+  note?: string | null;
+  by?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export type MktDeliverableStage = 'da_fare' | 'in_lavorazione' | 'in_revisione' | 'approvato' | 'pubblicato';
+export type MktPriority = 'bassa' | 'media' | 'alta';
+// Deliverable della board kanban marketing — nodo mktDeliverables/<id>.
+export interface MktDeliverable {
+  id: string;
+  title: string;
+  stage: MktDeliverableStage;
+  clientId?: string | null;
+  clientName?: string | null;
+  campaignId?: string | null;
+  assigneeUid?: string | null;
+  assigneeName?: string | null;
+  dueAt?: number | null;
+  priority?: MktPriority;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Annotazione contestuale su una proof (coordinate in % sull'immagine).
+export interface ProofAnnotation {
+  id: string;
+  x: number;                       // 0-100 %
+  y: number;                       // 0-100 %
+  text: string;
+  by?: string | null;
+  byName?: string | null;
+  at: number;
+  resolved?: boolean;
+}
+export type ProofStatus = 'in_revisione' | 'approvato' | 'modifiche_richieste';
+// Proof/revisione di un creativo — nodo mktProofs/<id>.
+export interface MktProof {
+  id: string;
+  title: string;
+  imageUrl?: string | null;        // immagine/anteprima (url o driveUrl)
+  clientId?: string | null;
+  clientName?: string | null;
+  version: number;
+  status: ProofStatus;
+  annotations?: ProofAnnotation[];
+  deliverableId?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// ============================================================
+// Strategico — Acquisizione / Dati / Compliance (Blocchi D–K).
+// Moduli con dati inseriti a mano, predisposti per ricevere le API esterne
+// (SEO/Ads/GA4/social) in un secondo momento. I dati economici (spesa ads)
+// confluiscono in Finanza con sector:'strategico'.
+// ============================================================
+
+// D. Lead & pipeline marketing — nodo mktLeads/<id>.
+export type MktLeadStage = 'nuovo' | 'contattato' | 'qualificato' | 'proposta' | 'vinto' | 'perso';
+export interface MktLead {
+  id: string;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source?: string | null;          // origine (sito, referral, evento, ads…)
+  stage: MktLeadStage;
+  score?: number | null;           // 0-100 (suggerito dai campi, override manuale)
+  value?: number | null;           // valore potenziale €
+  tags?: string[];
+  ownerUid?: string | null;
+  ownerName?: string | null;
+  note?: string | null;
+  lastContactAt?: number | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// E. Marketing automation — flussi nurturing — nodo mktFlows/<id>.
+export type MktFlowChannel = 'email' | 'whatsapp' | 'sms';
+export interface MktFlowStep {
+  id: string;
+  offsetDays: number;
+  channel: MktFlowChannel;
+  subject?: string | null;
+  message: string;
+}
+export interface MktFlow {
+  id: string;
+  name: string;
+  trigger?: string | null;         // descrizione trigger (iscrizione, evento, acquisto…)
+  audienceTiers?: number[];
+  steps: MktFlowStep[];
+  active: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// F. SEO & Content — nodo mktSeo/<id> (kind discrimina keyword vs brief).
+export type MktSeoKind = 'keyword' | 'brief';
+export type MktBriefStatus = 'idea' | 'in_lavorazione' | 'pubblicato';
+export interface MktSeoItem {
+  id: string;
+  kind: MktSeoKind;
+  keyword?: string | null;
+  volume?: number | null;
+  difficulty?: number | null;      // 0-100
+  position?: number | null;        // posizione attuale (manuale)
+  url?: string | null;             // pagina target
+  intent?: string | null;
+  title?: string | null;           // brief
+  outline?: string | null;
+  status?: MktBriefStatus;
+  clientId?: string | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// G. Advertising & PPC — nodo mktAds/<id>.
+export type MktAdPlatform = 'google' | 'meta' | 'tiktok' | 'linkedin';
+export type MktAdStatus = 'attiva' | 'in_pausa' | 'conclusa';
+export interface MktAdCampaign {
+  id: string;
+  name: string;
+  platform: MktAdPlatform;
+  clientId?: string | null;
+  clientName?: string | null;
+  budget?: number | null;
+  spend?: number | null;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
+  status: MktAdStatus;
+  startAt?: number | null;
+  endAt?: number | null;
+  financeRefs?: string[];          // voci passive generate in Finanza
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// H. Analytics — metriche manuali (pluggable GA4/Ads) — nodo mktMetrics/<id>.
+export type MktMetricSource = 'ga4' | 'google_ads' | 'meta' | 'linkedin' | 'tiktok' | 'altro';
+export interface MktMetric {
+  id: string;
+  source: MktMetricSource;
+  metric: string;                  // es. sessioni, conversioni, CTR
+  value: number;
+  date: number;                    // periodo
+  clientId?: string | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// I. Inbox unificata (manuale) — nodo mktInbox/<id>.
+export type MktInboxChannel = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'email' | 'whatsapp' | 'altro';
+export type MktSentiment = 'positivo' | 'neutro' | 'negativo';
+export interface MktInboxItem {
+  id: string;
+  channel: MktInboxChannel;
+  from: string;                    // mittente/handle
+  text: string;
+  clientId?: string | null;
+  handled?: boolean;
+  sentiment?: MktSentiment | null;
+  at: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// J. GDPR — registro consensi — nodo mktConsents/<id>.
+export type MktConsentScope = 'marketing' | 'newsletter' | 'profilazione' | 'terzi';
+export interface MktConsent {
+  id: string;
+  subject: string;                 // nominativo/contatto
+  email?: string | null;
+  clientId?: string | null;
+  scopes: MktConsentScope[];
+  granted: boolean;
+  basis?: string | null;           // base giuridica
+  grantedAt?: number | null;
+  revokedAt?: number | null;
+  note?: string | null;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// Voce di time tracking — nodo mktTimeEntries/<id>.
+export interface MktTimeEntry {
+  id: string;
+  date: number;
+  minutes: number;
+  whoUid?: string | null;          // collaboratore
+  whoName?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  projectId?: string | null;
+  campaignId?: string | null;
+  activity?: string | null;        // tipologia attività
+  note?: string | null;
+  rate?: number | null;            // €/h → valore economico
+  billable?: boolean;              // fatturabile
+  billedInvoiceId?: string | null; // se già fatturata in Finanza
   createdAt: number;
   updatedAt?: number;
 }

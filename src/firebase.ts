@@ -30,6 +30,7 @@ import {
   remove,
   onValue
 } from 'firebase/database';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDzhJBHWFTWnU86Mx9i-Z-uJmYUJTXrF3k',
@@ -44,6 +45,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
+// Cloud Functions (region coerente con la RTDB). Usato per l'AI assist (§22-quater).
+export const functions = getFunctions(app, 'europe-west1');
+
+/**
+ * Chiama la Cloud Function `aiGenerate` (Anthropic). Predisposta: funziona solo
+ * dopo deploy + secret ANTHROPIC_KEY (vedi functions/README.md). In mancanza
+ * lancia un errore che la UI mostra con un messaggio "AI non configurata".
+ */
+export const callAi = async (data: { prompt: string; system?: string; maxTokens?: number; model?: string }): Promise<string> => {
+  const fn = httpsCallable<typeof data, { text: string }>(functions, 'aiGenerate');
+  const res = await fn(data);
+  return (res?.data?.text || '').toString();
+};
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });

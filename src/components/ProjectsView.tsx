@@ -39,7 +39,7 @@ import {
   FileSignature,
   Receipt
 } from 'lucide-react';
-import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost } from '../types';
+import { Project, UserProfile, FinanceMovement, Template, MatericoEstimate, MatericoRequest, UnicoDeal, Furnishing, Cantiere, Rapportino, Presenza, CantiereFoto, CantiereMateriale, ChecklistItem, CantiereDoc, CantiereSal, CantiereLog, CantiereRecord, CantiereMessage, ImpresaDoc, ImpresaRecord, ClientRecord, Quote, Task, MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, MktContract, MktTimeEntry, MktAsset, MktDeliverable, MktProof, MktLead, MktFlow, MktSeoItem, MktAdCampaign, MktMetric, MktInboxItem, MktConsent } from '../types';
 import { computoTotal, arrediTotals, studioParcella, quoteTotals, Computo, InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { QuoteEditor, emptyQuoteDraft } from './QuoteEditor';
 import { FurnishingsBoard } from './FurnishingsBoard';
@@ -137,6 +137,50 @@ interface ProjectsViewProps {
   onDeleteSurvey?: (id: string) => void;
   onSaveSocialPost?: (p: SocialPost) => void;
   onDeleteSocialPost?: (id: string) => void;
+  // Strategico — Economia (Blocco A)
+  mktContracts?: MktContract[];
+  mktTime?: MktTimeEntry[];
+  onSaveMktContract?: (k: MktContract) => void;
+  onDeleteMktContract?: (id: string) => void;
+  onEmitContractInvoice?: (id: string, periodLabel?: string) => void;
+  onSaveMktTimeEntry?: (t: MktTimeEntry) => void;
+  onDeleteMktTimeEntry?: (id: string) => void;
+  onBillTimeEntries?: (ids: string[]) => void;
+  onRegisterCampaignSpend?: (id: string) => void;
+  onRegisterEventFinance?: (id: string) => void;
+  // Strategico — Produzione (Blocco B)
+  mktAssets?: MktAsset[];
+  mktDeliverables?: MktDeliverable[];
+  mktProofs?: MktProof[];
+  onSaveMktAsset?: (a: MktAsset) => void;
+  onDeleteMktAsset?: (id: string) => void;
+  onSaveMktDeliverable?: (d: MktDeliverable) => void;
+  onDeleteMktDeliverable?: (id: string) => void;
+  onSaveMktProof?: (p: MktProof) => void;
+  onDeleteMktProof?: (id: string) => void;
+  // Strategico — Acquisizione/Dati/Compliance (Blocchi D–K)
+  mktLeads?: MktLead[];
+  mktFlows?: MktFlow[];
+  mktSeo?: MktSeoItem[];
+  mktAds?: MktAdCampaign[];
+  mktMetrics?: MktMetric[];
+  mktInbox?: MktInboxItem[];
+  mktConsents?: MktConsent[];
+  onSaveMktLead?: (l: MktLead) => void;
+  onDeleteMktLead?: (id: string) => void;
+  onSaveMktFlow?: (f: MktFlow) => void;
+  onDeleteMktFlow?: (id: string) => void;
+  onSaveMktSeo?: (s: MktSeoItem) => void;
+  onDeleteMktSeo?: (id: string) => void;
+  onSaveMktAd?: (a: MktAdCampaign) => void;
+  onDeleteMktAd?: (id: string) => void;
+  onRegisterAdsSpend?: (id: string) => void;
+  onSaveMktMetric?: (m: MktMetric) => void;
+  onDeleteMktMetric?: (id: string) => void;
+  onSaveMktInbox?: (i: MktInboxItem) => void;
+  onDeleteMktInbox?: (id: string) => void;
+  onSaveMktConsent?: (c: MktConsent) => void;
+  onDeleteMktConsent?: (id: string) => void;
   // Modulo Cantiere (lato studio)
   cantieri?: Record<string, Cantiere>;
   cantRapportini?: Record<string, Record<string, Rapportino>>;
@@ -243,6 +287,47 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onDeleteSurvey,
   onSaveSocialPost,
   onDeleteSocialPost,
+  mktContracts = [],
+  mktTime = [],
+  onSaveMktContract,
+  onDeleteMktContract,
+  onEmitContractInvoice,
+  onSaveMktTimeEntry,
+  onDeleteMktTimeEntry,
+  onBillTimeEntries,
+  onRegisterCampaignSpend,
+  onRegisterEventFinance,
+  mktAssets = [],
+  mktDeliverables = [],
+  mktProofs = [],
+  onSaveMktAsset,
+  onDeleteMktAsset,
+  onSaveMktDeliverable,
+  onDeleteMktDeliverable,
+  onSaveMktProof,
+  onDeleteMktProof,
+  mktLeads = [],
+  mktFlows = [],
+  mktSeo = [],
+  mktAds = [],
+  mktMetrics = [],
+  mktInbox = [],
+  mktConsents = [],
+  onSaveMktLead,
+  onDeleteMktLead,
+  onSaveMktFlow,
+  onDeleteMktFlow,
+  onSaveMktSeo,
+  onDeleteMktSeo,
+  onSaveMktAd,
+  onDeleteMktAd,
+  onRegisterAdsSpend,
+  onSaveMktMetric,
+  onDeleteMktMetric,
+  onSaveMktInbox,
+  onDeleteMktInbox,
+  onSaveMktConsent,
+  onDeleteMktConsent,
   cantieri = {},
   cantRapportini = {},
   cantPresenze = {},
@@ -2450,6 +2535,52 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onDeleteSurvey={onDeleteSurvey || (() => {})}
           onSaveSocialPost={onSaveSocialPost || (() => {})}
           onDeleteSocialPost={onDeleteSocialPost || (() => {})}
+          contracts={mktContracts}
+          timeEntries={mktTime}
+          projects={projects}
+          invoicesActive={finInvoicesActive}
+          invoicesPassive={finInvoicesPassive}
+          scadenze={finScadenze}
+          onSaveContract={onSaveMktContract || (() => {})}
+          onDeleteContract={onDeleteMktContract || (() => {})}
+          onEmitContractInvoice={onEmitContractInvoice || (() => {})}
+          onSaveTimeEntry={onSaveMktTimeEntry || (() => {})}
+          onDeleteTimeEntry={onDeleteMktTimeEntry || (() => {})}
+          onBillTimeEntries={onBillTimeEntries || (() => {})}
+          onRegisterCampaignSpend={onRegisterCampaignSpend || (() => {})}
+          onRegisterEventFinance={onRegisterEventFinance || (() => {})}
+          assets={mktAssets}
+          deliverables={mktDeliverables}
+          proofs={mktProofs}
+          team={users}
+          onSaveAsset={onSaveMktAsset || (() => {})}
+          onDeleteAsset={onDeleteMktAsset || (() => {})}
+          onSaveDeliverable={onSaveMktDeliverable || (() => {})}
+          onDeleteDeliverable={onDeleteMktDeliverable || (() => {})}
+          onSaveProof={onSaveMktProof || (() => {})}
+          onDeleteProof={onDeleteMktProof || (() => {})}
+          leads={mktLeads}
+          flows={mktFlows}
+          seo={mktSeo}
+          ads={mktAds}
+          metrics={mktMetrics}
+          inbox={mktInbox}
+          consents={mktConsents}
+          onSaveLead={onSaveMktLead || (() => {})}
+          onDeleteLead={onDeleteMktLead || (() => {})}
+          onSaveFlow={onSaveMktFlow || (() => {})}
+          onDeleteFlow={onDeleteMktFlow || (() => {})}
+          onSaveSeo={onSaveMktSeo || (() => {})}
+          onDeleteSeo={onDeleteMktSeo || (() => {})}
+          onSaveAd={onSaveMktAd || (() => {})}
+          onDeleteAd={onDeleteMktAd || (() => {})}
+          onRegisterAdsSpend={onRegisterAdsSpend || (() => {})}
+          onSaveMetric={onSaveMktMetric || (() => {})}
+          onDeleteMetric={onDeleteMktMetric || (() => {})}
+          onSaveInbox={onSaveMktInbox || (() => {})}
+          onDeleteInbox={onDeleteMktInbox || (() => {})}
+          onSaveConsent={onSaveMktConsent || (() => {})}
+          onDeleteConsent={onDeleteMktConsent || (() => {})}
         />
       ) : showMatericoInbox ? (
         <MatericoView
