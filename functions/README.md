@@ -15,6 +15,8 @@ Backend per le automazioni del gestionale: **notifiche in-app**, **email (SendGr
 | `dailyReminders` | Schedulata (ogni giorno 08:00) | ferie che iniziano fra 7 gg; scadenze entro 3 gg | notifiche + email |
 | `weeklyReport` | Schedulata (lunedì 08:00) | settimanale | report attività completate per collaboratore |
 | `monthlyReport` | Schedulata (1° del mese 08:00) | mensile | report attività completate per collaboratore |
+| `aiGenerate` | Callable (onCall) | dal modulo Strategico (AI assist) | genera testo via API Anthropic (copy campagne, sintesi report) — solo studio attivo |
+| `marketingMonthlyReport` | Schedulata (1° del mese 08:30) | mensile | sintesi marketing (eventi/campagne/sondaggi/economia) ad admin/manager |
 
 Regione: **europe-west1** (coerente con la RTDB). Le notifiche vengono scritte su `notifications/<uid>`
 (le legge l'app). Le email partono da `FROM_EMAIL` in `index.ts` — **da sostituire** con un mittente
@@ -31,6 +33,14 @@ verificato su SendGrid.
    firebase functions:secrets:set SENDGRID_KEY
    # incolla la API key quando richiesto
    ```
+5. **AI assist (opzionale, Strategico)**: per abilitare la generazione testi/sintesi (`aiGenerate`)
+   imposta la chiave Anthropic:
+   ```bash
+   firebase functions:secrets:set ANTHROPIC_KEY
+   # incolla la API key (console.anthropic.com) quando richiesto
+   ```
+   Finché non è impostata, nell'app i pulsanti "Genera con AI" mostrano un avviso e il resto funziona.
+   Modello default `claude-sonnet-4-6` (modificabile nel parametro `model` della chiamata).
 
 ## Build & deploy
 ```bash

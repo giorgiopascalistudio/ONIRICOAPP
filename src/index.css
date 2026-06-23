@@ -483,3 +483,11 @@ textarea:focus {
   *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; background-clip: content-box; }
   *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3) !important; background-clip: content-box; }
 }
+
+/* ---------- Stampa report (Strategico → Report white-label) ---------- */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute !important; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; }
+  .no-print { display: none !important; }
+}

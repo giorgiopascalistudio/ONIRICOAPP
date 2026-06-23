@@ -547,9 +547,12 @@ reporting/redditività, integrazioni esterne
   + `.firebaserc` (progetto `oniricoapp-48953`). Email via **SendGrid** (secret `SENDGRID_KEY`).
 - Funzioni: `onQuoteStatusChange` (preventivo accettato → notifica+email), `dailyReminders`
   (ferie 7gg prima + scadenze 3gg), `weeklyReport`/`monthlyReport` (attività completate per
-  collaboratore). Scrivono notifiche su `notifications/<uid>` (Admin SDK, bypassa le regole).
+  collaboratore), **`aiGenerate`** (callable AI Anthropic, §22-quater — secret `ANTHROPIC_KEY`, solo studio
+  attivo) e **`marketingMonthlyReport`** (sintesi marketing mensile ad admin/manager). Scrivono notifiche su
+  `notifications/<uid>` (Admin SDK, bypassa le regole).
 - **Deploy a carico utente** (vedi `functions/README.md`): `firebase login`, piano **Blaze**,
-  `firebase functions:secrets:set SENDGRID_KEY`, `firebase deploy --only functions`. Non verificabile
+  `firebase functions:secrets:set SENDGRID_KEY` (+ `ANTHROPIC_KEY` per l'AI assist),
+  `firebase deploy --only functions`. Non verificabile
   da Claude (serve auth/Blaze/API key). WhatsApp automatico = futuro (oggi link `wa.me` in app).
 - **Fallback senza Blaze — reminder in-app "soft"** (`App.tsx`, effetto `softRemRef`): finché le
   Functions non sono deployate, quando un membro dello studio apre l'app vengono generate notifiche
@@ -665,6 +668,17 @@ reporting/redditività, integrazioni esterne
   - App: stato `mktAssets`/`mktDeliverables`/`mktProofs`, sub studio, handler save/delete; props via
     `ProjectsView` → `StrategicoView` (passa anche `users` come `team` per gli assegnatari). **Da fare (B,
     fase portale)**: approvazione proof/deliverable e commenti lato cliente nel portale; lead scoring/segmentazione.
+- **Direzione (§22-quater, Blocco C) — gruppo "Panoramica" → tab "Report" + AI assist**:
+  - **Report white-label** (`ReportTab`, client-side, nessun nodo): KPI aggregati di Strategico (eventi/
+    adesione, campagne, social/reach, sondaggi/soddisfazione media, economia ricavi/costi/margine/MRR, ore) +
+    pulsante **Stampa/PDF** (CSS `@media print` con `.print-area`/`.no-print` in `index.css`, brandizzato).
+  - **AI assist** (`AiAssist`): componente che chiama la Cloud Function **`aiGenerate`** (Anthropic) via
+    `callAi` in `src/firebase.ts` (`getFunctions(app,'europe-west1')` + `httpsCallable`). Usato per generare il
+    **messaggio campagna** (CampaignModal) e la **sintesi direzionale** del report. **Predisposto**: senza deploy
+    Functions / senza secret `ANTHROPIC_KEY` mostra un avviso e non blocca nulla.
+  - **Backend** (`functions/src/index.ts`): `aiGenerate` (onCall, secret `ANTHROPIC_KEY`, solo studio attivo —
+    chiama l'API Anthropic Messages, modello default `claude-sonnet-4-6`) e `marketingMonthlyReport` (onSchedule,
+    sintesi mensile ad admin/manager via notifica + email SendGrid). Deploy a carico utente (vedi §18 e README).
 - **Eventi & inviti** (`mktEvents`): evento con `invitees` (map keyed per uid/contatto, RSVP
   `invitato|accettato|rifiutato|forse`). Invitati aggiunti dalla **rubrica `clients`**; chi ha
   `accountUid` riceve l'invito (notifica + indice `mktInvitesIndex/<uid>`) e risponde dal portale.

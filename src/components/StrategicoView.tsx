@@ -17,7 +17,7 @@ import {
   Star, Instagram, Facebook, Linkedin, Youtube, Clock, TrendingUp, ListChecks,
   LayoutDashboard, FileText, Timer, Wallet, ArrowRight, Link2, Copy, Receipt,
   Banknote, RefreshCw, AlertTriangle, Image as ImageIcon, Film, Search, Tag,
-  Columns, Eye, Check, FolderOpen,
+  Columns, Eye, Check, FolderOpen, Sparkles, Printer, FileBarChart,
 } from 'lucide-react';
 import type {
   MarketingEvent, Campaign, Survey, SurveyResponse, SocialPost, ClientRecord,
@@ -28,6 +28,7 @@ import type {
 } from '../types';
 import type { InvoiceActive, InvoicePassive, ScadenzaItem } from '../finance';
 import { eur, safeUrl } from '../utils';
+import { callAi } from '../firebase';
 
 const ACCENT = '#b45309';
 const IN = 'w-full h-10 px-3 text-[14px] border border-[#e2e2e2] rounded-lg bg-white outline-none focus:border-[#b45309]';
@@ -86,13 +87,14 @@ interface Props {
 }
 
 type Tab = 'dashboard' | 'contratti' | 'time' | 'economia' | 'eventi' | 'campagne' | 'sondaggi' | 'social' | 'analisi'
-  | 'asset' | 'deliverable' | 'proof';
+  | 'asset' | 'deliverable' | 'proof' | 'report';
 
 // Raggruppamento coerente delle funzioni (usato dalla dashboard + pillbar).
 const TAB_GROUPS: { group: string; items: { id: Tab; label: string; icon: React.ElementType; desc: string }[] }[] = [
   { group: 'Panoramica', items: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Quadro generale di Strategico' },
     { id: 'analisi', label: 'Analisi', icon: BarChart3, desc: 'Adesione, risposta, conversione, soddisfazione' },
+    { id: 'report', label: 'Report', icon: FileBarChart, desc: 'Report white-label + sintesi AI' },
   ] },
   { group: 'Economia', items: [
     { id: 'contratti', label: 'Contratti & Retainer', icon: FileText, desc: 'Abbonamenti ricorrenti → fattura in Finanza' },
@@ -153,6 +155,7 @@ export const StrategicoView: React.FC<Props> = (props) => {
       {tab === 'proof' && <ProofsTab proofs={props.proofs} clients={clients} onSave={props.onSaveProof} onDelete={props.onDeleteProof} />}
       {tab === 'asset' && <AssetsTab assets={props.assets} clients={clients} campaigns={campaigns} onSave={props.onSaveAsset} onDelete={props.onDeleteAsset} />}
       {tab === 'analisi' && <AnalisiTab events={events} campaigns={campaigns} surveys={surveys} social={social} responses={responses} />}
+      {tab === 'report' && <ReportTab {...props} />}
     </div>
   );
 };
@@ -436,7 +439,12 @@ const CampaignModal: React.FC<{ campaign: Campaign; clients: Record<string, Clie
         <Field label="Canale"><select className={IN} value={c.channel} onChange={(e) => set({ channel: e.target.value as CampaignChannel })}>{CHANNELS.map((ch) => <option key={ch.id} value={ch.id}>{ch.label}</option>)}</select></Field>
         <Field label="Stagionalità"><input className={IN} value={c.season || ''} onChange={(e) => set({ season: e.target.value })} placeholder="Es. Natale 2026" /></Field>
         <Field label="Obiettivo" full><input className={IN} value={c.goal || ''} onChange={(e) => set({ goal: e.target.value })} placeholder="Es. Riattivare clienti fascia 2" /></Field>
-        <Field label="Messaggio" full><textarea className={`${IN} h-auto py-2 min-h-[70px]`} value={c.message || ''} onChange={(e) => set({ message: e.target.value })} placeholder="Testo del messaggio (usato nei link email/WhatsApp)…" /></Field>
+        <Field label="Messaggio" full>
+          <textarea className={`${IN} h-auto py-2 min-h-[70px]`} value={c.message || ''} onChange={(e) => set({ message: e.target.value })} placeholder="Testo del messaggio (usato nei link email/WhatsApp)…" />
+          <AiAssist label="Genera messaggio con AI"
+            build={() => `Scrivi un breve messaggio di marketing (canale: ${c.channel}) per la campagna "${c.name}". Obiettivo: ${c.goal || 'coinvolgere i clienti'}. Stagione/contesto: ${c.season || 'n/d'}. Tono coerente con uno studio di architettura/ingegneria. Max 4 frasi, pronto da inviare, senza segnaposto.`}
+            onResult={(t) => set({ message: t })} />
+        </Field>
         <Field label="Stato"><select className={IN} value={c.status} onChange={(e) => set({ status: e.target.value as Campaign['status'] })}><option value="bozza">Bozza</option><option value="attiva">Attiva</option><option value="conclusa">Conclusa</option></select></Field>
         <Field label="Fasce destinatarie">
           <div className="flex gap-1.5 items-center h-10">
@@ -1456,5 +1464,110 @@ const ProofViewer: React.FC<{ proof: MktProof; onClose: () => void; onSave: (p: 
         </div>
       </motion.div>
     </motion.div>
+  );
+};
+
+/* ============================== AI ASSIST (Blocco C) ============================== */
+// Pulsante riusabile: chiama la Cloud Function `aiGenerate` (Anthropic). Predisposto:
+// se l'AI non è ancora configurata (no deploy / no ANTHROPIC_KEY) mostra un avviso.
+const AiAssist: React.FC<{ build: () => string; system?: string; onResult: (text: string) => void; label?: string; maxTokens?: number }> = ({ build, system, onResult, label, maxTokens }) => {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const run = async () => {
+    setErr(''); setLoading(true);
+    try {
+      const text = await callAi({ prompt: build(), system, maxTokens });
+      if (text) onResult(text); else setErr('Nessun testo generato.');
+    } catch (e: any) {
+      const code = e?.code || '';
+      setErr(code.includes('failed-precondition') ? 'AI non ancora configurata (manca ANTHROPIC_KEY nelle Cloud Functions).'
+        : code.includes('unauthenticated') || code.includes('permission') ? 'Permesso negato.'
+        : 'AI non raggiungibile: deploya le Cloud Functions e imposta ANTHROPIC_KEY (vedi functions/README).');
+    } finally { setLoading(false); }
+  };
+  return (
+    <div className="flex flex-col gap-1 mt-1.5">
+      <button type="button" onClick={run} disabled={loading}
+        className="self-start flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-50"
+        style={{ background: '#fff7ed', color: ACCENT, borderColor: '#fed7aa' }}>
+        <Sparkles className="w-3.5 h-3.5" /> {loading ? 'Genero…' : (label || 'Genera con AI')}
+      </button>
+      {err && <span className="text-[11px] text-red-500">{err}</span>}
+    </div>
+  );
+};
+
+/* ============================== REPORT (white-label + AI) ============================== */
+const ReportTab: React.FC<Props> = (props) => {
+  const { events, campaigns, surveys, social, responses, contracts, timeEntries, invoicesActive, invoicesPassive, scadenze } = props;
+  const [summary, setSummary] = useState('');
+  const period = new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+
+  // KPI aggregati
+  const invitati = events.reduce((s, e) => s + Object.keys(e.invitees || {}).length, 0);
+  const accettati = events.reduce((s, e) => s + Object.values(e.invitees || {}).filter((i) => i.status === 'accettato').length, 0);
+  const adesione = invitati ? Math.round((accettati / invitati) * 100) : 0;
+  const totResp = Object.values(responses).reduce((s, r) => s + Object.keys(r || {}).length, 0);
+  const reach = social.reduce((s, p) => s + (Number(p.reach) || 0), 0);
+  const strA = invoicesActive.filter((i) => i.sector === 'strategico');
+  const strP = invoicesPassive.filter((i) => i.sector === 'strategico');
+  const ricavi = strA.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const costi = strP.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const mrr = contracts.reduce((s, k) => s + monthlyOf(k), 0);
+  const ore = timeEntries.reduce((s, t) => s + t.minutes, 0) / 60;
+  // soddisfazione media (domande rating)
+  let ratingSum = 0, ratingN = 0;
+  surveys.forEach((sv) => Object.values(responses[sv.id] || {}).forEach((r) => sv.questions.filter((q) => q.type === 'rating').forEach((q) => { const v = Number(r.answers?.[q.id]); if (!isNaN(v)) { ratingSum += v; ratingN++; } })));
+  const satisf = ratingN ? (ratingSum / ratingN).toFixed(1) : '—';
+
+  const ROWS: { label: string; value: string }[] = [
+    { label: 'Eventi', value: `${events.length} (${adesione}% adesione)` },
+    { label: 'Campagne', value: `${campaigns.length}` },
+    { label: 'Post social', value: `${social.length} (reach ${reach.toLocaleString('it-IT')})` },
+    { label: 'Risposte sondaggi', value: `${totResp} (soddisfazione ${satisf}/5)` },
+    { label: 'Ricavo ricorrente / mese', value: eur(mrr) },
+    { label: 'Ricavi Strategico', value: eur(ricavi) },
+    { label: 'Costi Strategico', value: eur(costi) },
+    { label: 'Margine', value: eur(ricavi - costi) },
+    { label: 'Ore tracciate', value: `${ore.toFixed(1)}h` },
+  ];
+
+  const buildPrompt = () => `Scrivi una sintesi direzionale (executive summary) per un report marketing mensile (${period}) del gruppo Onirico. Dati: ${ROWS.map((r) => `${r.label}: ${r.value}`).join('; ')}. 3-4 frasi, evidenzia risultati e una raccomandazione operativa.`;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap no-print">
+        <span className="text-[12.5px] text-stone-400">Report sintetico condivisibile. Usa "Stampa / PDF" per esportarlo brandizzato.</span>
+        <button onClick={() => window.print()} className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[#1b1b1b] hover:bg-black text-white font-bold text-[13px] border-none cursor-pointer"><Printer className="w-4 h-4" /> Stampa / PDF</button>
+      </div>
+
+      <div className="bg-white border border-[#e2e2e2] rounded-[22px] p-6 print-area">
+        <div className="flex items-center justify-between border-b border-[#ececec] pb-4 mb-4">
+          <div>
+            <b className="text-[20px] tracking-tight">Report marketing</b>
+            <p className="text-[12.5px] text-stone-400 capitalize">{period} · Onirico Strategico</p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white" style={{ background: ACCENT }}><Megaphone className="w-5 h-5" /></div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {ROWS.map((r) => (
+            <div key={r.label} className="border border-[#eee] rounded-[16px] p-3">
+              <span className="text-[10.5px] font-bold uppercase tracking-wide text-stone-400">{r.label}</span>
+              <b className="block text-[18px] tracking-tight mt-1" style={{ color: ACCENT }}>{r.value}</b>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 border-t border-[#ececec] pt-4">
+          <div className="flex items-center justify-between no-print">
+            <b className="text-[14px] flex items-center gap-1.5"><Sparkles className="w-4 h-4" style={{ color: ACCENT }} /> Sintesi direzionale</b>
+          </div>
+          {summary
+            ? <p className="text-[13.5px] leading-relaxed text-stone-700 mt-2 whitespace-pre-wrap">{summary}</p>
+            : <p className="text-[12.5px] italic text-stone-400 mt-2 no-print">Genera una sintesi automatica dei dati con l'AI.</p>}
+          <div className="no-print"><AiAssist label="Genera sintesi con AI" maxTokens={400} build={buildPrompt} onResult={setSummary} /></div>
+        </div>
+      </div>
+    </div>
   );
 };
